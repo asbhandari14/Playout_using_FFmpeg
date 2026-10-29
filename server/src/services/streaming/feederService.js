@@ -8,9 +8,10 @@ import { SERVER_ROOT } from '../../config/paths.js';
 import { PLAYLIST_ITEM_STATUS } from '../../config/constants.js';
 
 export class FeederService {
-  constructor(channelId, encoderProcess, options = {}) {
+  constructor(channelId, encoderProcess, options = {}, encoder = null) {
     this.channelId = channelId;
     this.encoderProcess = encoderProcess;
+    this.encoder = encoder;
     this.isRunning = false;
     this.currentDecoder = null;
     this.currentIndex = options.startIndex || 0;
@@ -23,6 +24,66 @@ export class FeederService {
     this.isScheduleActive = false;
     this.wasInterruptedBySchedule = false;
     this.interruptedState = null;
+    this.scheduleBrandingSnapshot = null;
+  }
+
+  getEncoder() {
+    return this.encoder || null;
+  }
+
+  /**
+   * Restore all branding overlays (ticker, bug, ashton, lband) that were active before schedule started
+   */
+  async restorePreScheduleBranding() {
+    try {
+      const channelDoc = await Channel.findById(this.channelId);
+      const snap = this.scheduleBrandingSnapshot || channelDoc?.branding?.preScheduleBranding;
+      if (!snap) return;
+
+      this.scheduleBrandingSnapshot = null;
+      console.log(`[Feeder:${this.channelId}] Restoring pre-schedule branding on air:`, snap);
+
+      const encoder = this.getEncoder();
+      if (encoder && encoder.isRunning) {
+        if (snap.bug?.enabled) {
+          await encoder.setBugEnabled(true).catch(() => {});
+        }
+        if (snap.ticker?.enabled) {
+          await encoder.setTickerEnabled(true).catch(() => {});
+        }
+        if (snap.ashton?.enabled) {
+          await encoder.setAshtonLive(true, snap.ashton.squeeze !== false).catch(() => {});
+        }
+        if (snap.lband?.enabled) {
+          await encoder.setLBandEnabled(true).catch(() => {});
+        }
+      }
+
+      await Channel.findByIdAndUpdate(this.channelId, {
+        $set: {
+          'branding.preScheduleBranding': null,
+          'branding.ticker.enabled': !!snap.ticker?.enabled,
+          'branding.bug.enabled': !!snap.bug?.enabled,
+          'branding.ashton.enabled': !!snap.ashton?.enabled,
+          'branding.ashton.squeeze': snap.ashton?.squeeze !== false,
+          'branding.lband.enabled': !!snap.lband?.enabled
+        }
+      });
+
+      if (io) {
+        io.to(`channel:${this.channelId}`).emit('branding_updated', {
+          type: 'all',
+          branding: {
+            ticker: { enabled: !!snap.ticker?.enabled },
+            bug: { enabled: !!snap.bug?.enabled },
+            ashton: { enabled: !!snap.ashton?.enabled, squeeze: snap.ashton?.squeeze !== false },
+            lband: { enabled: !!snap.lband?.enabled }
+          }
+        });
+      }
+    } catch (err) {
+      console.error(`[Feeder:${this.channelId}] Error restoring pre-schedule branding:`, err);
+    }
   }
 
   getCurrentPlaybackPosition() {
@@ -319,7 +380,68 @@ export class FeederService {
       `[Feeder:${this.channelId}] >>> PAUSING PLAYLIST ITEM #${this.interruptedState.index + 1} AT ${this.interruptedState.offsetSeconds.toFixed(1)}s FOR SCHEDULE: "${schedule.title}" (${scheduledAssets.length} video(s)) <<<`
     );
 
-    // 2. Kill current regular decoder so it immediately stops streaming regular frames
+    // 2. Snapshot current branding state (ticker, bug, ashton, lband) and suppress them on air during schedule
+    try {
+      const channelDoc = await Channel.findById(this.channelId);
+      this.scheduleBrandingSnapshot = {
+        ticker: { enabled: !!channelDoc?.branding?.ticker?.enabled },
+        bug: { enabled: !!channelDoc?.branding?.bug?.enabled },
+        ashton: {
+          enabled: !!channelDoc?.branding?.ashton?.enabled,
+          squeeze: channelDoc?.branding?.ashton?.squeeze !== false
+        },
+        lband: { enabled: !!channelDoc?.branding?.lband?.enabled }
+      };
+
+      console.log(
+        `[Feeder:${this.channelId}] Saved pre-schedule branding snapshot for "${schedule.title}":`,
+        this.scheduleBrandingSnapshot
+      );
+
+      // Immediately suppress ticker, bug, ashton, and lband on air via live ZMQ
+      const encoder = this.getEncoder();
+      if (encoder && encoder.isRunning) {
+        if (this.scheduleBrandingSnapshot.ticker.enabled) {
+          await encoder.setTickerEnabled(false).catch(() => {});
+        }
+        if (this.scheduleBrandingSnapshot.bug.enabled) {
+          await encoder.setBugEnabled(false).catch(() => {});
+        }
+        if (this.scheduleBrandingSnapshot.ashton.enabled) {
+          await encoder.setAshtonLive(false).catch(() => {});
+        }
+        if (this.scheduleBrandingSnapshot.lband.enabled) {
+          await encoder.setLBandEnabled(false).catch(() => {});
+        }
+      }
+
+      // Persist snapshot and suppress branding states in DB so UI reflects that overlays are suppressed
+      await Channel.findByIdAndUpdate(this.channelId, {
+        $set: {
+          'branding.preScheduleBranding': this.scheduleBrandingSnapshot,
+          'branding.ticker.enabled': false,
+          'branding.bug.enabled': false,
+          'branding.ashton.enabled': false,
+          'branding.lband.enabled': false
+        }
+      });
+
+      if (io) {
+        io.to(`channel:${this.channelId}`).emit('branding_updated', {
+          type: 'all',
+          branding: {
+            ticker: { enabled: false },
+            bug: { enabled: false },
+            ashton: { enabled: false },
+            lband: { enabled: false }
+          }
+        });
+      }
+    } catch (bErr) {
+      console.warn(`[Feeder:${this.channelId}] Warning suppressing branding for schedule:`, bErr.message);
+    }
+
+    // 3. Kill current regular decoder so it immediately stops streaming regular frames
     if (this.currentDecoder) {
       try {
         this.currentDecoder.stdout.unpipe();
@@ -415,8 +537,11 @@ export class FeederService {
 
     // 5. Scheduled asset has completed!
     console.log(
-      `[Feeder:${this.channelId}] >>> SCHEDULE "${schedule.title}" COMPLETE. RESUMING PAUSED VIDEO AT ${this.interruptedState.offsetSeconds.toFixed(1)}s <<<`
+      `[Feeder:${this.channelId}] >>> SCHEDULE "${schedule.title}" COMPLETE. RESTORING PRE-SCHEDULE BRANDING & RESUMING PAUSED VIDEO AT ${this.interruptedState.offsetSeconds.toFixed(1)}s <<<`
     );
+
+    // Restore pre-schedule branding on air and in DB (ticker, bug, ashton, lband)
+    await this.restorePreScheduleBranding();
 
     if (io) {
       io.to(`channel:${this.channelId}`).emit('schedule_ended', {
@@ -438,6 +563,9 @@ export class FeederService {
 
   stop() {
     this.isRunning = false;
+    if (this.isScheduleActive && this.scheduleBrandingSnapshot) {
+      this.restorePreScheduleBranding().catch(() => {});
+    }
     this.isScheduleActive = false;
     this.wasInterruptedBySchedule = false;
     this.interruptedState = null;

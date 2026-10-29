@@ -110,6 +110,10 @@ const channelSchema = new mongoose.Schema(
         assetPath: { type: String, default: '' },
         squeeze: { type: Boolean, default: true },
         height: { type: Number, default: 160 }
+      },
+      preScheduleBranding: {
+        type: mongoose.Schema.Types.Mixed,
+        default: null
       }
     },
     createdBy: {

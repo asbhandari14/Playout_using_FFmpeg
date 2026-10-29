@@ -19,7 +19,7 @@ import {
   Crosshair
 } from 'lucide-react';
 
-export default function LiveControls({ channel, onBrandingUpdated }) {
+export default function LiveControls({ channel, onBrandingUpdated, currentOnAirSchedule = null }) {
   const [activeTab, setActiveTab] = useState('logo');
   const logoInputRef = useRef(null);
   const bugInputRef = useRef(null);
@@ -635,6 +635,21 @@ export default function LiveControls({ channel, onBrandingUpdated }) {
         {/* ================= BUG TAB ================= */}
         {activeTab === 'bug' && (
           <div className="space-y-5">
+            {/* Active Schedule Notification */}
+            {currentOnAirSchedule && (
+              <div className="p-3 rounded-2xl bg-amber-950/40 border border-amber-500/40 text-amber-200 flex items-start gap-2.5">
+                <Sparkles size={16} className="text-amber-400 shrink-0 mt-0.5 animate-pulse" />
+                <div className="text-xs">
+                  <span className="font-bold text-amber-300 block">
+                    Schedule Active: "{currentOnAirSchedule.title}"
+                  </span>
+                  <span className="text-[10px] text-amber-200/80 leading-relaxed block mt-0.5">
+                    Station overlays (Ticker, Bug, Ashton, L-Band) are hidden during schedule playout and will restore automatically when the schedule ends.
+                  </span>
+                </div>
+              </div>
+            )}
+
             {/* Box: Station Bug Upload */}
             <div className="bg-[#151a24] border border-[#232c3d] rounded-2xl p-4 space-y-4">
               <div className="flex items-center justify-between">
@@ -913,6 +928,21 @@ export default function LiveControls({ channel, onBrandingUpdated }) {
         {/* ================= TICKER TAB ================= */}
         {activeTab === 'ticker' && (
           <div className="space-y-4">
+            {/* Active Schedule Notification */}
+            {currentOnAirSchedule && (
+              <div className="p-3 rounded-2xl bg-amber-950/40 border border-amber-500/40 text-amber-200 flex items-start gap-2.5">
+                <Sparkles size={16} className="text-amber-400 shrink-0 mt-0.5 animate-pulse" />
+                <div className="text-xs">
+                  <span className="font-bold text-amber-300 block">
+                    Schedule Active: "{currentOnAirSchedule.title}"
+                  </span>
+                  <span className="text-[10px] text-amber-200/80 leading-relaxed block mt-0.5">
+                    Station overlays (Ticker, Bug, Ashton, L-Band) are hidden during schedule playout and will restore automatically when the schedule ends.
+                  </span>
+                </div>
+              </div>
+            )}
+
             {/* Header banner */}
             <div className="bg-[#151a24] border border-[#232c3d] rounded-2xl p-4 space-y-3">
               <div className="flex items-center justify-between">

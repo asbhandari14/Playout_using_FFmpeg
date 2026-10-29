@@ -85,6 +85,8 @@ export default function ControlRoomPage() {
     socket.on('branding_updated', (data) => {
       if (data?.type && data[data.type]) {
         dispatch(updateCurrentChannelBranding({ [data.type]: data[data.type] }));
+      } else if (data?.branding) {
+        dispatch(updateCurrentChannelBranding(data.branding));
       }
       dispatch(fetchChannelById(channelId));
     });
@@ -189,6 +191,7 @@ export default function ControlRoomPage() {
         <div className="w-[310px] xl:w-[350px] shrink-0 h-full flex flex-col">
           <LiveControls
             channel={currentChannel}
+            currentOnAirSchedule={currentOnAirSchedule}
             onBrandingUpdated={(payload) => {
               if (!payload) return;
               if (payload.type && payload.data) {

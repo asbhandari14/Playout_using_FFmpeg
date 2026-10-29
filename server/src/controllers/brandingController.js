@@ -304,7 +304,16 @@ export const updateBugBranding = async (req, res, next) => {
         };
       }
 
-      if (currentBug.enabled !== false) {
+      if (stream.feeder?.isScheduleActive && stream.feeder.scheduleBrandingSnapshot) {
+        if (enabled !== undefined) {
+          stream.feeder.scheduleBrandingSnapshot.bug.enabled = !!enabled;
+          await Channel.findByIdAndUpdate(channelId, {
+            $set: { 'branding.preScheduleBranding.bug.enabled': !!enabled }
+          });
+        }
+        // Keep bug suppressed on air while schedule is active
+        await stream.encoder.setBugEnabled(false);
+      } else if (currentBug.enabled !== false) {
         if (sizeActuallyChanged) {
           console.log(`[Branding] Dynamic live bug resize to ${currentBug.sizePercent}% via ZMQ...`);
           await stream.encoder.setBugSize(currentBug.sizePercent);
@@ -562,7 +571,16 @@ export const updateTickerBranding = async (req, res, next) => {
         (paddingY !== undefined && Number(paddingY) !== previousPaddingY) ||
         textChanged;
 
-      if (dimensionsChanged) {
+      if (stream.feeder?.isScheduleActive && stream.feeder.scheduleBrandingSnapshot) {
+        if (enabled !== undefined) {
+          stream.feeder.scheduleBrandingSnapshot.ticker.enabled = !!enabled;
+          await Channel.findByIdAndUpdate(channelId, {
+            $set: { 'branding.preScheduleBranding.ticker.enabled': !!enabled }
+          });
+        }
+        // Keep ticker suppressed on air while schedule is active
+        await stream.encoder.setTickerEnabled(false);
+      } else if (dimensionsChanged) {
         console.log(`[Branding] Ticker dimensions or text changed. Seamlessly reloading live stream...`);
         await streamManager.restartStream(channelId);
       } else {
@@ -572,7 +590,7 @@ export const updateTickerBranding = async (req, res, next) => {
           currentTicker.alignment,
           tickerMeta
         );
-        await stream.encoder.setTickerEnabled(true);
+        await stream.encoder.setTickerEnabled(currentTicker.enabled !== false);
       }
     }
 
@@ -696,7 +714,16 @@ export const updateLBandBranding = async (req, res, next) => {
         (windowX !== undefined && Number(windowX) !== previousX) ||
         (windowY !== undefined && Number(windowY) !== previousY);
 
-      if (dimensionsChanged) {
+      if (stream.feeder?.isScheduleActive && stream.feeder.scheduleBrandingSnapshot) {
+        if (enabled !== undefined) {
+          stream.feeder.scheduleBrandingSnapshot.lband.enabled = !!enabled;
+          await Channel.findByIdAndUpdate(channelId, {
+            $set: { 'branding.preScheduleBranding.lband.enabled': !!enabled }
+          });
+        }
+        // Keep L-Band suppressed on air while schedule is active
+        await stream.encoder.setLBandEnabled(false);
+      } else if (dimensionsChanged) {
         console.log(`[Branding] L-Band cutout dimensions changed. Restarting stream seamlessly...`);
         await streamManager.restartStream(channelId);
       } else {
@@ -898,8 +925,22 @@ export const updateAshtonBranding = async (req, res, next) => {
         };
       }
 
-      const heightChanged = height !== undefined && Number(height) !== previousHeight;
-      if (heightChanged) {
+      if (stream.feeder?.isScheduleActive && stream.feeder.scheduleBrandingSnapshot) {
+        if (enabled !== undefined) {
+          stream.feeder.scheduleBrandingSnapshot.ashton.enabled = !!enabled;
+        }
+        if (squeeze !== undefined) {
+          stream.feeder.scheduleBrandingSnapshot.ashton.squeeze = !!squeeze;
+        }
+        await Channel.findByIdAndUpdate(channelId, {
+          $set: {
+            'branding.preScheduleBranding.ashton.enabled': stream.feeder.scheduleBrandingSnapshot.ashton.enabled,
+            'branding.preScheduleBranding.ashton.squeeze': stream.feeder.scheduleBrandingSnapshot.ashton.squeeze
+          }
+        });
+        // Keep Ashton suppressed on air while schedule is active
+        await stream.encoder.setAshtonLive(false);
+      } else if (heightChanged) {
         console.log(`[Branding] Ashton Band height changed. Restarting stream seamlessly...`);
         await streamManager.restartStream(channelId);
       } else {

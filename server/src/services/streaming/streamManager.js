@@ -57,12 +57,37 @@ class StreamManager {
       await new Promise((r) => setTimeout(r, 600));
     }
 
+    // Restore any leftover preScheduleBranding snapshot if a previous schedule was interrupted
+    if (channel.branding?.preScheduleBranding) {
+      const snap = channel.branding.preScheduleBranding;
+      console.log(`[StreamManager] Restoring leftover preScheduleBranding for '${channel.name}':`, snap);
+      if (channel.branding.ticker) channel.branding.ticker.enabled = !!snap.ticker?.enabled;
+      if (channel.branding.bug) channel.branding.bug.enabled = !!snap.bug?.enabled;
+      if (channel.branding.ashton) {
+        channel.branding.ashton.enabled = !!snap.ashton?.enabled;
+        channel.branding.ashton.squeeze = snap.ashton?.squeeze !== false;
+      }
+      if (channel.branding.lband) channel.branding.lband.enabled = !!snap.lband?.enabled;
+      channel.branding.preScheduleBranding = null;
+      await Channel.findByIdAndUpdate(channelId, {
+        $set: {
+          'branding.ticker.enabled': !!snap.ticker?.enabled,
+          'branding.bug.enabled': !!snap.bug?.enabled,
+          'branding.ashton.enabled': !!snap.ashton?.enabled,
+          'branding.ashton.squeeze': snap.ashton?.squeeze !== false,
+          'branding.lband.enabled': !!snap.lband?.enabled,
+          'branding.preScheduleBranding': null
+        }
+      });
+    }
+
     // 1. Launch long-running Encoder process
     const encoder = new EncoderService(channel, zmqPort);
     await encoder.start();
 
     // 2. Launch playlist Feeder process
-    const feeder = new FeederService(channelId, encoder.process, { startIndex, startOffsetSeconds });
+    const feeder = new FeederService(channelId, encoder.process, { startIndex, startOffsetSeconds }, encoder);
+    feeder.encoder = encoder;
     feeder.start();
 
     const streamInstance = {
