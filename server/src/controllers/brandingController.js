@@ -247,6 +247,233 @@ export const uploadLogoFile = async (req, res, next) => {
   }
 };
 
+// PUT /api/channels/:channelId/bug
+export const updateBugBranding = async (req, res, next) => {
+  try {
+    const { channelId } = req.params;
+    const {
+      assetPath,
+      enabled,
+      position,
+      positionX,
+      positionY,
+      sizePercent,
+      marginX,
+      marginY
+    } = req.body || {};
+
+    const channel = await Channel.findById(channelId);
+    if (!channel) {
+      return res.status(404).json({ message: 'Channel not found' });
+    }
+
+    const previousBug = channel.branding?.bug || {};
+    const previousSize = Number(previousBug.sizePercent ?? 8);
+    const requestedSize = sizePercent !== undefined ? Number(sizePercent) : undefined;
+    const sizeActuallyChanged = requestedSize !== undefined && requestedSize !== previousSize;
+
+    const updateFields = {};
+    if (assetPath !== undefined) updateFields['branding.bug.assetPath'] = assetPath;
+    if (enabled !== undefined) updateFields['branding.bug.enabled'] = !!enabled;
+    if (position !== undefined) updateFields['branding.bug.position'] = position;
+    if (positionX !== undefined) updateFields['branding.bug.positionX'] = Number(positionX);
+    if (positionY !== undefined) updateFields['branding.bug.positionY'] = Number(positionY);
+    if (sizePercent !== undefined) updateFields['branding.bug.sizePercent'] = Number(sizePercent);
+    if (marginX !== undefined) updateFields['branding.bug.marginX'] = Number(marginX);
+    if (marginY !== undefined) updateFields['branding.bug.marginY'] = Number(marginY);
+
+    const updatedChannel = await Channel.findByIdAndUpdate(
+      channelId,
+      { $set: updateFields },
+      { new: true, runValidators: true }
+    );
+    if (!updatedChannel) {
+      return res.status(404).json({ message: 'Channel not found' });
+    }
+
+    const currentBug = updatedChannel.branding?.bug || {};
+
+    // LIVE STREAM CONTROL: instant live ZMQ commands with ZERO stream restarts
+    const stream = streamManager.getStream(channelId);
+    if (stream?.encoder?.isRunning) {
+      if (stream.encoder.channel) {
+        if (!stream.encoder.channel.branding) stream.encoder.channel.branding = {};
+        stream.encoder.channel.branding.bug = {
+          ...stream.encoder.channel.branding.bug,
+          ...currentBug
+        };
+      }
+
+      if (currentBug.enabled !== false) {
+        if (sizeActuallyChanged) {
+          console.log(`[Branding] Dynamic live bug resize to ${currentBug.sizePercent}% via ZMQ...`);
+          await stream.encoder.setBugSize(currentBug.sizePercent);
+        }
+        await stream.encoder.setBugPosition(currentBug);
+      } else {
+        await stream.encoder.setBugEnabled(false);
+      }
+    }
+
+    if (io) {
+      io.to(`channel:${channelId}`).emit('branding_updated', {
+        type: 'bug',
+        bug: currentBug
+      });
+    }
+
+    return res.status(200).json({
+      message: sizeActuallyChanged
+        ? `Bug resized to ${currentBug.sizePercent}%`
+        : 'Bug branding settings updated on air via ZMQ',
+      bug: currentBug
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// DELETE /api/channels/:channelId/bug
+export const removeBug = async (req, res, next) => {
+  try {
+    const { channelId } = req.params;
+    const updatedChannel = await Channel.findByIdAndUpdate(
+      channelId,
+      { $set: { 'branding.bug.enabled': false } },
+      { new: true }
+    );
+    if (!updatedChannel) {
+      return res.status(404).json({ message: 'Channel not found' });
+    }
+
+    const currentBug = updatedChannel.branding?.bug || {};
+
+    const stream = streamManager.getStream(channelId);
+    if (stream?.encoder?.isRunning) {
+      if (stream.encoder.channel?.branding?.bug) {
+        stream.encoder.channel.branding.bug.enabled = false;
+      }
+      await stream.encoder.setBugEnabled(false);
+    }
+
+    if (io) {
+      io.to(`channel:${channelId}`).emit('branding_updated', {
+        type: 'bug',
+        bug: currentBug
+      });
+    }
+
+    return res.status(200).json({
+      message: 'Bug disabled from live air via ZMQ',
+      bug: currentBug
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// POST /api/channels/:channelId/bug/upload
+export const uploadBugFile = async (req, res, next) => {
+  try {
+    const { channelId } = req.params;
+    if (!req.file) {
+      return res.status(400).json({ message: 'No bug image or GIF file provided' });
+    }
+
+    const channel = await Channel.findById(channelId);
+    if (!channel) {
+      return res.status(404).json({ message: 'Channel not found' });
+    }
+
+    const isGif =
+      req.file.mimetype === 'image/gif' ||
+      path.extname(req.file.originalname).toLowerCase() === '.gif';
+
+    const relativePath = path.relative(SERVER_ROOT, req.file.path).replace(/\\/g, '/');
+
+    const channelStreamDir = path.join(STREAMS_DIR, String(channelId));
+    if (!fs.existsSync(channelStreamDir)) {
+      fs.mkdirSync(channelStreamDir, { recursive: true });
+    }
+
+    const defaultSizePercent = 8;
+    const resolution = channel.outputSettings?.resolution || '1280x720';
+    const canvasHeight = channel.outputSettings?.height || 720;
+
+    let targetBugFile;
+    let scaledWidth = 80;
+    let scaledHeight = 60;
+
+    if (isGif) {
+      // Animated GIF: preserve all frames and copy directly to stream folder
+      targetBugFile = path.join(channelStreamDir, 'bug.gif');
+      fs.copyFileSync(req.file.path, targetBugFile);
+
+      try {
+        const meta = await sharp(req.file.path, { animated: true }).metadata();
+        const effectiveHeight = meta.pageHeight || meta.height || 60;
+        scaledWidth = meta.width || 80;
+        scaledHeight = effectiveHeight;
+      } catch {}
+    } else {
+      // Static image: trim transparent borders and pre-scale
+      await normalizeAndTrimLogo(req.file.path);
+      targetBugFile = path.join(channelStreamDir, 'bug.png');
+      const scaled = await scaleAndSaveLogo(req.file.path, targetBugFile, {
+        resolution,
+        canvasHeight,
+        sizePercent: defaultSizePercent
+      });
+      scaledWidth = scaled.width;
+      scaledHeight = scaled.height;
+    }
+
+    const updatedChannel = await Channel.findByIdAndUpdate(
+      channelId,
+      {
+        $set: {
+          'branding.bug.assetPath': relativePath,
+          'branding.bug.enabled': true,
+          'branding.bug.sizePercent': defaultSizePercent,
+          'branding.bug.isGif': isGif
+        }
+      },
+      { new: true }
+    );
+
+    const currentBug = updatedChannel?.branding?.bug || {};
+
+    // LIVE STREAM CONTROL: hot-swap stream to mount new bug file descriptor cleanly
+    const isLive = streamManager.isChannelLive(channelId);
+    if (isLive) {
+      console.log(`[Branding] Channel ${channelId} is live on air. Seamlessly reloading stream to display new bug (${isGif ? 'animated GIF' : 'image'})...`);
+      await streamManager.restartStream(channelId);
+    }
+
+    if (io) {
+      io.to(`channel:${channelId}`).emit('branding_updated', {
+        type: 'bug',
+        bug: currentBug
+      });
+    }
+
+    return res.status(200).json({
+      message: isGif
+        ? 'Station Bug animated GIF uploaded & pushed live on air'
+        : 'Station Bug image uploaded & pushed live on air',
+      bug: currentBug,
+      dimensions: {
+        width: scaledWidth,
+        height: scaledHeight,
+        isGif
+      }
+    });
+  } catch (error) {
+    console.error('[Branding Controller] uploadBugFile error:', error);
+    next(error);
+  }
+};
+
 // PUT /api/channels/:channelId/ticker
 export const updateTickerBranding = async (req, res, next) => {
   try {

@@ -7,11 +7,11 @@ const TRANSPARENT_PNG_BASE64 =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
 
 /**
- * Ensure transparent/placeholder logo.png, ticker_bg.png, ticker.png, lband.png, and ashton.png exist in channel stream directory
+ * Ensure transparent/placeholder logo.png, ticker_bg.png, ticker.png, lband.png, ashton.png, and bug file exist in channel stream directory
  */
 export const ensureBrandingFiles = (
   channelDir,
-  { logoSourcePath = null, lbandSourcePath = null, ashtonSourcePath = null } = {}
+  { logoSourcePath = null, lbandSourcePath = null, ashtonSourcePath = null, bugSourcePath = null, isBugGif = false } = {}
 ) => {
   if (!fs.existsSync(channelDir)) {
     fs.mkdirSync(channelDir, { recursive: true });
@@ -23,6 +23,9 @@ export const ensureBrandingFiles = (
   const lbandFile = path.join(channelDir, 'lband.png');
   const ashtonFile = path.join(channelDir, 'ashton.png');
 
+  const bugIsActuallyGif = isBugGif || (bugSourcePath && bugSourcePath.toLowerCase().endsWith('.gif'));
+  const bugFile = path.join(channelDir, bugIsActuallyGif ? 'bug.gif' : 'bug.png');
+
   // Logo file: preserve existing scaled logo.png, or initialize if missing
   if (!fs.existsSync(logoFile)) {
     if (logoSourcePath && fs.existsSync(logoSourcePath)) {
@@ -30,6 +33,13 @@ export const ensureBrandingFiles = (
     } else {
       fs.writeFileSync(logoFile, Buffer.from(TRANSPARENT_PNG_BASE64, 'base64'));
     }
+  }
+
+  // Bug file: supports transparent PNG, WebP, JPG, or animated GIF
+  if (bugSourcePath && fs.existsSync(bugSourcePath)) {
+    fs.copyFileSync(bugSourcePath, bugFile);
+  } else if (!fs.existsSync(bugFile)) {
+    fs.writeFileSync(bugFile, Buffer.from(TRANSPARENT_PNG_BASE64, 'base64'));
   }
 
   // Ticker static background file
@@ -58,7 +68,7 @@ export const ensureBrandingFiles = (
     generateDefaultAshtonImageSync(ashtonFile);
   }
 
-  return { logoFile, tickerBgFile, tickerFile, lbandFile, ashtonFile };
+  return { logoFile, tickerBgFile, tickerFile, lbandFile, ashtonFile, bugFile, isBugGif: !!bugIsActuallyGif };
 };
 
 export const safeWriteFileSync = (filePath, buffer, retries = 5, delayMs = 50) => {

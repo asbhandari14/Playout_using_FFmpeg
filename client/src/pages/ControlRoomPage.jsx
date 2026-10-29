@@ -193,7 +193,7 @@ export default function ControlRoomPage() {
               if (!payload) return;
               if (payload.type && payload.data) {
                 dispatch(updateCurrentChannelBranding({ [payload.type]: payload.data }));
-              } else if (payload.logo || payload.ticker || payload.lband || payload.ashton) {
+              } else if (payload.logo || payload.ticker || payload.lband || payload.ashton || payload.bug) {
                 dispatch(updateCurrentChannelBranding(payload));
               } else {
                 dispatch(updateCurrentChannelBranding({ logo: payload }));

@@ -72,3 +72,33 @@ export const uploadAshton = multer({
   fileFilter: imageFilter,
   limits: { fileSize: 25 * 1024 * 1024 }
 });
+
+const bugStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    if (!fs.existsSync(BRANDING_DIR)) {
+      fs.mkdirSync(BRANDING_DIR, { recursive: true });
+    }
+    cb(null, BRANDING_DIR);
+  },
+  filename: (req, file, cb) => {
+    const channelId = req.params.channelId || 'default';
+    const ext = path.extname(file.originalname).toLowerCase() || '.png';
+    cb(null, `bug_${channelId}_${Date.now()}${ext}`);
+  }
+});
+
+const bugFilter = (req, file, cb) => {
+  const allowed = ['.png', '.jpg', '.jpeg', '.webp', '.gif'];
+  const ext = path.extname(file.originalname).toLowerCase();
+  if (allowed.includes(ext) || file.mimetype === 'image/gif' || file.mimetype.startsWith('image/')) {
+    cb(null, true);
+  } else {
+    cb(new Error('Invalid image type. Please upload transparent PNG, JPG, WebP, or animated GIF.'), false);
+  }
+};
+
+export const uploadBug = multer({
+  storage: bugStorage,
+  fileFilter: bugFilter,
+  limits: { fileSize: 30 * 1024 * 1024 }
+});

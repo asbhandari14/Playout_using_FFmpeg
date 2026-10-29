@@ -69,6 +69,20 @@ const channelSchema = new mongoose.Schema(
         marginX: { type: Number, default: 2 },
         marginY: { type: Number, default: 2 }
       },
+      bug: {
+        assetPath: { type: String, default: '' },
+        enabled: { type: Boolean, default: false },
+        position: {
+          type: String,
+          default: 'custom'
+        },
+        positionX: { type: Number, default: 95, min: 0, max: 100 },
+        positionY: { type: Number, default: 95, min: 0, max: 100 },
+        sizePercent: { type: Number, default: 8, min: 2, max: 60 },
+        marginX: { type: Number, default: 2 },
+        marginY: { type: Number, default: 2 },
+        isGif: { type: Boolean, default: false }
+      },
       ticker: {
         enabled: { type: Boolean, default: false },
         text: { type: String, default: 'Welcome to Cloud Playout Live Broadcast' },

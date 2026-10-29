@@ -13,12 +13,18 @@ import {
   CornerUpRight,
   CornerDownLeft,
   CornerDownRight,
-  Circle
+  Circle,
+  Sparkles,
+  Layers,
+  Crosshair
 } from 'lucide-react';
 
 export default function LiveControls({ channel, onBrandingUpdated }) {
   const [activeTab, setActiveTab] = useState('logo');
   const logoInputRef = useRef(null);
+  const bugInputRef = useRef(null);
+  const bugPadRef = useRef(null);
+  const isDraggingBugRef = useRef(false);
 
   // Logo state
   const [logoAssetPath, setLogoAssetPath] = useState('');
@@ -27,6 +33,17 @@ export default function LiveControls({ channel, onBrandingUpdated }) {
   const [logoSizePercent, setLogoSizePercent] = useState(10);
   const [logoMarginX, setLogoMarginX] = useState(2);
   const [logoMarginY, setLogoMarginY] = useState(2);
+
+  // Station Bug state (supports static images & animated GIF + free positioning)
+  const [bugAssetPath, setBugAssetPath] = useState('');
+  const [bugEnabled, setBugEnabled] = useState(false);
+  const [bugPosition, setBugPosition] = useState('custom');
+  const [bugPositionX, setBugPositionX] = useState(95);
+  const [bugPositionY, setBugPositionY] = useState(95);
+  const [bugSizePercent, setBugSizePercent] = useState(8);
+  const [bugMarginX, setBugMarginX] = useState(2);
+  const [bugMarginY, setBugMarginY] = useState(2);
+  const [bugIsGif, setBugIsGif] = useState(false);
 
   // Ticker state
   const [tickerEnabled, setTickerEnabled] = useState(false);
@@ -53,6 +70,41 @@ export default function LiveControls({ channel, onBrandingUpdated }) {
       setLogoSizePercent(bLogo.sizePercent !== undefined ? bLogo.sizePercent : 10);
       setLogoMarginX(bLogo.marginX || 2);
       setLogoMarginY(bLogo.marginY || 2);
+
+      const bBug = channel.branding.bug || {};
+      setBugAssetPath(bBug.assetPath || '');
+      setBugEnabled(!!bBug.enabled);
+      setBugPosition(bBug.position || 'custom');
+      setBugPositionX(
+        bBug.positionX !== undefined
+          ? bBug.positionX
+          : bBug.position === 'top-left'
+            ? 3
+            : bBug.position === 'top-right'
+              ? 95
+              : bBug.position === 'center'
+                ? 50
+                : bBug.position === 'bottom-left'
+                  ? 3
+                  : 95
+      );
+      setBugPositionY(
+        bBug.positionY !== undefined
+          ? bBug.positionY
+          : bBug.position === 'top-left'
+            ? 3
+            : bBug.position === 'top-right'
+              ? 3
+              : bBug.position === 'center'
+                ? 50
+                : bBug.position === 'bottom-left'
+                  ? 95
+                  : 95
+      );
+      setBugSizePercent(bBug.sizePercent !== undefined ? bBug.sizePercent : 8);
+      setBugMarginX(bBug.marginX !== undefined ? bBug.marginX : 2);
+      setBugMarginY(bBug.marginY !== undefined ? bBug.marginY : 2);
+      setBugIsGif(Boolean(bBug.isGif || (bBug.assetPath && String(bBug.assetPath).toLowerCase().endsWith('.gif'))));
 
       const bTicker = channel.branding.ticker || {};
       setTickerEnabled(!!bTicker.enabled);
@@ -142,6 +194,133 @@ export default function LiveControls({ channel, onBrandingUpdated }) {
     }
   };
 
+  // Upload custom bug image or animated GIF
+  const handleBugUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !channel?._id) return;
+
+    const formData = new FormData();
+    formData.append('bug', file);
+
+    try {
+      const res = await api.post(`/channels/${channel._id}/bug/upload`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      setBugAssetPath(res.data.bug.assetPath);
+      setBugEnabled(true);
+      setBugIsGif(!!res.data.bug.isGif);
+      showAlert('success', res.data.message || 'Bug uploaded & pushed to stream overlay');
+      if (onBrandingUpdated) onBrandingUpdated({ type: 'bug', data: res.data.bug });
+    } catch (err) {
+      showAlert('error', err.response?.data?.message || 'Failed to upload station bug');
+    }
+  };
+
+  // Bug coordinate helper: calculates 0-100% (X, Y) relative to the screen pad
+  const calculateBugCoordsFromEvent = (e) => {
+    if (!bugPadRef.current) return null;
+    const rect = bugPadRef.current.getBoundingClientRect();
+    const clientX = e.clientX ?? e.touches?.[0]?.clientX;
+    const clientY = e.clientY ?? e.touches?.[0]?.clientY;
+    if (clientX === undefined || clientY === undefined) return null;
+    const x = Math.max(0, Math.min(100, Math.round(((clientX - rect.left) / rect.width) * 100)));
+    const y = Math.max(0, Math.min(100, Math.round(((clientY - rect.top) / rect.height) * 100)));
+    return { x, y };
+  };
+
+  const handleBugPadPointerDown = (e) => {
+    isDraggingBugRef.current = true;
+    const coords = calculateBugCoordsFromEvent(e);
+    if (!coords) return;
+    setBugPositionX(coords.x);
+    setBugPositionY(coords.y);
+    setBugPosition('custom');
+  };
+
+  const handleBugPadPointerMove = (e) => {
+    if (!isDraggingBugRef.current) return;
+    const coords = calculateBugCoordsFromEvent(e);
+    if (!coords) return;
+    setBugPositionX(coords.x);
+    setBugPositionY(coords.y);
+    setBugPosition('custom');
+  };
+
+  const handleBugPadPointerUp = (e) => {
+    if (!isDraggingBugRef.current) return;
+    isDraggingBugRef.current = false;
+    const coords = calculateBugCoordsFromEvent(e);
+    const finalX = coords ? coords.x : bugPositionX;
+    const finalY = coords ? coords.y : bugPositionY;
+    setBugPositionX(finalX);
+    setBugPositionY(finalY);
+    setBugPosition('custom');
+    handleUpdateBug({
+      position: 'custom',
+      positionX: finalX,
+      positionY: finalY
+    });
+  };
+
+  // Toggle or update bug settings
+  const handleUpdateBug = async (updates = {}) => {
+    if (!channel?._id) return;
+
+    if (updates.position !== undefined) setBugPosition(updates.position);
+    if (updates.positionX !== undefined) setBugPositionX(updates.positionX);
+    if (updates.positionY !== undefined) setBugPositionY(updates.positionY);
+    if (updates.enabled !== undefined) setBugEnabled(updates.enabled);
+    if (updates.sizePercent !== undefined) setBugSizePercent(updates.sizePercent);
+    if (updates.marginX !== undefined) setBugMarginX(updates.marginX);
+    if (updates.marginY !== undefined) setBugMarginY(updates.marginY);
+
+    const payload = {};
+    if (updates.assetPath !== undefined) payload.assetPath = updates.assetPath;
+    if (updates.enabled !== undefined) payload.enabled = updates.enabled;
+    if (updates.position !== undefined) payload.position = updates.position;
+    if (updates.positionX !== undefined) payload.positionX = updates.positionX;
+    if (updates.positionY !== undefined) payload.positionY = updates.positionY;
+    if (updates.sizePercent !== undefined) payload.sizePercent = updates.sizePercent;
+    if (updates.marginX !== undefined) payload.marginX = updates.marginX;
+    if (updates.marginY !== undefined) payload.marginY = updates.marginY;
+
+    try {
+      const res = await api.put(`/channels/${channel._id}/bug`, payload);
+      const serverBug = res.data?.bug;
+      if (serverBug) {
+        if (serverBug.position !== undefined) setBugPosition(serverBug.position);
+        if (serverBug.positionX !== undefined) setBugPositionX(serverBug.positionX);
+        if (serverBug.positionY !== undefined) setBugPositionY(serverBug.positionY);
+        if (serverBug.enabled !== undefined) setBugEnabled(!!serverBug.enabled);
+        if (serverBug.sizePercent !== undefined) setBugSizePercent(serverBug.sizePercent);
+        if (serverBug.marginX !== undefined) setBugMarginX(serverBug.marginX);
+        if (serverBug.marginY !== undefined) setBugMarginY(serverBug.marginY);
+      }
+      showAlert('success', 'Live bug overlay updated');
+      if (onBrandingUpdated) onBrandingUpdated({ type: 'bug', data: serverBug || payload });
+    } catch (err) {
+      if (channel?.branding?.bug) {
+        setBugPosition(channel.branding.bug.position || 'custom');
+        setBugPositionX(channel.branding.bug.positionX !== undefined ? channel.branding.bug.positionX : 95);
+        setBugPositionY(channel.branding.bug.positionY !== undefined ? channel.branding.bug.positionY : 95);
+        setBugEnabled(!!channel.branding.bug.enabled);
+      }
+      showAlert('error', 'Failed to update bug overlay');
+    }
+  };
+
+  const handleRemoveBug = async () => {
+    if (!channel?._id) return;
+    try {
+      const res = await api.delete(`/channels/${channel._id}/bug`);
+      setBugEnabled(false);
+      showAlert('success', 'Station bug removed from air');
+      if (onBrandingUpdated) onBrandingUpdated({ type: 'bug', data: res.data.bug });
+    } catch (err) {
+      showAlert('error', 'Failed to remove station bug');
+    }
+  };
+
   // Push ticker to air
   const handlePushTicker = async () => {
     if (!channel?._id) return;
@@ -194,9 +373,9 @@ export default function LiveControls({ channel, onBrandingUpdated }) {
         </div>
       </div>
 
-      {/* Pill Tabs: LOGO | TICKER */}
+      {/* Pill Tabs: LOGO | BUG | TICKER */}
       <div className="p-3 border-b border-[#1d2331]">
-        <div className="grid grid-cols-2 bg-[#0b0e14] p-1 rounded-xl border border-[#222938]">
+        <div className="grid grid-cols-3 bg-[#0b0e14] p-1 rounded-xl border border-[#222938]">
           <button
             onClick={() => setActiveTab('logo')}
             className={`py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition ${activeTab === 'logo'
@@ -205,6 +384,15 @@ export default function LiveControls({ channel, onBrandingUpdated }) {
               }`}
           >
             Logo
+          </button>
+          <button
+            onClick={() => setActiveTab('bug')}
+            className={`py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition ${activeTab === 'bug'
+                ? 'bg-[#2563eb] text-white shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
+              }`}
+          >
+            Bug
           </button>
           <button
             onClick={() => setActiveTab('ticker')}
@@ -440,6 +628,284 @@ export default function LiveControls({ channel, onBrandingUpdated }) {
                   className="w-full accent-blue-600 cursor-pointer h-1.5 bg-[#090c12] rounded-lg"
                 />
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* ================= BUG TAB ================= */}
+        {activeTab === 'bug' && (
+          <div className="space-y-5">
+            {/* Box: Station Bug Upload */}
+            <div className="bg-[#151a24] border border-[#232c3d] rounded-2xl p-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-slate-300 text-xs font-bold uppercase tracking-wider">
+                  <Sparkles size={14} className="text-amber-400" />
+                  <span>Station Bug Graphic</span>
+                </div>
+                {bugIsGif && (
+                  <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40 animate-pulse">
+                    GIF ANIMATED
+                  </span>
+                )}
+              </div>
+
+              {/* Bug preview + Browse button */}
+              <div className="flex items-center gap-3">
+                <div className="w-14 h-14 rounded-xl bg-[#090c12] border border-[#222938] overflow-hidden flex items-center justify-center p-1.5 shrink-0 relative">
+                  {bugAssetPath ? (
+                    <img
+                      src={`/${bugAssetPath}`}
+                      alt="Bug"
+                      className="w-full h-full object-contain"
+                    />
+                  ) : (
+                    <Sparkles size={22} className="text-slate-600" />
+                  )}
+                </div>
+
+                <div className="flex-1">
+                  <input
+                    ref={bugInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    className="hidden"
+                    onChange={handleBugUpload}
+                  />
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => bugInputRef.current?.click()}
+                      className="px-3.5 py-1.5 rounded-lg bg-[#202736] hover:bg-[#2b354a] text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition border border-[#2b364c]"
+                    >
+                      <Upload size={13} />
+                      <span>Browse</span>
+                    </button>
+                    {bugAssetPath && (
+                      <button
+                        onClick={handleRemoveBug}
+                        className="p-1.5 rounded-lg bg-[#202736] hover:bg-red-950/60 text-slate-400 hover:text-red-400 border border-[#2b364c] transition"
+                        title="Remove Bug"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    Supports PNG, JPG, WebP & Animated GIF
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* SHOW BUG ON AIR Toggle */}
+            <div className="flex items-center justify-between p-3 bg-[#151a24] border border-[#232c3d] rounded-xl">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-200">
+                Show Bug On Air
+              </span>
+
+              <button
+                onClick={() => {
+                  const next = !bugEnabled;
+                  setBugEnabled(next);
+                  handleUpdateBug({ enabled: next });
+                }}
+                className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors duration-300 ${bugEnabled ? 'bg-amber-500' : 'bg-slate-700'
+                  }`}
+              >
+                <div
+                  className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-300 ${bugEnabled ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                />
+              </button>
+            </div>
+
+            {/* Flexible Screen Positioning Pad */}
+            <div className="bg-[#151a24] border border-[#232c3d] rounded-2xl p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                  <Crosshair size={13} className="text-amber-400" />
+                  <span>Free Screen Positioning</span>
+                </span>
+                <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                  X: {bugPositionX}% · Y: {bugPositionY}%
+                </span>
+              </div>
+
+              {/* 16:9 Screen Positioning Pad: Click or Drag Anywhere */}
+              <div
+                ref={bugPadRef}
+                onPointerDown={handleBugPadPointerDown}
+                onPointerMove={handleBugPadPointerMove}
+                onPointerUp={handleBugPadPointerUp}
+                className="relative aspect-video bg-[#090c12] border border-[#222938] rounded-xl overflow-hidden cursor-crosshair select-none touch-none shadow-inner"
+                title="Click or drag anywhere to place the bug"
+              >
+                {/* Rule of thirds / Alignment guide lines */}
+                <div className="absolute inset-0 pointer-events-none opacity-30">
+                  <div className="absolute left-1/3 top-0 bottom-0 border-r border-dashed border-slate-600" />
+                  <div className="absolute left-2/3 top-0 bottom-0 border-r border-dashed border-slate-600" />
+                  <div className="absolute top-1/3 left-0 right-0 border-b border-dashed border-slate-600" />
+                  <div className="absolute top-2/3 left-0 right-0 border-b border-dashed border-slate-600" />
+                </div>
+
+                {/* Bug Target Marker (Scales proportionally maintaining aspect ratio) */}
+                <div
+                  style={{
+                    left: `${bugPositionX}%`,
+                    top: `${bugPositionY}%`,
+                    transform: 'translate(-50%, -50%)',
+                    width: `${Math.max(16, Math.min(64, Math.round(16 + (bugSizePercent * 0.9))))}px`,
+                    height: `${Math.max(16, Math.min(64, Math.round(16 + (bugSizePercent * 0.9))))}px`
+                  }}
+                  className="absolute border-2 border-amber-400 bg-amber-500/30 rounded shadow-[0_0_12px_rgba(245,158,11,0.6)] flex items-center justify-center pointer-events-none transition-all duration-75"
+                >
+                  {bugAssetPath ? (
+                    <img
+                      src={`/${bugAssetPath}`}
+                      alt="Bug target"
+                      className="w-full h-full object-contain pointer-events-none"
+                    />
+                  ) : (
+                    <Sparkles size={12} className="text-amber-300" />
+                  )}
+                </div>
+
+                {/* Drag hint overlay */}
+                <div className="absolute bottom-1 right-2 text-[9px] text-slate-500 pointer-events-none font-semibold">
+                  Click or drag anywhere
+                </div>
+              </div>
+
+              {/* Quick-Snap Preset Buttons */}
+              <div className="grid grid-cols-5 gap-1 pt-1">
+                {[
+                  { label: 'Top-L', x: 3, y: 3 },
+                  { label: 'Top-R', x: 95, y: 3 },
+                  { label: 'Center', x: 50, y: 50 },
+                  { label: 'Bot-L', x: 3, y: 95 },
+                  { label: 'Bot-R', x: 95, y: 95 }
+                ].map((preset) => {
+                  const isActive =
+                    Math.abs(bugPositionX - preset.x) <= 3 && Math.abs(bugPositionY - preset.y) <= 3;
+                  return (
+                    <button
+                      key={preset.label}
+                      onClick={() => {
+                        setBugPositionX(preset.x);
+                        setBugPositionY(preset.y);
+                        setBugPosition('custom');
+                        handleUpdateBug({
+                          position: 'custom',
+                          positionX: preset.x,
+                          positionY: preset.y
+                        });
+                      }}
+                      className={`py-1 rounded text-[10px] font-semibold border transition ${
+                        isActive
+                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-sm'
+                          : 'bg-[#121620] text-slate-400 hover:text-white border-[#222938]'
+                      }`}
+                      title={`Snap to ${preset.label}`}
+                    >
+                      {preset.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Sliders: SIZE, POSITION X, POSITION Y */}
+            <div className="space-y-4 bg-[#151a24] border border-[#232c3d] rounded-2xl p-4">
+              {/* SIZE SLIDER: Scales both width and height proportionally */}
+              <div>
+                <div className="flex items-center justify-between text-xs font-semibold text-slate-300 mb-1">
+                  <span className="uppercase tracking-wider text-[10px]">
+                    Bug Size (Proportional W × H)
+                  </span>
+                  <span className="font-mono text-amber-400">{bugSizePercent}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="2"
+                  max="45"
+                  value={bugSizePercent}
+                  onChange={(e) => setBugSizePercent(Number(e.target.value))}
+                  onMouseUp={() => handleUpdateBug({ sizePercent: bugSizePercent })}
+                  onTouchEnd={() => handleUpdateBug({ sizePercent: bugSizePercent })}
+                  className="w-full accent-amber-500 cursor-pointer h-1.5 bg-[#090c12] rounded-lg"
+                />
+                <p className="text-[10px] text-slate-400 mt-1">
+                  {bugIsGif ? '⚡ Animated GIF: ' : '🖼️ Static Image: '}
+                  Scales both width and height proportionally, maintaining original aspect ratio.
+                </p>
+              </div>
+
+              {/* HORIZONTAL POSITION X */}
+              <div>
+                <div className="flex items-center justify-between text-xs font-semibold text-slate-300 mb-1">
+                  <span className="uppercase tracking-wider text-[10px]">Position X (Horizontal)</span>
+                  <span className="font-mono text-amber-400">{bugPositionX}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={bugPositionX}
+                  onChange={(e) => setBugPositionX(Number(e.target.value))}
+                  onMouseUp={() =>
+                    handleUpdateBug({
+                      position: 'custom',
+                      positionX: bugPositionX,
+                      positionY: bugPositionY
+                    })
+                  }
+                  onTouchEnd={() =>
+                    handleUpdateBug({
+                      position: 'custom',
+                      positionX: bugPositionX,
+                      positionY: bugPositionY
+                    })
+                  }
+                  className="w-full accent-amber-500 cursor-pointer h-1.5 bg-[#090c12] rounded-lg"
+                />
+              </div>
+
+              {/* VERTICAL POSITION Y */}
+              <div>
+                <div className="flex items-center justify-between text-xs font-semibold text-slate-300 mb-1">
+                  <span className="uppercase tracking-wider text-[10px]">Position Y (Vertical)</span>
+                  <span className="font-mono text-amber-400">{bugPositionY}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={bugPositionY}
+                  onChange={(e) => setBugPositionY(Number(e.target.value))}
+                  onMouseUp={() =>
+                    handleUpdateBug({
+                      position: 'custom',
+                      positionX: bugPositionX,
+                      positionY: bugPositionY
+                    })
+                  }
+                  onTouchEnd={() =>
+                    handleUpdateBug({
+                      position: 'custom',
+                      positionX: bugPositionX,
+                      positionY: bugPositionY
+                    })
+                  }
+                  className="w-full accent-amber-500 cursor-pointer h-1.5 bg-[#090c12] rounded-lg"
+                />
+              </div>
+            </div>
+
+            {/* Layering Notice */}
+            <div className="p-3 rounded-xl bg-[#10141d] border border-[#1f2838] text-[11px] text-slate-400 flex items-start gap-2">
+              <Layers size={14} className="text-amber-400 shrink-0 mt-0.5" />
+              <span>
+                <strong className="text-slate-300">Layering Rule:</strong> If the Logo and Bug are set to the same position, the Logo automatically renders on top of the Bug.
+              </span>
             </div>
           </div>
         )}

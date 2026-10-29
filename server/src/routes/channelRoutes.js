@@ -18,6 +18,9 @@ import {
   updateLogoBranding,
   removeLogo,
   uploadLogoFile,
+  updateBugBranding,
+  removeBug,
+  uploadBugFile,
   updateTickerBranding,
   removeTicker,
   updateLBandBranding,
@@ -42,7 +45,7 @@ import {
 import { authenticate } from '../middleware/auth.js';
 import { authorize } from '../middleware/rbac.js';
 import { validate } from '../middleware/validate.js';
-import { uploadLogo, uploadLBand, uploadAshton } from '../middleware/logoUpload.js';
+import { uploadLogo, uploadBug, uploadLBand, uploadAshton } from '../middleware/logoUpload.js';
 import { ROLES } from '../config/constants.js';
 
 const router = Router();
@@ -77,6 +80,11 @@ router.delete('/:channelId/playlist', clearPlaylist);
 router.put('/:channelId/logo', updateLogoBranding);
 router.delete('/:channelId/logo', removeLogo);
 router.post('/:channelId/logo/upload', uploadLogo.single('logo'), uploadLogoFile);
+
+// Station Bug controls (Image & Animated GIF)
+router.put('/:channelId/bug', updateBugBranding);
+router.delete('/:channelId/bug', removeBug);
+router.post('/:channelId/bug/upload', uploadBug.single('bug'), uploadBugFile);
 
 router.put('/:channelId/ticker', updateTickerBranding);
 router.delete('/:channelId/ticker', removeTicker);

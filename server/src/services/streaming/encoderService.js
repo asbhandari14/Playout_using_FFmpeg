@@ -25,7 +25,7 @@ export class EncoderService {
       fs.mkdirSync(this.hlsDir, { recursive: true });
     }
 
-    // Ensure initial logo.png, ticker_bg.png, ticker.png, lband.png, and ashton.png
+    // Ensure initial logo.png, ticker_bg.png, ticker.png, lband.png, ashton.png, and bug file
     const logoSource = channel.branding?.logo?.assetPath
       ? path.resolve(SERVER_ROOT, channel.branding.logo.assetPath)
       : null;
@@ -35,17 +35,82 @@ export class EncoderService {
     const ashtonSource = channel.branding?.ashton?.assetPath
       ? path.resolve(SERVER_ROOT, channel.branding.ashton.assetPath)
       : null;
+    const bugSource = channel.branding?.bug?.assetPath
+      ? path.resolve(SERVER_ROOT, channel.branding.bug.assetPath)
+      : null;
+    const isBugGif = !!channel.branding?.bug?.isGif || (bugSource && bugSource.toLowerCase().endsWith('.gif'));
 
-    const { logoFile, tickerBgFile, tickerFile, lbandFile, ashtonFile } = ensureBrandingFiles(this.channelDir, {
+    const { logoFile, tickerBgFile, tickerFile, lbandFile, ashtonFile, bugFile, isBugGif: resolvedIsBugGif } = ensureBrandingFiles(this.channelDir, {
       logoSourcePath: logoSource,
       lbandSourcePath: lbandSource,
-      ashtonSourcePath: ashtonSource
+      ashtonSourcePath: ashtonSource,
+      bugSourcePath: bugSource,
+      isBugGif
     });
     this.logoFile = logoFile;
     this.tickerBgFile = tickerBgFile;
     this.tickerFile = tickerFile;
     this.lbandFile = lbandFile;
     this.ashtonFile = ashtonFile;
+    this.bugFile = bugFile;
+    this.isBugGif = resolvedIsBugGif;
+    this.bugAspectRatio = 1.0;
+  }
+
+  // Calculate bug overlay expressions based on flexible position (custom X/Y percentages) or preset corners
+  getBugPositionExpressions(posOrOptions = 'custom', mxPercent = 2, myPercent = 2, posX = null, posY = null) {
+    let pos = 'custom';
+    let mxVal = 2;
+    let myVal = 2;
+    let customX = null;
+    let customY = null;
+
+    if (typeof posOrOptions === 'object' && posOrOptions !== null) {
+      pos = posOrOptions.position || 'custom';
+      mxVal = posOrOptions.marginX !== undefined ? posOrOptions.marginX : 2;
+      myVal = posOrOptions.marginY !== undefined ? posOrOptions.marginY : 2;
+      customX = posOrOptions.positionX !== undefined ? posOrOptions.positionX : null;
+      customY = posOrOptions.positionY !== undefined ? posOrOptions.positionY : null;
+    } else {
+      pos = posOrOptions || 'custom';
+      mxVal = mxPercent !== undefined ? mxPercent : 2;
+      myVal = myPercent !== undefined ? myPercent : 2;
+      customX = posX !== undefined ? posX : null;
+      customY = posY !== undefined ? posY : null;
+    }
+
+    const cleanPos = String(pos || 'custom').toLowerCase().trim();
+
+    // If explicit positionX and positionY (0-100%) are provided, position ANYWHERE freely on screen!
+    if (customX !== null && customY !== null && !isNaN(customX) && !isNaN(customY)) {
+      const clampedX = Math.max(0, Math.min(100, Number(customX)));
+      const clampedY = Math.max(0, Math.min(100, Number(customY)));
+      return {
+        x: `(W-w)*${(clampedX / 100).toFixed(4)}`,
+        y: `(H-h)*${(clampedY / 100).toFixed(4)}`
+      };
+    }
+
+    // Preset positions for backward compatibility
+    const mx = Math.max(0, Math.round((1280 * Number(mxVal)) / 100));
+    const my = Math.max(0, Math.round((720 * Number(myVal)) / 100));
+
+    switch (cleanPos) {
+      case 'top-left':
+        return { x: `${mx}`, y: `${my}` };
+      case 'center':
+        return { x: `(W-w)/2`, y: `(H-h)/2` };
+      case 'bottom-left':
+        return { x: `${mx}`, y: `H-h-${my}` };
+      case 'top-right':
+        return { x: `W-w-${mx}`, y: `${my}` };
+      case 'bottom-right':
+        return { x: `W-w-${mx}`, y: `H-h-${my}` };
+      case 'custom':
+      default:
+        // Default flexible position (bottom-right 95%, 95%)
+        return { x: '(W-w)*0.9500', y: '(H-h)*0.9500' };
+    }
   }
 
   // Calculate logo overlay expressions based on position and margins
@@ -244,6 +309,7 @@ export class EncoderService {
 
     const bLband = this.channel.branding?.lband || {};
     const bAshton = this.channel.branding?.ashton || {};
+    const bBug = this.channel.branding?.bug || {};
 
     const logoEnabled = bLogo.enabled ? 1 : 0;
     const tickEnabled = bTick.enabled ? 1 : 0;
@@ -267,6 +333,33 @@ export class EncoderService {
     const ashtonOvX = (ashtonEnabled && !ashtonSqueeze) ? '0' : '-5000';
     const ashtonOvY = (ashtonEnabled && !ashtonSqueeze) ? 'H-h' : '-5000';
 
+    // Bug setup & sizing (input 6)
+    const bugPos = this.getBugPositionExpressions(bBug);
+    const bugSizePct = Math.max(2, Math.min(60, Number(bBug.sizePercent) || 8));
+    let bugH = Math.round(baseHeight * (bugSizePct / 10));
+    bugH = Math.max(20, bugH - (bugH % 2));
+
+    this.bugAspectRatio = 1.0;
+    try {
+      if (fs.existsSync(this.bugFile)) {
+        const meta = await sharp(this.bugFile, { animated: this.isBugGif }).metadata();
+        // For animated GIFs, meta.pageHeight holds single-frame height (meta.height is total of all frames concatenated!)
+        const effectiveHeight = (this.isBugGif && meta.pageHeight) ? meta.pageHeight : meta.height;
+        if (meta && meta.width && effectiveHeight) {
+          this.bugAspectRatio = meta.width / effectiveHeight;
+        }
+      }
+    } catch {}
+
+    // Both static images and animated GIFs scale width and height proportionally based on aspect ratio
+    let bugW = Math.round(bugH * (this.bugAspectRatio || 1.0));
+    if (bugW % 2 !== 0) bugW += 1;
+    bugW = Math.max(20, bugW);
+
+    const bugEnabled = bBug.enabled ? 1 : 0;
+    const bugX = bugEnabled ? bugPos.x : '-5000';
+    const bugY = bugEnabled ? bugPos.y : '-5000';
+
     const logoX = logoEnabled ? logoPos.x : '-5000';
     const logoY = logoEnabled ? logoPos.y : '-5000';
 
@@ -278,8 +371,10 @@ export class EncoderService {
     // 2. Incoming video with ZMQ broker & 3-way split: full, lband_in, ashton_in
     // 3. L-Band Squeeze: video scaled to window cutout (e.g. 960x540) & padded to 1280x720, then lband.png overlaid on top
     // 4. Ashton Squeeze: video scaled to fit above banner (e.g. 1280x560) & padded, then ashton.png (bottom banner) overlaid at (0, H-h)
-    // 5. Compositing switches: lband_master, ashton_squeeze, ashton_overlay, logo, ticker toggled via (x, y) coordinates
-    // 6. Dynamic logo scaling filter (scale@logo_scale) controllable via live ZMQ with zero stream restart
+    // 5. Compositing switches: lband_master, ashton_squeeze, ashton_overlay
+    // 6. Bug Overlay: [6:v] scaled and overlaid onto [v_after_ashton] -> [v_after_bug]
+    // 7. Logo Overlay: [1:v] scaled and overlaid onto [v_after_bug] -> [v_after_logo] (LOGO ON TOP OF BUG IF SAME POSITION!)
+    // 8. Ticker Overlay: [v_after_logo] + [tickbar] -> [vout]
     const filtergraph = [
       `[2:v][3:v]overlay@ticktext=x='${tickPos.text.x}':y='${tickPos.text.y}':format=auto[tickbar_raw]`,
       `[tickbar_raw]crop@tick_crop=w=${tickPos.bar.width || 1280}:h=ih:x=0:y=0[tickbar]`,
@@ -291,8 +386,10 @@ export class EncoderService {
       `[v_full][lband_composite]overlay@lband_master=x='${lbandMasterX}':y='${lbandMasterY}'[v_after_lband]`,
       `[v_after_lband][ashton_sq_composite]overlay@ashton_squeeze=x='${ashtonSqX}':y='${ashtonSqY}'[v_after_ashton_sq]`,
       `[v_after_ashton_sq][5:v]overlay@ashton_overlay=x='${ashtonOvX}':y='${ashtonOvY}'[v_after_ashton]`,
+      `[6:v]scale@bug_scale=w=${bugW}:h=${bugH}:eval=frame[v_bug_scaled]`,
+      `[v_after_ashton][v_bug_scaled]overlay@bug=x='${bugX}':y='${bugY}'[v_after_bug]`,
       `[1:v]scale@logo_scale=w=${logoW}:h=${logoH}:eval=frame[v_logo_scaled]`,
-      `[v_after_ashton][v_logo_scaled]overlay@logo=x='${logoX}':y='${logoY}'[v_after_logo]`,
+      `[v_after_bug][v_logo_scaled]overlay@logo=x='${logoX}':y='${logoY}'[v_after_logo]`,
       `[v_after_logo][tickbar]overlay@tick=x='${tickBarX}':y='${tickBarY}'[vout]`
     ].join('; ');
 
@@ -349,6 +446,8 @@ export class EncoderService {
           '-loop', '1', '-i', this.lbandFile,
           // Input 5: Looping ashton.png (ASHTON BAND LOWER THIRD)
           '-loop', '1', '-i', this.ashtonFile,
+          // Input 6: Station Bug (animated GIF via -ignore_loop 0 or static image via -loop 1)
+          ...(this.isBugGif ? ['-ignore_loop', '0', '-i', this.bugFile] : ['-loop', '1', '-i', this.bugFile]),
           // Filtergraph
           '-filter_complex', filtergraph,
           '-map', '[vout]',
@@ -552,6 +651,101 @@ export class EncoderService {
       );
       await this.sendZmqCommand(`overlay@logo x ${expr.x}`);
       await this.sendZmqCommand(`overlay@logo y ${expr.y}`);
+    }
+
+    return { width: targetWidth, height: targetHeight };
+  }
+
+  // Live station bug control via ZMQ
+  async setBugEnabled(enabled) {
+    if (!this.channel) this.channel = {};
+    if (!this.channel.branding) this.channel.branding = {};
+    if (!this.channel.branding.bug) this.channel.branding.bug = {};
+    this.channel.branding.bug.enabled = !!enabled;
+
+    if (enabled) {
+      const bBug = this.channel.branding.bug;
+      const expr = this.getBugPositionExpressions(bBug);
+      await this.sendZmqCommand(`overlay@bug x ${expr.x}`);
+      return this.sendZmqCommand(`overlay@bug y ${expr.y}`);
+    } else {
+      await this.sendZmqCommand('overlay@bug x -5000');
+      return this.sendZmqCommand('overlay@bug y -5000');
+    }
+  }
+
+  // Live dynamic bug repositioning via ZMQ: accepts free X/Y percentages (0-100%) or preset positions
+  async setBugPosition(posOrOptions, marginX, marginY, positionX, positionY) {
+    if (!this.channel) this.channel = {};
+    if (!this.channel.branding) this.channel.branding = {};
+    if (!this.channel.branding.bug) this.channel.branding.bug = {};
+
+    if (typeof posOrOptions === 'object' && posOrOptions !== null) {
+      const opts = posOrOptions;
+      if (opts.position !== undefined) this.channel.branding.bug.position = opts.position;
+      if (opts.positionX !== undefined) this.channel.branding.bug.positionX = Number(opts.positionX);
+      if (opts.positionY !== undefined) this.channel.branding.bug.positionY = Number(opts.positionY);
+      if (opts.marginX !== undefined) this.channel.branding.bug.marginX = Number(opts.marginX);
+      if (opts.marginY !== undefined) this.channel.branding.bug.marginY = Number(opts.marginY);
+    } else {
+      if (posOrOptions !== undefined) this.channel.branding.bug.position = posOrOptions;
+      if (marginX !== undefined) this.channel.branding.bug.marginX = Number(marginX);
+      if (marginY !== undefined) this.channel.branding.bug.marginY = Number(marginY);
+      if (positionX !== undefined) this.channel.branding.bug.positionX = Number(positionX);
+      if (positionY !== undefined) this.channel.branding.bug.positionY = Number(positionY);
+    }
+
+    const expr = this.getBugPositionExpressions(this.channel.branding.bug);
+    console.log(`[Encoder] Live dynamic bug reposition via ZMQ -> x: ${expr.x}, y: ${expr.y}`);
+    await this.sendZmqCommand(`overlay@bug x ${expr.x}`);
+    return this.sendZmqCommand(`overlay@bug y ${expr.y}`);
+  }
+
+  // Live dynamic bug size scaling via ZMQ with zero stream restart:
+  // - For animated GIF: increasing size increases HEIGHT ONLY, NOT width
+  // - For static image: increasing size increases BOTH height and width proportionally
+  async setBugSize(sizePercent) {
+    if (!this.channel) this.channel = {};
+    if (!this.channel.branding) this.channel.branding = {};
+    if (!this.channel.branding.bug) this.channel.branding.bug = {};
+    if (sizePercent !== undefined) this.channel.branding.bug.sizePercent = Number(sizePercent);
+
+    const canvasHeight = this.channel.outputSettings?.height || 720;
+    const is1080p = canvasHeight >= 1080;
+    const baseHeight = is1080p ? 100 : 70;
+    const pct = Math.max(2, Math.min(60, Number(this.channel.branding.bug.sizePercent) || 8));
+    let targetHeight = Math.round(baseHeight * (pct / 10));
+    if (targetHeight % 2 !== 0) targetHeight += 1;
+    targetHeight = Math.max(20, targetHeight);
+
+    if (!this.bugAspectRatio || this.bugAspectRatio < 0.1) {
+      this.bugAspectRatio = 1.0;
+      try {
+        if (fs.existsSync(this.bugFile)) {
+          const meta = await sharp(this.bugFile, { animated: this.isBugGif }).metadata();
+          const effectiveHeight = (this.isBugGif && meta.pageHeight) ? meta.pageHeight : meta.height;
+          if (meta && meta.width && effectiveHeight) {
+            this.bugAspectRatio = meta.width / effectiveHeight;
+          }
+        }
+      } catch {}
+    }
+
+    // Both static images and animated GIFs scale width and height proportionally, maintaining original aspect ratio
+    let targetWidth = Math.round(targetHeight * (this.bugAspectRatio || 1.0));
+    if (targetWidth % 2 !== 0) targetWidth += 1;
+    targetWidth = Math.max(20, targetWidth);
+
+    console.log(`[Encoder] Live dynamic bug resize via ZMQ -> ${targetWidth}x${targetHeight}px (${pct}%, ratio: ${this.bugAspectRatio?.toFixed(3)})`);
+
+    await this.sendZmqCommand(`scale@bug_scale w ${targetWidth}`);
+    await this.sendZmqCommand(`scale@bug_scale h ${targetHeight}`);
+
+    const bBug = this.channel.branding.bug;
+    if (bBug.enabled !== false) {
+      const expr = this.getBugPositionExpressions(bBug);
+      await this.sendZmqCommand(`overlay@bug x ${expr.x}`);
+      await this.sendZmqCommand(`overlay@bug y ${expr.y}`);
     }
 
     return { width: targetWidth, height: targetHeight };
