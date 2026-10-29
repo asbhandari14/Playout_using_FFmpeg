@@ -290,15 +290,15 @@ export class FeederService {
       return false;
     }
 
-    const asset = schedule.asset;
-    if (!asset || !asset.filePath) {
-      console.warn(`[Feeder:${this.channelId}] Scheduled event '${schedule.title}' has no valid asset.`);
-      return false;
+    let scheduledAssets = [];
+    if (Array.isArray(schedule.assets) && schedule.assets.length > 0) {
+      scheduledAssets = schedule.assets.filter((a) => a && a.filePath);
+    } else if (schedule.asset && schedule.asset.filePath) {
+      scheduledAssets = [schedule.asset];
     }
 
-    const scheduleAssetPath = path.resolve(SERVER_ROOT, asset.filePath);
-    if (!fs.existsSync(scheduleAssetPath)) {
-      console.warn(`[Feeder:${this.channelId}] Scheduled asset missing on disk: ${scheduleAssetPath}`);
+    if (scheduledAssets.length === 0) {
+      console.warn(`[Feeder:${this.channelId}] Scheduled event '${schedule.title}' has no valid media assets.`);
       return false;
     }
 
@@ -316,7 +316,7 @@ export class FeederService {
     };
 
     console.log(
-      `[Feeder:${this.channelId}] >>> PAUSING PLAYLIST ITEM #${this.interruptedState.index + 1} AT ${this.interruptedState.offsetSeconds.toFixed(1)}s FOR SCHEDULE: "${schedule.title}" <<<`
+      `[Feeder:${this.channelId}] >>> PAUSING PLAYLIST ITEM #${this.interruptedState.index + 1} AT ${this.interruptedState.offsetSeconds.toFixed(1)}s FOR SCHEDULE: "${schedule.title}" (${scheduledAssets.length} video(s)) <<<`
     );
 
     // 2. Kill current regular decoder so it immediately stops streaming regular frames
@@ -336,9 +336,9 @@ export class FeederService {
         channelId: this.channelId,
         scheduleId: schedule._id,
         title: schedule.title,
-        assetId: asset._id,
-        assetName: asset.originalName,
-        duration: schedule.duration || asset.duration,
+        assetCount: scheduledAssets.length,
+        assetName: scheduledAssets.map((a) => a.originalName).join(', '),
+        duration: schedule.duration,
         dailyStartTime: schedule.dailyStartTime,
         dailyEndTime: schedule.dailyEndTime || '',
         pausedAtOffset: this.interruptedState.offsetSeconds,
@@ -346,8 +346,8 @@ export class FeederService {
       });
     }
 
-    // 4. Stream scheduled asset directly into the persistent encoder stdin
-    // If dailyEndTime is provided, stream until the wall-clock reaches dailyEndTime (looping asset if needed)
+    // 4. Stream scheduled asset playlist directly into the persistent encoder stdin
+    // If dailyEndTime is provided, stream until the wall-clock reaches dailyEndTime (looping through playlist if needed)
     let targetEndTime = null;
     const now = new Date();
     if (schedule.dailyEndTime) {
@@ -360,31 +360,57 @@ export class FeederService {
       }
       targetEndTime = endD.getTime();
       console.log(
-        `[Feeder:${this.channelId}] Schedule window active until ${schedule.dailyEndTime} (${Math.round((targetEndTime - Date.now()) / 1000)}s total)`
+        `[Feeder:${this.channelId}] Schedule window active until ${schedule.dailyEndTime} (${Math.round((targetEndTime - Date.now()) / 1000)}s total, ${scheduledAssets.length} video(s))`
       );
     } else if (schedule.duration && Number(schedule.duration) > 0) {
       targetEndTime = Date.now() + Number(schedule.duration) * 1000;
     } else {
-      targetEndTime = Date.now() + (Number(asset.duration) || 60) * 1000;
+      const totalDur = scheduledAssets.reduce((sum, a) => sum + (Number(a.duration) || 0), 0) || 60;
+      targetEndTime = Date.now() + totalDur * 1000;
     }
 
     try {
+      let assetIdx = 0;
       while (this.isRunning && this.isScheduleActive && Date.now() < targetEndTime) {
-        const remainingSeconds = Math.max(0.5, (targetEndTime - Date.now()) / 1000);
-        await this.streamAsset(scheduleAssetPath, asset.duration, remainingSeconds);
+        const currentSchedAsset = scheduledAssets[assetIdx % scheduledAssets.length];
+        const scheduleAssetPath = path.resolve(SERVER_ROOT, currentSchedAsset.filePath);
 
-        // If scheduled block has more time remaining, brief pause before looping asset
-        if (this.isRunning && this.isScheduleActive && Date.now() < targetEndTime - 1000) {
+        if (fs.existsSync(scheduleAssetPath)) {
+          const remainingSeconds = Math.max(0.5, (targetEndTime - Date.now()) / 1000);
           console.log(
-            `[Feeder:${this.channelId}] Looping scheduled asset until window ends at ${schedule.dailyEndTime || 'duration'}...`
+            `[Feeder:${this.channelId}] [Schedule Playlist Item ${assetIdx + 1}/${scheduledAssets.length}] Streaming: "${currentSchedAsset.originalName}" (${remainingSeconds.toFixed(1)}s window remaining)`
           );
-          await new Promise((r) => setTimeout(r, 150));
+
+          if (io) {
+            io.to(`channel:${this.channelId}`).emit('schedule_item_playing', {
+              channelId: this.channelId,
+              scheduleId: schedule._id,
+              assetIndex: assetIdx % scheduledAssets.length,
+              assetName: currentSchedAsset.originalName,
+              assetDuration: currentSchedAsset.duration,
+              totalAssets: scheduledAssets.length
+            });
+          }
+
+          await this.streamAsset(scheduleAssetPath, currentSchedAsset.duration, remainingSeconds);
+        }
+
+        assetIdx++;
+
+        // If no explicit dailyEndTime was set, stop after playing all assets in the scheduled playlist once
+        if (!schedule.dailyEndTime && assetIdx >= scheduledAssets.length) {
+          break;
+        }
+
+        // If scheduled block has more time remaining, brief pause before playing next video
+        if (this.isRunning && this.isScheduleActive && Date.now() < targetEndTime - 1000) {
+          await new Promise((r) => setTimeout(r, 120));
         } else {
           break;
         }
       }
     } catch (err) {
-      console.error(`[Feeder:${this.channelId}] Error streaming scheduled video:`, err);
+      console.error(`[Feeder:${this.channelId}] Error streaming scheduled video playlist:`, err);
     }
 
     // 5. Scheduled asset has completed!

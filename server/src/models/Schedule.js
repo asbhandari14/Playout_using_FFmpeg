@@ -13,10 +13,18 @@ const scheduleSchema = new mongoose.Schema(
       required: true,
       trim: true
     },
+    // Primary list of videos in the scheduled playlist
+    assets: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Asset'
+      }
+    ],
+    // Single asset fallback for backwards compatibility
     asset: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Asset',
-      required: true
+      default: null
     },
     // Exact wall-clock air time (HH:mm:ss or HH:mm, e.g. "14:30:00")
     dailyStartTime: {

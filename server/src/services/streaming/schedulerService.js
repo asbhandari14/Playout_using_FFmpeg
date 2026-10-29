@@ -48,6 +48,7 @@ class SchedulerService {
         channel: { $in: activeChannelIds },
         enabled: true
       })
+        .populate('assets')
         .populate('asset')
         .sort({ priority: -1, createdAt: 1 });
 

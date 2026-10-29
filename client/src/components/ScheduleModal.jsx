@@ -15,7 +15,10 @@ import {
   ToggleLeft,
   ToggleRight,
   Radio,
-  Check
+  Check,
+  ArrowUp,
+  ArrowDown,
+  Layers
 } from 'lucide-react';
 
 const DAYS_OF_WEEK = [
@@ -45,7 +48,8 @@ export default function ScheduleModal({
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingScheduleId, setEditingScheduleId] = useState(null);
   const [title, setTitle] = useState('');
-  const [assetId, setAssetId] = useState('');
+  const [selectedAssetIds, setSelectedAssetIds] = useState([]);
+  const [assetToAdd, setAssetToAdd] = useState('');
   const [dailyStartTime, setDailyStartTime] = useState('12:00:00');
   const [dailyEndTime, setDailyEndTime] = useState('');
   const [selectedDays, setSelectedDays] = useState([1, 2, 3, 4, 5]); // default Mon-Fri
@@ -53,6 +57,40 @@ export default function ScheduleModal({
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [enabled, setEnabled] = useState(true);
+
+  // Helpers for multi-asset management
+  const getAssetById = (id) => assets.find((a) => String(a._id) === String(id));
+
+  const getTotalSelectedAssetsDurationFormatted = () => {
+    const totalSec = selectedAssetIds.reduce((sum, id) => {
+      const a = getAssetById(id);
+      return sum + (Number(a?.duration) || 0);
+    }, 0);
+    const m = Math.floor(totalSec / 60);
+    const s = Math.floor(totalSec % 60);
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  };
+
+  const handleAddAssetToSchedule = (assetId) => {
+    if (!assetId) return;
+    setSelectedAssetIds((prev) => [...prev, assetId]);
+  };
+
+  const handleRemoveAssetFromSchedule = (index) => {
+    setSelectedAssetIds((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleMoveAsset = (index, direction) => {
+    setSelectedAssetIds((prev) => {
+      const copy = [...prev];
+      const targetIndex = index + direction;
+      if (targetIndex < 0 || targetIndex >= copy.length) return prev;
+      const temp = copy[index];
+      copy[index] = copy[targetIndex];
+      copy[targetIndex] = temp;
+      return copy;
+    });
+  };
 
   // Helper to compute window duration string
   const computeWindowDurationStr = (start, end) => {
@@ -102,7 +140,11 @@ export default function ScheduleModal({
     try {
       const res = await api.get('/assets', { params: { channelId } });
       const assetList = res.data?.assets || (Array.isArray(res.data) ? res.data : []);
-      setAssets(assetList.filter((a) => a.status === 'ready'));
+      const readyAssets = assetList.filter((a) => a.status === 'ready');
+      setAssets(readyAssets);
+      if (readyAssets.length > 0 && !assetToAdd) {
+        setAssetToAdd(readyAssets[0]._id);
+      }
     } catch (err) {
       console.error('Failed to load assets for scheduling:', err);
     }
@@ -110,7 +152,8 @@ export default function ScheduleModal({
 
   const resetForm = () => {
     setTitle('');
-    setAssetId(assets.length > 0 ? assets[0]._id : '');
+    setSelectedAssetIds([]);
+    setAssetToAdd(assets.length > 0 ? assets[0]._id : '');
     setDailyStartTime('12:00:00');
     setDailyEndTime('');
     setSelectedDays([1, 2, 3, 4, 5]);
@@ -125,7 +168,8 @@ export default function ScheduleModal({
   const handleOpenCreateForm = () => {
     resetForm();
     if (assets.length > 0) {
-      setAssetId(assets[0]._id);
+      setSelectedAssetIds([assets[0]._id]);
+      setAssetToAdd(assets[0]._id);
     }
     setIsFormOpen(true);
   };
@@ -133,7 +177,20 @@ export default function ScheduleModal({
   const handleEditSchedule = (sched) => {
     setEditingScheduleId(sched._id);
     setTitle(sched.title || '');
-    setAssetId(sched.asset?._id || sched.asset || '');
+    
+    // Populate playlist of assets
+    if (Array.isArray(sched.assets) && sched.assets.length > 0) {
+      setSelectedAssetIds(sched.assets.map((a) => a?._id || a));
+    } else if (sched.asset) {
+      setSelectedAssetIds([sched.asset?._id || sched.asset]);
+    } else {
+      setSelectedAssetIds([]);
+    }
+
+    if (assets.length > 0) {
+      setAssetToAdd(assets[0]._id);
+    }
+
     setDailyStartTime(sched.dailyStartTime || '12:00:00');
     setDailyEndTime(sched.dailyEndTime || '');
     setSelectedDays(Array.isArray(sched.daysOfWeek) ? sched.daysOfWeek : []);
@@ -169,8 +226,8 @@ export default function ScheduleModal({
       showAlert('error', 'Please enter a schedule title');
       return;
     }
-    if (!assetId) {
-      showAlert('error', 'Please select a media asset for this schedule');
+    if (selectedAssetIds.length === 0) {
+      showAlert('error', 'Please add at least one video to the schedule');
       return;
     }
     if (!dailyStartTime) {
@@ -182,7 +239,8 @@ export default function ScheduleModal({
       setIsSubmitting(true);
       const payload = {
         title: title.trim(),
-        assetId,
+        assetIds: selectedAssetIds,
+        assetId: selectedAssetIds[0],
         dailyStartTime,
         dailyEndTime: dailyEndTime ? dailyEndTime : '',
         daysOfWeek: selectedDays,
@@ -299,7 +357,7 @@ export default function ScheduleModal({
                 "{currentOnAirSchedule.title}"
               </span>
               <span className="text-[11px] text-amber-200/80">
-                ({currentOnAirSchedule.assetName})
+                ({currentOnAirSchedule.assetCount > 1 ? `${currentOnAirSchedule.assetCount} videos playlist` : currentOnAirSchedule.assetName})
               </span>
             </div>
             <span className="text-[10px] font-mono font-bold bg-amber-500/20 border border-amber-500/40 text-amber-300 px-2 py-0.5 rounded">
@@ -349,31 +407,39 @@ export default function ScheduleModal({
               </div>
 
               <form onSubmit={handleSubmitSchedule} className="space-y-4">
-                {/* Title & Asset Selector */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                      Schedule Title <span className="text-red-400">*</span>
+                {/* Title */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                    Schedule Title <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder="e.g. Evening Bulletin / Daily Promo / News Pod"
+                    className="w-full bg-[#0a0d14] border border-[#222b3e] focus:border-amber-500 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none transition"
+                    required
+                  />
+                </div>
+
+                {/* Scheduled Video Playlist Builder */}
+                <div className="pt-1">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                      <Layers size={13} className="text-amber-400" />
+                      <span>Scheduled Video Playlist ({selectedAssetIds.length} video{selectedAssetIds.length === 1 ? '' : 's'})</span>
                     </label>
-                    <input
-                      type="text"
-                      value={title}
-                      onChange={(e) => setTitle(e.target.value)}
-                      placeholder="e.g. Evening Bulletin / Daily Promo"
-                      className="w-full bg-[#0a0d14] border border-[#222b3e] focus:border-amber-500 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none transition"
-                      required
-                    />
+                    <span className="text-[10px] text-slate-400 font-mono">
+                      Combined Runtime: <strong className="text-amber-300">{getTotalSelectedAssetsDurationFormatted()}</strong>
+                    </span>
                   </div>
 
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                      Select Video Asset <span className="text-red-400">*</span>
-                    </label>
+                  {/* Add Video to Schedule Bar */}
+                  <div className="flex items-center gap-2 mb-2">
                     <select
-                      value={assetId}
-                      onChange={(e) => setAssetId(e.target.value)}
-                      className="w-full bg-[#0a0d14] border border-[#222b3e] focus:border-amber-500 rounded-xl px-3 py-2 text-xs text-white focus:outline-none transition"
-                      required
+                      value={assetToAdd}
+                      onChange={(e) => setAssetToAdd(e.target.value)}
+                      className="flex-1 bg-[#0a0d14] border border-[#222b3e] focus:border-amber-500 rounded-xl px-3 py-2 text-xs text-white focus:outline-none transition"
                     >
                       {assets.length === 0 ? (
                         <option value="">No ready video assets found</option>
@@ -385,6 +451,78 @@ export default function ScheduleModal({
                         ))
                       )}
                     </select>
+                    <button
+                      type="button"
+                      onClick={() => handleAddAssetToSchedule(assetToAdd)}
+                      disabled={!assetToAdd}
+                      className="px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-black font-extrabold text-xs uppercase tracking-wider flex items-center gap-1 transition disabled:opacity-50"
+                    >
+                      <Plus size={13} strokeWidth={2.5} />
+                      <span>Add Video</span>
+                    </button>
+                  </div>
+
+                  {/* Selected Video Playlist Queue List */}
+                  <div className="bg-[#0a0d14] border border-[#222b3e] rounded-xl overflow-hidden max-h-40 overflow-y-auto">
+                    {selectedAssetIds.length === 0 ? (
+                      <div className="py-5 text-center text-xs text-slate-500">
+                        No videos added to this scheduled playlist yet. Select a video above and click "+ Add Video".
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-[#171f2e]">
+                        {selectedAssetIds.map((id, index) => {
+                          const assetObj = getAssetById(id);
+                          return (
+                            <div
+                              key={`${id}-${index}`}
+                              className="px-3 py-1.5 flex items-center justify-between hover:bg-[#121722] transition text-xs"
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                <span className="font-mono text-[10px] font-bold text-slate-500 w-5">
+                                  #{index + 1}
+                                </span>
+                                <Film size={13} className="text-amber-400 shrink-0" />
+                                <span className="font-semibold text-slate-200 truncate">
+                                  {assetObj ? assetObj.originalName : 'Media Asset'}
+                                </span>
+                                <span className="text-[10px] text-slate-500 font-mono shrink-0">
+                                  ({assetObj?.durationFormatted || `${assetObj?.duration || 0}s`})
+                                </span>
+                              </div>
+
+                              <div className="flex items-center gap-1 shrink-0 ml-3">
+                                <button
+                                  type="button"
+                                  disabled={index === 0}
+                                  onClick={() => handleMoveAsset(index, -1)}
+                                  className="p-1 rounded bg-[#161d2b] hover:bg-[#20293d] text-slate-400 hover:text-white disabled:opacity-20 disabled:cursor-not-allowed transition"
+                                  title="Move Up"
+                                >
+                                  <ArrowUp size={12} />
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={index === selectedAssetIds.length - 1}
+                                  onClick={() => handleMoveAsset(index, 1)}
+                                  className="p-1 rounded bg-[#161d2b] hover:bg-[#20293d] text-slate-400 hover:text-white disabled:opacity-20 disabled:cursor-not-allowed transition"
+                                  title="Move Down"
+                                >
+                                  <ArrowDown size={12} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveAssetFromSchedule(index)}
+                                  className="p-1 rounded bg-[#161d2b] hover:bg-red-950/60 text-slate-400 hover:text-red-400 transition ml-1"
+                                  title="Remove from schedule"
+                                >
+                                  <X size={12} />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -601,7 +739,7 @@ export default function ScheduleModal({
                   <thead className="bg-[#121622] text-slate-400 uppercase text-[10px] font-bold tracking-wider border-b border-[#222b3e]">
                     <tr>
                       <th className="py-3 px-4">Title</th>
-                      <th className="py-3 px-4">Video Asset</th>
+                      <th className="py-3 px-4">Scheduled Playlist</th>
                       <th className="py-3 px-4">Air Time</th>
                       <th className="py-3 px-4">Days</th>
                       <th className="py-3 px-4">Date Window</th>
@@ -634,14 +772,34 @@ export default function ScheduleModal({
                             )}
                           </td>
 
-                          {/* Asset */}
+                          {/* Scheduled Playlist */}
                           <td className="py-3 px-4">
-                            <div className="font-medium text-slate-200">
-                              {sched.asset?.originalName || 'Asset Removed'}
-                            </div>
-                            <div className="text-[10px] text-slate-500">
-                              Duration: {sched.duration || sched.asset?.duration || 0}s
-                            </div>
+                            {sched.assets && sched.assets.length > 1 ? (
+                              <div>
+                                <div className="font-bold text-amber-300 flex items-center gap-1.5">
+                                  <Layers size={13} className="text-amber-400" />
+                                  <span>{sched.assets.length} Videos Playlist</span>
+                                </div>
+                                <div
+                                  className="text-[10px] text-slate-400 truncate max-w-[200px]"
+                                  title={sched.assets.map((a) => a?.originalName).join(' ➔ ')}
+                                >
+                                  {sched.assets.map((a) => a?.originalName || 'Asset').join(' • ')}
+                                </div>
+                              </div>
+                            ) : (
+                              <div>
+                                <div
+                                  className="font-medium text-slate-200 truncate max-w-[200px]"
+                                  title={sched.assets?.[0]?.originalName || sched.asset?.originalName}
+                                >
+                                  {sched.assets?.[0]?.originalName || sched.asset?.originalName || 'Asset Removed'}
+                                </div>
+                                <div className="text-[10px] text-slate-500">
+                                  Duration: {sched.duration || sched.asset?.duration || 0}s
+                                </div>
+                              </div>
+                            )}
                           </td>
 
                           {/* Daily Start & End Time */}

@@ -32,6 +32,7 @@ export const getSchedules = async (req, res, next) => {
   try {
     const { channelId } = req.params;
     const schedules = await Schedule.find({ channel: channelId })
+      .populate('assets', 'originalName filePath duration durationFormatted thumbnailPath category')
       .populate('asset', 'originalName filePath duration durationFormatted thumbnailPath category')
       .sort({ dailyStartTime: 1, createdAt: 1 });
 
@@ -48,6 +49,7 @@ export const createSchedule = async (req, res, next) => {
     const {
       title,
       assetId,
+      assetIds,
       dailyStartTime,
       dailyEndTime,
       duration,
@@ -61,8 +63,16 @@ export const createSchedule = async (req, res, next) => {
     if (!title || !title.trim()) {
       return res.status(400).json({ message: 'Schedule title is required' });
     }
-    if (!assetId) {
-      return res.status(400).json({ message: 'Media asset is required for schedule' });
+
+    let finalAssetIds = [];
+    if (Array.isArray(assetIds) && assetIds.length > 0) {
+      finalAssetIds = assetIds.map(String).filter(Boolean);
+    } else if (assetId) {
+      finalAssetIds = [String(assetId)];
+    }
+
+    if (finalAssetIds.length === 0) {
+      return res.status(400).json({ message: 'At least one media asset is required for schedule' });
     }
     if (!dailyStartTime) {
       return res.status(400).json({ message: 'Daily air time (HH:mm:ss) is required' });
@@ -73,14 +83,16 @@ export const createSchedule = async (req, res, next) => {
       return res.status(404).json({ message: 'Channel not found' });
     }
 
-    const asset = await Asset.findById(assetId);
-    if (!asset) {
-      return res.status(404).json({ message: 'Asset not found' });
+    const foundAssets = await Asset.find({ _id: { $in: finalAssetIds } });
+    if (!foundAssets || foundAssets.length === 0) {
+      return res.status(404).json({ message: 'Selected media assets not found' });
     }
+
+    const totalAssetDuration = foundAssets.reduce((sum, a) => sum + (Number(a.duration) || 0), 0) || 60;
 
     const normalizedTime = normalizeTimeStr(dailyStartTime);
     const normalizedEndTime = dailyEndTime ? normalizeTimeStr(dailyEndTime) : '';
-    let finalDuration = duration && Number(duration) > 0 ? Number(duration) : Number(asset.duration) || 60;
+    let finalDuration = duration && Number(duration) > 0 ? Number(duration) : totalAssetDuration;
     if (normalizedEndTime) {
       const winDur = calcWindowDuration(normalizedTime, normalizedEndTime);
       if (winDur > 0) finalDuration = winDur;
@@ -95,7 +107,8 @@ export const createSchedule = async (req, res, next) => {
     const schedule = new Schedule({
       channel: channelId,
       title: title.trim(),
-      asset: assetId,
+      assets: finalAssetIds,
+      asset: finalAssetIds[0],
       dailyStartTime: normalizedTime,
       dailyEndTime: normalizedEndTime,
       duration: finalDuration,
@@ -109,10 +122,9 @@ export const createSchedule = async (req, res, next) => {
 
     await schedule.save();
 
-    const populated = await Schedule.findById(schedule._id).populate(
-      'asset',
-      'originalName filePath duration durationFormatted thumbnailPath category'
-    );
+    const populated = await Schedule.findById(schedule._id)
+      .populate('assets', 'originalName filePath duration durationFormatted thumbnailPath category')
+      .populate('asset', 'originalName filePath duration durationFormatted thumbnailPath category');
 
     if (io) {
       io.to(`channel:${channelId}`).emit('schedules_updated', {
@@ -137,6 +149,7 @@ export const updateSchedule = async (req, res, next) => {
     const {
       title,
       assetId,
+      assetIds,
       dailyStartTime,
       dailyEndTime,
       duration,
@@ -153,12 +166,28 @@ export const updateSchedule = async (req, res, next) => {
     }
 
     if (title !== undefined) schedule.title = title.trim();
-    if (assetId !== undefined) {
-      const asset = await Asset.findById(assetId);
-      if (!asset) return res.status(404).json({ message: 'Asset not found' });
-      schedule.asset = assetId;
-      if (!duration) schedule.duration = Number(asset.duration) || 60;
+
+    if (assetIds !== undefined || assetId !== undefined) {
+      let finalAssetIds = [];
+      if (Array.isArray(assetIds) && assetIds.length > 0) {
+        finalAssetIds = assetIds.map(String).filter(Boolean);
+      } else if (assetId) {
+        finalAssetIds = [String(assetId)];
+      }
+
+      if (finalAssetIds.length > 0) {
+        const foundAssets = await Asset.find({ _id: { $in: finalAssetIds } });
+        if (foundAssets && foundAssets.length > 0) {
+          schedule.assets = finalAssetIds;
+          schedule.asset = finalAssetIds[0];
+          const totalDur = foundAssets.reduce((sum, a) => sum + (Number(a.duration) || 0), 0);
+          if (!duration && !schedule.dailyEndTime) {
+            schedule.duration = totalDur || 60;
+          }
+        }
+      }
     }
+
     if (dailyStartTime !== undefined) schedule.dailyStartTime = normalizeTimeStr(dailyStartTime);
     if (dailyEndTime !== undefined) {
       schedule.dailyEndTime = dailyEndTime ? normalizeTimeStr(dailyEndTime) : '';
@@ -179,10 +208,9 @@ export const updateSchedule = async (req, res, next) => {
 
     await schedule.save();
 
-    const populated = await Schedule.findById(schedule._id).populate(
-      'asset',
-      'originalName filePath duration durationFormatted thumbnailPath category'
-    );
+    const populated = await Schedule.findById(schedule._id)
+      .populate('assets', 'originalName filePath duration durationFormatted thumbnailPath category')
+      .populate('asset', 'originalName filePath duration durationFormatted thumbnailPath category');
 
     if (io) {
       io.to(`channel:${channelId}`).emit('schedules_updated', {
@@ -212,10 +240,9 @@ export const toggleSchedule = async (req, res, next) => {
     schedule.enabled = !schedule.enabled;
     await schedule.save();
 
-    const populated = await Schedule.findById(schedule._id).populate(
-      'asset',
-      'originalName filePath duration durationFormatted thumbnailPath category'
-    );
+    const populated = await Schedule.findById(schedule._id)
+      .populate('assets', 'originalName filePath duration durationFormatted thumbnailPath category')
+      .populate('asset', 'originalName filePath duration durationFormatted thumbnailPath category');
 
     if (io) {
       io.to(`channel:${channelId}`).emit('schedules_updated', {
