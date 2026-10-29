@@ -18,6 +18,11 @@ export class FeederService {
     this.currentAssetStartTime = null;
     this.currentAssetDuration = null;
     this.currentOffsetAtStart = 0;
+    this.currentVideoPath = null;
+    this.currentAsset = null;
+    this.isScheduleActive = false;
+    this.wasInterruptedBySchedule = false;
+    this.interruptedState = null;
   }
 
   getCurrentPlaybackPosition() {
@@ -94,7 +99,21 @@ export class FeederService {
           console.log(`[Feeder:${this.channelId}] Playing item #${i + 1}: ${asset.originalName} (${asset.duration}s)`);
 
           // Play the asset through decoder
+          this.currentAsset = asset;
+          this.currentVideoPath = absolutePath;
           await this.streamAsset(absolutePath, asset.duration);
+
+          // If playback was paused by a scheduled video broadcast, wait until schedule finishes
+          if (this.wasInterruptedBySchedule) {
+            console.log(`[Feeder:${this.channelId}] Regular play loop waiting for scheduled video to complete...`);
+            while (this.isScheduleActive && this.isRunning) {
+              await new Promise((r) => setTimeout(r, 400));
+            }
+            this.wasInterruptedBySchedule = false;
+            // Decrement i so next for-loop iteration re-enters the same item with this.startOffsetSeconds
+            i = this.currentIndex - 1;
+            continue;
+          }
 
           // Mark item PLAYED
           await Playlist.updateOne(
@@ -260,16 +279,118 @@ export class FeederService {
         });
       }
 
+  /**
+   * Seamlessly pauses current playing video, streams the scheduled video,
+   * and then resumes the original video from the exact second it was paused.
+   */
+  async interruptWithSchedule(schedule) {
+    if (this.isScheduleActive) {
+      console.warn(`[Feeder:${this.channelId}] Schedule interrupt requested but another schedule is active.`);
+      return false;
+    }
+
+    const asset = schedule.asset;
+    if (!asset || !asset.filePath) {
+      console.warn(`[Feeder:${this.channelId}] Scheduled event '${schedule.title}' has no valid asset.`);
+      return false;
+    }
+
+    const scheduleAssetPath = path.resolve(SERVER_ROOT, asset.filePath);
+    if (!fs.existsSync(scheduleAssetPath)) {
+      console.warn(`[Feeder:${this.channelId}] Scheduled asset missing on disk: ${scheduleAssetPath}`);
+      return false;
+    }
+
+    this.isScheduleActive = true;
+    this.wasInterruptedBySchedule = true;
+
+    // 1. Capture exact paused position of currently playing video
+    const pos = this.getCurrentPlaybackPosition();
+    this.interruptedState = {
+      index: this.currentIndex,
+      offsetSeconds: pos.offsetSeconds,
+      videoPath: this.currentVideoPath,
+      duration: this.currentAssetDuration,
+      asset: this.currentAsset
+    };
+
+    console.log(
+      `[Feeder:${this.channelId}] >>> PAUSING PLAYLIST ITEM #${this.interruptedState.index + 1} AT ${this.interruptedState.offsetSeconds.toFixed(1)}s FOR SCHEDULE: "${schedule.title}" <<<`
+    );
+
+    // 2. Kill current regular decoder so it immediately stops streaming regular frames
+    if (this.currentDecoder) {
+      try {
+        this.currentDecoder.stdout.unpipe();
+      } catch {}
+      try {
+        this.currentDecoder.kill('SIGINT');
+      } catch {}
+      this.currentDecoder = null;
+    }
+
+    // 3. Emit schedule_started event to UI
+    if (io) {
+      io.to(`channel:${this.channelId}`).emit('schedule_started', {
+        channelId: this.channelId,
+        scheduleId: schedule._id,
+        title: schedule.title,
+        assetId: asset._id,
+        assetName: asset.originalName,
+        duration: schedule.duration || asset.duration,
+        dailyStartTime: schedule.dailyStartTime,
+        pausedAtOffset: this.interruptedState.offsetSeconds,
+        pausedItemIndex: this.interruptedState.index
+      });
+    }
+
+    // 4. Stream scheduled asset directly into the persistent encoder stdin
+    const scheduleDuration = schedule.duration && Number(schedule.duration) > 0
+      ? Number(schedule.duration)
+      : Number(asset.duration) || 60;
+
+    try {
+      await this.streamAsset(scheduleAssetPath, scheduleDuration);
+    } catch (err) {
+      console.error(`[Feeder:${this.channelId}] Error streaming scheduled video:`, err);
+    }
+
+    // 5. Scheduled asset has completed!
+    console.log(
+      `[Feeder:${this.channelId}] >>> SCHEDULE "${schedule.title}" COMPLETE. RESUMING PAUSED VIDEO AT ${this.interruptedState.offsetSeconds.toFixed(1)}s <<<`
+    );
+
+    if (io) {
+      io.to(`channel:${this.channelId}`).emit('schedule_ended', {
+        channelId: this.channelId,
+        scheduleId: schedule._id,
+        title: schedule.title,
+        resumedAtOffset: this.interruptedState.offsetSeconds,
+        resumedItemIndex: this.interruptedState.index
+      });
+    }
+
+    // 6. Set resume offset so playLoop resumes at this exact point
+    this.startOffsetSeconds = this.interruptedState.offsetSeconds;
+    this.currentIndex = this.interruptedState.index;
+    this.isScheduleActive = false;
+
+    return true;
+  }
+
   stop() {
-        this.isRunning = false;
-        if(this.currentDecoder) {
-        try {
-          if (this.currentDecoder.stdout) {
-            this.currentDecoder.stdout.unpipe();
-            this.currentDecoder.stdout.destroy();
-          }
-          this.currentDecoder.kill('SIGINT');
-      } catch { }
+    this.isRunning = false;
+    this.isScheduleActive = false;
+    this.wasInterruptedBySchedule = false;
+    this.interruptedState = null;
+    if (this.currentDecoder) {
+      try {
+        if (this.currentDecoder.stdout) {
+          this.currentDecoder.stdout.unpipe();
+          this.currentDecoder.stdout.destroy();
+        }
+        this.currentDecoder.kill('SIGINT');
+      } catch {}
       this.currentDecoder = null;
     }
   }

@@ -59,6 +59,7 @@ io.on('connection', (socket) => {
 });
 
 import { streamManager } from './services/streaming/streamManager.js';
+import { schedulerService } from './services/streaming/schedulerService.js';
 
 // Start DB and Server
 const startServer = async () => {
@@ -72,6 +73,9 @@ const startServer = async () => {
 
       // PM2 Crash Recovery: Resumes all channels that were live before restart/crash
       await streamManager.recoverActiveChannels();
+
+      // Playout Scheduler Clock Service
+      schedulerService.start();
     });
   } catch (err) {
     console.error('Failed to start server:', err);
@@ -83,6 +87,7 @@ const startServer = async () => {
 const handleGracefulShutdown = async (signal) => {
   console.log(`\n[Process] Received ${signal}. Starting graceful shutdown...`);
   try {
+    schedulerService.stop();
     await streamManager.stopAllStreams();
     server.close(() => {
       console.log('[Process] HTTP server closed cleanly. Exiting.');
@@ -101,6 +106,7 @@ process.on('SIGINT', () => handleGracefulShutdown('SIGINT'));
 process.once('SIGUSR2', async () => {
   console.log('\n[Process] Nodemon restarting. Stopping active streams cleanly...');
   try {
+    schedulerService.stop();
     await streamManager.stopAllStreams();
   } catch {}
   process.kill(process.pid, 'SIGUSR2');

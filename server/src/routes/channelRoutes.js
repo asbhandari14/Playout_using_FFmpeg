@@ -28,6 +28,13 @@ import {
   uploadAshtonFile
 } from '../controllers/brandingController.js';
 import {
+  getSchedules,
+  createSchedule,
+  updateSchedule,
+  toggleSchedule,
+  deleteSchedule
+} from '../controllers/scheduleController.js';
+import {
   startStreamHandler,
   stopStreamHandler,
   getStreamStatusHandler
@@ -82,5 +89,12 @@ router.post('/:channelId/lband/upload', uploadLBand.single('lband'), uploadLBand
 router.put('/:channelId/ashton', updateAshtonBranding);
 router.delete('/:channelId/ashton', removeAshton);
 router.post('/:channelId/ashton/upload', uploadAshton.single('ashton'), uploadAshtonFile);
+
+// Scheduled Playout routes (time-based video interruption and resumption)
+router.get('/:channelId/schedules', getSchedules);
+router.post('/:channelId/schedules', createSchedule);
+router.put('/:channelId/schedules/:scheduleId', updateSchedule);
+router.patch('/:channelId/schedules/:scheduleId/toggle', toggleSchedule);
+router.delete('/:channelId/schedules/:scheduleId', deleteSchedule);
 
 export default router;

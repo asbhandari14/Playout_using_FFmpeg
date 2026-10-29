@@ -199,21 +199,19 @@ export default function LiveControls({ channel, onBrandingUpdated }) {
         <div className="grid grid-cols-2 bg-[#0b0e14] p-1 rounded-xl border border-[#222938]">
           <button
             onClick={() => setActiveTab('logo')}
-            className={`py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition ${
-              activeTab === 'logo'
+            className={`py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition ${activeTab === 'logo'
                 ? 'bg-[#2563eb] text-white shadow-sm'
                 : 'text-slate-400 hover:text-slate-200'
-            }`}
+              }`}
           >
             Logo
           </button>
           <button
             onClick={() => setActiveTab('ticker')}
-            className={`py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition ${
-              activeTab === 'ticker'
+            className={`py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition ${activeTab === 'ticker'
                 ? 'bg-[#2563eb] text-white shadow-sm'
                 : 'text-slate-400 hover:text-slate-200'
-            }`}
+              }`}
           >
             Ticker
           </button>
@@ -223,11 +221,10 @@ export default function LiveControls({ channel, onBrandingUpdated }) {
       {/* Feedback Toast */}
       {alert && (
         <div
-          className={`mx-3 mt-2 p-2.5 rounded-xl border text-xs flex items-center gap-2 animate-fadeIn ${
-            alert.type === 'success'
+          className={`mx-3 mt-2 p-2.5 rounded-xl border text-xs flex items-center gap-2 animate-fadeIn ${alert.type === 'success'
               ? 'bg-emerald-950/70 border-emerald-800 text-emerald-300'
               : 'bg-red-950/70 border-red-800 text-red-300'
-          }`}
+            }`}
         >
           {alert.type === 'success' ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
           <span>{alert.message}</span>
@@ -294,14 +291,12 @@ export default function LiveControls({ channel, onBrandingUpdated }) {
                   setLogoEnabled(next);
                   handleUpdateLogo({ enabled: next });
                 }}
-                className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors duration-300 ${
-                  logoEnabled ? 'bg-blue-600' : 'bg-slate-700'
-                }`}
+                className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors duration-300 ${logoEnabled ? 'bg-blue-600' : 'bg-slate-700'
+                  }`}
               >
                 <div
-                  className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-300 ${
-                    logoEnabled ? 'translate-x-5' : 'translate-x-0'
-                  }`}
+                  className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-300 ${logoEnabled ? 'translate-x-5' : 'translate-x-0'
+                    }`}
                 />
               </button>
             </div>
@@ -319,11 +314,10 @@ export default function LiveControls({ channel, onBrandingUpdated }) {
                     setLogoPosition('top-left');
                     handleUpdateLogo({ position: 'top-left' });
                   }}
-                  className={`absolute top-2.5 left-2.5 w-7 h-7 rounded-lg flex items-center justify-center transition border ${
-                    logoPosition === 'top-left'
+                  className={`absolute top-2.5 left-2.5 w-7 h-7 rounded-lg flex items-center justify-center transition border ${logoPosition === 'top-left'
                       ? 'bg-blue-600 border-blue-400 text-white shadow-md'
                       : 'bg-[#141822] border-[#222a3a] text-slate-400 hover:text-white'
-                  }`}
+                    }`}
                   title="Top Left"
                 >
                   <CornerUpLeft size={13} />
@@ -335,11 +329,10 @@ export default function LiveControls({ channel, onBrandingUpdated }) {
                     setLogoPosition('top-right');
                     handleUpdateLogo({ position: 'top-right' });
                   }}
-                  className={`absolute top-2.5 right-2.5 w-7 h-7 rounded-lg flex items-center justify-center transition border ${
-                    logoPosition === 'top-right'
+                  className={`absolute top-2.5 right-2.5 w-7 h-7 rounded-lg flex items-center justify-center transition border ${logoPosition === 'top-right'
                       ? 'bg-blue-600 border-blue-400 text-white shadow-md'
                       : 'bg-[#141822] border-[#222a3a] text-slate-400 hover:text-white'
-                  }`}
+                    }`}
                   title="Top Right"
                 >
                   <CornerUpRight size={13} />
@@ -351,11 +344,10 @@ export default function LiveControls({ channel, onBrandingUpdated }) {
                     setLogoPosition('center');
                     handleUpdateLogo({ position: 'center' });
                   }}
-                  className={`w-7 h-7 rounded-lg flex items-center justify-center transition border ${
-                    logoPosition === 'center'
+                  className={`w-7 h-7 rounded-lg flex items-center justify-center transition border ${logoPosition === 'center'
                       ? 'bg-blue-600 border-blue-400 text-white shadow-md'
                       : 'bg-[#141822] border-[#222a3a] text-slate-400 hover:text-white'
-                  }`}
+                    }`}
                   title="Center"
                 >
                   <Circle size={13} />
@@ -367,11 +359,10 @@ export default function LiveControls({ channel, onBrandingUpdated }) {
                     setLogoPosition('bottom-left');
                     handleUpdateLogo({ position: 'bottom-left' });
                   }}
-                  className={`absolute bottom-2.5 left-2.5 w-7 h-7 rounded-lg flex items-center justify-center transition border ${
-                    logoPosition === 'bottom-left'
+                  className={`absolute bottom-2.5 left-2.5 w-7 h-7 rounded-lg flex items-center justify-center transition border ${logoPosition === 'bottom-left'
                       ? 'bg-blue-600 border-blue-400 text-white shadow-md'
                       : 'bg-[#141822] border-[#222a3a] text-slate-400 hover:text-white'
-                  }`}
+                    }`}
                   title="Bottom Left"
                 >
                   <CornerDownLeft size={13} />
@@ -383,11 +374,10 @@ export default function LiveControls({ channel, onBrandingUpdated }) {
                     setLogoPosition('bottom-right');
                     handleUpdateLogo({ position: 'bottom-right' });
                   }}
-                  className={`absolute bottom-2.5 right-2.5 w-7 h-7 rounded-lg flex items-center justify-center transition border ${
-                    logoPosition === 'bottom-right'
+                  className={`absolute bottom-2.5 right-2.5 w-7 h-7 rounded-lg flex items-center justify-center transition border ${logoPosition === 'bottom-right'
                       ? 'bg-blue-600 border-blue-400 text-white shadow-md'
                       : 'bg-[#141822] border-[#222a3a] text-slate-400 hover:text-white'
-                  }`}
+                    }`}
                   title="Bottom Right"
                 >
                   <CornerDownRight size={13} />
@@ -484,7 +474,7 @@ export default function LiveControls({ channel, onBrandingUpdated }) {
                       onChange={(e) => setTickerBgColor(e.target.value)}
                       className="w-4 h-4 rounded border-0 cursor-pointer bg-transparent"
                     />
-                    <span className="text-[9px] font-mono text-slate-300 uppercase">{tickerBgColor.substring(0, 7)}</span>
+                    {/* <span className="text-[9px] font-mono text-slate-300 uppercase">{tickerBgColor.substring(0, 7)}</span> */}
                   </label>
                   <label className="flex items-center gap-1.5 cursor-pointer bg-[#0b0e14] px-2 py-1 rounded-lg border border-[#232b3c]" title="Text Color">
                     <span className="text-[9px] uppercase font-bold text-slate-400">TEXT</span>
@@ -494,7 +484,7 @@ export default function LiveControls({ channel, onBrandingUpdated }) {
                       onChange={(e) => setTickerTextColor(e.target.value)}
                       className="w-4 h-4 rounded border-0 cursor-pointer bg-transparent"
                     />
-                    <span className="text-[9px] font-mono text-slate-300 uppercase">{tickerTextColor.substring(0, 7)}</span>
+                    {/* <span className="text-[9px] font-mono text-slate-300 uppercase">{tickerTextColor.substring(0, 7)}</span> */}
                   </label>
                 </div>
               </div>
@@ -507,11 +497,20 @@ export default function LiveControls({ channel, onBrandingUpdated }) {
                   onChange={(e) => setTickerText(e.target.value)}
                   placeholder="Enter Hindi or English ticker text..."
                   className="w-full p-2.5 bg-[#090c12] border border-[#232a39] rounded-xl text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-blue-500 font-sans"
+                  style={{
+                    backgroundColor: tickerBgColor.substring(0, 7),
+                    color: tickerTextColor.substring(0, 7),
+                    fontFamily: tickerFontFamily,
+                    fontSize: `${Math.max(11, Math.round(tickerFontSize * 0.55))}px`,
+                    padding: `${Math.max(4, Math.round(tickerPaddingY * 0.4))}px 10px`,
+                    width: `${tickerWidth}%`,
+                    margin: tickerAlignment.toLowerCase() === 'center' ? '0 auto' : tickerAlignment.toLowerCase() === 'right' ? '0 0 0 auto' : '0 auto 0 0'
+                  }}
                 />
               </div>
 
               {/* Ticker Live Preview Strip */}
-              <div className="bg-[#0b0e14] p-2 rounded-xl border border-[#232b3c] space-y-1">
+              {/* <div className="bg-[#0b0e14] p-2 rounded-xl border border-[#232b3c] space-y-1">
                 <div className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Live Preview</div>
                 <div
                   className="rounded-lg overflow-hidden font-bold truncate text-center transition-all shadow-inner border border-white/10"
@@ -527,7 +526,7 @@ export default function LiveControls({ channel, onBrandingUpdated }) {
                 >
                   {tickerText || 'Welcome to Cloud Playout Live Broadcast'}
                 </div>
-              </div>
+              </div> */}
             </div>
 
             {/* Font select */}

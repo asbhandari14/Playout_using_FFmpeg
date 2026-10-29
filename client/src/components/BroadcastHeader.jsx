@@ -11,7 +11,8 @@ import {
   Maximize2,
   Tv,
   Sliders,
-  Layers
+  Layers,
+  Calendar
 } from 'lucide-react';
 
 export default function BroadcastHeader({
@@ -20,7 +21,9 @@ export default function BroadcastHeader({
   isLive = false,
   onToggleLive,
   onOpenSettings,
-  onOpenMoreSettings
+  onOpenMoreSettings,
+  onOpenSchedules,
+  currentOnAirSchedule = null
 }) {
   const navigate = useNavigate();
   const [currentTime, setCurrentTime] = useState('');
@@ -131,6 +134,22 @@ export default function BroadcastHeader({
               <span>START LIVE</span>
             </>
           )}
+        </button>
+
+        {/* Schedules Playout Button */}
+        <button
+          onClick={onOpenSchedules}
+          className={`px-3 py-1.5 rounded-lg border flex items-center gap-1.5 text-xs font-bold tracking-wider shadow-sm transition group ${
+            currentOnAirSchedule
+              ? 'bg-amber-950/80 border-amber-500 text-amber-300 animate-pulse shadow-amber-500/30'
+              : 'bg-gradient-to-r from-amber-950/40 via-orange-950/40 to-yellow-950/40 hover:from-amber-900/60 hover:to-orange-900/60 border-amber-500/40 hover:border-amber-400/80 text-amber-200 hover:text-white'
+          }`}
+          title="Open Scheduled Video Playout Manager"
+        >
+          <Calendar size={13} className={currentOnAirSchedule ? 'text-amber-300 animate-bounce' : 'text-amber-400 group-hover:scale-110 transition duration-200'} />
+          <span className="uppercase text-[10px] tracking-wider font-extrabold">
+            {currentOnAirSchedule ? 'SCHEDULE LIVE' : 'Schedules'}
+          </span>
         </button>
 
         {/* More Setting Button */}

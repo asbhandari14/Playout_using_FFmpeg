@@ -24,6 +24,7 @@ import PlaylistTable from '../components/PlaylistTable.jsx';
 import LiveControls from '../components/LiveControls.jsx';
 import Modal from '../components/Modal.jsx';
 import MoreSettingsModal from '../components/MoreSettingsModal.jsx';
+import ScheduleModal from '../components/ScheduleModal.jsx';
 
 export default function ControlRoomPage() {
   const { channelId } = useParams();
@@ -36,6 +37,8 @@ export default function ControlRoomPage() {
   const [isLive, setIsLive] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isMoreSettingsOpen, setIsMoreSettingsOpen] = useState(false);
+  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+  const [currentOnAirSchedule, setCurrentOnAirSchedule] = useState(null);
 
   // Initial data loading
   useEffect(() => {
@@ -90,6 +93,23 @@ export default function ControlRoomPage() {
       if (data.channelId === channelId) {
         setIsLive(data.status === 'live');
         dispatch(updateChannelStatus({ channelId, status: data.status }));
+        if (data.status === 'idle') {
+          setCurrentOnAirSchedule(null);
+        }
+      }
+    });
+
+    socket.on('schedule_started', (data) => {
+      if (data.channelId === channelId) {
+        console.log('[Socket.IO] Scheduled broadcast started:', data);
+        setCurrentOnAirSchedule(data);
+      }
+    });
+
+    socket.on('schedule_ended', (data) => {
+      if (data.channelId === channelId) {
+        console.log('[Socket.IO] Scheduled broadcast ended:', data);
+        setCurrentOnAirSchedule(null);
       }
     });
 
@@ -132,6 +152,8 @@ export default function ControlRoomPage() {
         onToggleLive={handleToggleLive}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onOpenMoreSettings={() => setIsMoreSettingsOpen(true)}
+        onOpenSchedules={() => setIsScheduleModalOpen(true)}
+        currentOnAirSchedule={currentOnAirSchedule}
       />
 
       {/* Main 3-Column Studio Layout */}
@@ -262,6 +284,15 @@ export default function ControlRoomPage() {
         onClose={() => setIsMoreSettingsOpen(false)}
         channel={currentChannel}
         onChannelUpdated={() => dispatch(fetchChannelById(channelId))}
+      />
+
+      {/* Scheduled Playout Manager Modal */}
+      <ScheduleModal
+        isOpen={isScheduleModalOpen}
+        onClose={() => setIsScheduleModalOpen(false)}
+        channelId={channelId}
+        channelName={currentChannel?.name}
+        currentOnAirSchedule={currentOnAirSchedule}
       />
     </div>
   );
