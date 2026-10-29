@@ -1,0 +1,66 @@
+# ==========================================
+# Environment & Secrets
+# ==========================================
+.env
+.env.*
+!.env.example
+
+# ==========================================
+# Dependencies
+# ==========================================
+node_modules/
+
+# ==========================================
+# Heavy Media & Local Storage Folders
+# ==========================================
+# Uploaded videos, thumbnails, raw branding, and temporary chunks
+uploads/
+uploads/**
+
+# Live HLS streaming output directories (contains .ts segments and .m3u8 manifests)
+streams/
+streams/**
+
+# Local test runtimes
+test_zmq_runtime/
+test_zmq_runtime/**
+
+# ==========================================
+# Loose Video, Audio & Stream Segment Files
+# ==========================================
+*.mp4
+*.mkv
+*.mov
+*.avi
+*.flv
+*.webm
+*.ts
+*.m3u8
+*.aac
+*.mp3
+*.wav
+*.m4a
+
+# ==========================================
+# Logs & Process Artifacts
+# ==========================================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# ==========================================
+# OS & Editor Files
+# ==========================================
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.tmp
+
