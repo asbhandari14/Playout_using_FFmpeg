@@ -1,16 +1,6 @@
 import { User } from '../models/User.js';
 import { RefreshToken } from '../models/RefreshToken.js';
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../utils/token.js';
-import { z } from 'zod';
-
-export const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(1, 'Password is required')
-});
-
-export const refreshSchema = z.object({
-  refreshToken: z.string().min(1, 'Refresh token is required')
-});
 
 export const login = async (req, res, next) => {
   try {

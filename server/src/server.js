@@ -6,6 +6,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 import app from './app.js';
+
+// Import DB
 import { connectDB } from './config/db.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -66,10 +68,7 @@ const startServer = async () => {
   try {
     await connectDB();
     server.listen(PORT, async () => {
-      console.log(`=======================================================`);
-      console.log(`  Cloud Playout Control Room Server running on port ${PORT}`);
-      console.log(`  Environment: ${process.env.NODE_ENV || 'development'}`);
-      console.log(`=======================================================`);
+      console.log(`Server is running at the PORT : ${PORT}`);
 
       // PM2 Crash Recovery: Resumes all channels that were live before restart/crash
       await streamManager.recoverActiveChannels();

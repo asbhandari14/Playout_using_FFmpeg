@@ -1,10 +1,6 @@
 import { ROLES } from '../config/constants.js';
 
-/**
- * RBAC authorization middleware
- * @param {Array<string>} allowedRoles - Array of allowed roles (e.g. [ROLES.SUPER_ADMIN, ROLES.ADMIN])
- * @param {Function} [resourceCheck] - Optional async callback (req) => boolean | Promise<boolean>
- */
+// RBAC
 export const authorize = (allowedRoles = [], resourceCheck = null) => {
   return async (req, res, next) => {
     try {

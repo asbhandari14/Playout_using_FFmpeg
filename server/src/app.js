@@ -5,12 +5,17 @@ import morgan from 'morgan';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
+// Import Routes
 import authRoutes from './routes/authRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import serverRoutes from './routes/serverRoutes.js';
 import channelRoutes from './routes/channelRoutes.js';
 import assetRoutes from './routes/assetRoutes.js';
+
+// Import Middleware
 import { errorHandler } from './middleware/errorHandler.js';
+
+// Import path
 import { UPLOADS_DIR, STREAMS_DIR } from './config/paths.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -54,8 +59,6 @@ app.get('/api/health', (req, res) => {
     timestamp: new Date().toISOString()
   });
 });
-
-
 
 // API Routes
 app.use('/api/auth', authRoutes);
