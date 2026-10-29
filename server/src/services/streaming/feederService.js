@@ -153,36 +153,37 @@ export class FeederService {
   /**
    * Spawns decoder ffmpeg to normalize asset and stream MPEG-TS directly to encoder stdin
    */
-    streamAsset(videoPath, _duration) {
-      return new Promise((resolve) => {
-        if (!this.isRunning || !this.encoderProcess?.stdin?.writable) {
-          return resolve();
-        }
+  streamAsset(videoPath, _duration, maxDuration = 0) {
+    return new Promise((resolve) => {
+      if (!this.isRunning || !this.encoderProcess?.stdin?.writable) {
+        return resolve();
+      }
 
-        const startOffset = Math.max(0, this.startOffsetSeconds || 0);
-        this.startOffsetSeconds = 0; // reset after initial resume
-        this.currentAssetStartTime = Date.now();
-        this.currentAssetDuration = _duration;
-        this.currentOffsetAtStart = startOffset;
+      const startOffset = Math.max(0, this.startOffsetSeconds || 0);
+      this.startOffsetSeconds = 0; // reset after initial resume
+      this.currentAssetStartTime = Date.now();
+      this.currentAssetDuration = _duration;
+      this.currentOffsetAtStart = startOffset;
 
-        // Decoder process arguments
-        // Normalizes to 1280x720, 25fps, AAC, outputs mpegts on stdout
-        const decoderArgs = [
-          '-re', // Real-time native pacing
-          ...(startOffset > 0 ? ['-ss', String(startOffset)] : []),
-          '-i', videoPath,
-          '-vf', 'scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,fps=25',
-          '-c:v', 'libx264',
-          '-preset', 'ultrafast',
-          '-tune', 'zerolatency',
-          '-pix_fmt', 'yuv420p',
-          '-c:a', 'aac',
-          '-b:a', '128k',
-          '-ar', '44100',
-          '-ac', '2',
-          '-f', 'mpegts',
-          'pipe:1'
-        ];
+      // Decoder process arguments
+      // Normalizes to 1280x720, 25fps, AAC, outputs mpegts on stdout
+      const decoderArgs = [
+        '-re', // Real-time native pacing
+        ...(startOffset > 0 ? ['-ss', String(startOffset)] : []),
+        '-i', videoPath,
+        ...(maxDuration > 0 ? ['-t', String(maxDuration)] : []),
+        '-vf', 'scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,fps=25',
+        '-c:v', 'libx264',
+        '-preset', 'ultrafast',
+        '-tune', 'zerolatency',
+        '-pix_fmt', 'yuv420p',
+        '-c:a', 'aac',
+        '-b:a', '128k',
+        '-ar', '44100',
+        '-ac', '2',
+        '-f', 'mpegts',
+        'pipe:1'
+      ];
 
         const decoder = spawn('ffmpeg', decoderArgs, {
           stdio: ['ignore', 'pipe', 'ignore']
@@ -339,18 +340,49 @@ export class FeederService {
         assetName: asset.originalName,
         duration: schedule.duration || asset.duration,
         dailyStartTime: schedule.dailyStartTime,
+        dailyEndTime: schedule.dailyEndTime || '',
         pausedAtOffset: this.interruptedState.offsetSeconds,
         pausedItemIndex: this.interruptedState.index
       });
     }
 
     // 4. Stream scheduled asset directly into the persistent encoder stdin
-    const scheduleDuration = schedule.duration && Number(schedule.duration) > 0
-      ? Number(schedule.duration)
-      : Number(asset.duration) || 60;
+    // If dailyEndTime is provided, stream until the wall-clock reaches dailyEndTime (looping asset if needed)
+    let targetEndTime = null;
+    const now = new Date();
+    if (schedule.dailyEndTime) {
+      const [eh, em, es] = schedule.dailyEndTime.split(':').map(Number);
+      const endD = new Date();
+      endD.setHours(eh || 0, em || 0, es || 0, 0);
+      // If end time is earlier than or equal to now (e.g. wraps past midnight)
+      if (endD.getTime() <= now.getTime()) {
+        endD.setDate(endD.getDate() + 1);
+      }
+      targetEndTime = endD.getTime();
+      console.log(
+        `[Feeder:${this.channelId}] Schedule window active until ${schedule.dailyEndTime} (${Math.round((targetEndTime - Date.now()) / 1000)}s total)`
+      );
+    } else if (schedule.duration && Number(schedule.duration) > 0) {
+      targetEndTime = Date.now() + Number(schedule.duration) * 1000;
+    } else {
+      targetEndTime = Date.now() + (Number(asset.duration) || 60) * 1000;
+    }
 
     try {
-      await this.streamAsset(scheduleAssetPath, scheduleDuration);
+      while (this.isRunning && this.isScheduleActive && Date.now() < targetEndTime) {
+        const remainingSeconds = Math.max(0.5, (targetEndTime - Date.now()) / 1000);
+        await this.streamAsset(scheduleAssetPath, asset.duration, remainingSeconds);
+
+        // If scheduled block has more time remaining, brief pause before looping asset
+        if (this.isRunning && this.isScheduleActive && Date.now() < targetEndTime - 1000) {
+          console.log(
+            `[Feeder:${this.channelId}] Looping scheduled asset until window ends at ${schedule.dailyEndTime || 'duration'}...`
+          );
+          await new Promise((r) => setTimeout(r, 150));
+        } else {
+          break;
+        }
+      }
     } catch (err) {
       console.error(`[Feeder:${this.channelId}] Error streaming scheduled video:`, err);
     }

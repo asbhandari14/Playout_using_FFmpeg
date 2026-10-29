@@ -47,11 +47,30 @@ export default function ScheduleModal({
   const [title, setTitle] = useState('');
   const [assetId, setAssetId] = useState('');
   const [dailyStartTime, setDailyStartTime] = useState('12:00:00');
+  const [dailyEndTime, setDailyEndTime] = useState('');
   const [selectedDays, setSelectedDays] = useState([1, 2, 3, 4, 5]); // default Mon-Fri
   const [hasDateRange, setHasDateRange] = useState(false);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [enabled, setEnabled] = useState(true);
+
+  // Helper to compute window duration string
+  const computeWindowDurationStr = (start, end) => {
+    if (!start || !end) return '';
+    const [sh, sm, ss] = start.split(':').map(Number);
+    const [eh, em, es] = end.split(':').map(Number);
+    const startSec = (sh || 0) * 3600 + (sm || 0) * 60 + (ss || 0);
+    const endSec = (eh || 0) * 3600 + (em || 0) * 60 + (es || 0);
+    let durSec = endSec >= startSec ? endSec - startSec : 86400 - startSec + endSec;
+    const h = Math.floor(durSec / 3600);
+    const m = Math.floor((durSec % 3600) / 60);
+    const s = durSec % 60;
+    const parts = [];
+    if (h > 0) parts.push(`${h}h`);
+    if (m > 0 || h > 0) parts.push(`${m}m`);
+    parts.push(`${s}s`);
+    return parts.join(' ');
+  };
 
   const showAlert = (type, message) => {
     setAlert({ type, message });
@@ -93,6 +112,7 @@ export default function ScheduleModal({
     setTitle('');
     setAssetId(assets.length > 0 ? assets[0]._id : '');
     setDailyStartTime('12:00:00');
+    setDailyEndTime('');
     setSelectedDays([1, 2, 3, 4, 5]);
     setHasDateRange(false);
     setStartDate('');
@@ -115,6 +135,7 @@ export default function ScheduleModal({
     setTitle(sched.title || '');
     setAssetId(sched.asset?._id || sched.asset || '');
     setDailyStartTime(sched.dailyStartTime || '12:00:00');
+    setDailyEndTime(sched.dailyEndTime || '');
     setSelectedDays(Array.isArray(sched.daysOfWeek) ? sched.daysOfWeek : []);
     if (sched.startDate || sched.endDate) {
       setHasDateRange(true);
@@ -163,6 +184,7 @@ export default function ScheduleModal({
         title: title.trim(),
         assetId,
         dailyStartTime,
+        dailyEndTime: dailyEndTime ? dailyEndTime : '',
         daysOfWeek: selectedDays,
         startDate: hasDateRange && startDate ? startDate : null,
         endDate: hasDateRange && endDate ? endDate : null,
@@ -366,13 +388,13 @@ export default function ScheduleModal({
                   </div>
                 </div>
 
-                {/* Daily Start Time & Days of Week */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+                {/* Daily Start/End Time & Days of Week */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-2">
                   {/* Daily Start Time */}
                   <div>
                     <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
                       <Clock size={13} className="text-amber-400" />
-                      <span>Daily Air Time (HH:MM:SS)</span>
+                      <span>Start Time (HH:MM:SS)</span>
                     </label>
                     <input
                       type="time"
@@ -383,7 +405,27 @@ export default function ScheduleModal({
                       required
                     />
                     <span className="text-[10px] text-slate-500 mt-1 block">
-                      Exact 24h clock time to trigger video
+                      Exact start time
+                    </span>
+                  </div>
+
+                  {/* Daily End Time */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                      <Clock size={13} className="text-orange-400" />
+                      <span>End Time (Optional)</span>
+                    </label>
+                    <input
+                      type="time"
+                      step="1"
+                      value={dailyEndTime}
+                      onChange={(e) => setDailyEndTime(e.target.value)}
+                      className="w-full bg-[#0a0d14] border border-[#222b3e] focus:border-orange-500 rounded-xl px-3.5 py-2 text-xs font-mono text-orange-300 focus:outline-none transition"
+                    />
+                    <span className="text-[10px] text-amber-400/90 font-mono mt-1 block truncate" title={dailyEndTime ? computeWindowDurationStr(dailyStartTime, dailyEndTime) : ''}>
+                      {dailyEndTime
+                        ? `Window: ${computeWindowDurationStr(dailyStartTime, dailyEndTime)}`
+                        : 'Single video play'}
                     </span>
                   </div>
 
@@ -602,11 +644,26 @@ export default function ScheduleModal({
                             </div>
                           </td>
 
-                          {/* Daily Start Time */}
+                          {/* Daily Start & End Time */}
                           <td className="py-3 px-4">
-                            <span className="font-mono text-xs font-bold text-amber-300 bg-[#161d2d] px-2 py-0.5 rounded border border-[#263148]">
-                              {sched.dailyStartTime}
-                            </span>
+                            <div className="font-mono text-xs font-bold text-amber-300 flex items-center gap-1">
+                              <span>{sched.dailyStartTime}</span>
+                              {sched.dailyEndTime && (
+                                <>
+                                  <span className="text-slate-500">→</span>
+                                  <span className="text-orange-300">{sched.dailyEndTime}</span>
+                                </>
+                              )}
+                            </div>
+                            {sched.dailyEndTime ? (
+                              <span className="text-[10px] text-amber-400/90 font-mono block">
+                                Window: {computeWindowDurationStr(sched.dailyStartTime, sched.dailyEndTime)}
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-slate-500 italic block">
+                                Single playback
+                              </span>
+                            )}
                           </td>
 
                           {/* Days of Week */}

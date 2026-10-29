@@ -13,6 +13,20 @@ const normalizeTimeStr = (timeStr) => {
   return `${h}:${m}:${s}`;
 };
 
+// Calculate window duration between HH:mm:ss start and end
+export const calcWindowDuration = (startTime, endTime) => {
+  if (!startTime || !endTime) return 0;
+  const [sh, sm, ss] = startTime.split(':').map(Number);
+  const [eh, em, es] = endTime.split(':').map(Number);
+  const startSec = (sh || 0) * 3600 + (sm || 0) * 60 + (ss || 0);
+  const endSec = (eh || 0) * 3600 + (em || 0) * 60 + (es || 0);
+  if (endSec >= startSec) {
+    return endSec - startSec;
+  }
+  // Midnight wraparound (e.g. 23:45:00 to 00:15:00)
+  return 86400 - startSec + endSec;
+};
+
 // GET /api/channels/:channelId/schedules
 export const getSchedules = async (req, res, next) => {
   try {
@@ -35,6 +49,7 @@ export const createSchedule = async (req, res, next) => {
       title,
       assetId,
       dailyStartTime,
+      dailyEndTime,
       duration,
       startDate,
       endDate,
@@ -64,7 +79,12 @@ export const createSchedule = async (req, res, next) => {
     }
 
     const normalizedTime = normalizeTimeStr(dailyStartTime);
-    const finalDuration = duration && Number(duration) > 0 ? Number(duration) : Number(asset.duration) || 60;
+    const normalizedEndTime = dailyEndTime ? normalizeTimeStr(dailyEndTime) : '';
+    let finalDuration = duration && Number(duration) > 0 ? Number(duration) : Number(asset.duration) || 60;
+    if (normalizedEndTime) {
+      const winDur = calcWindowDuration(normalizedTime, normalizedEndTime);
+      if (winDur > 0) finalDuration = winDur;
+    }
 
     // Normalize days of week
     let normalizedDays = [];
@@ -77,6 +97,7 @@ export const createSchedule = async (req, res, next) => {
       title: title.trim(),
       asset: assetId,
       dailyStartTime: normalizedTime,
+      dailyEndTime: normalizedEndTime,
       duration: finalDuration,
       startDate: startDate ? new Date(startDate) : null,
       endDate: endDate ? new Date(endDate) : null,
@@ -117,6 +138,7 @@ export const updateSchedule = async (req, res, next) => {
       title,
       assetId,
       dailyStartTime,
+      dailyEndTime,
       duration,
       startDate,
       endDate,
@@ -138,7 +160,15 @@ export const updateSchedule = async (req, res, next) => {
       if (!duration) schedule.duration = Number(asset.duration) || 60;
     }
     if (dailyStartTime !== undefined) schedule.dailyStartTime = normalizeTimeStr(dailyStartTime);
-    if (duration !== undefined) schedule.duration = Number(duration);
+    if (dailyEndTime !== undefined) {
+      schedule.dailyEndTime = dailyEndTime ? normalizeTimeStr(dailyEndTime) : '';
+    }
+    if (schedule.dailyStartTime && schedule.dailyEndTime) {
+      const winDur = calcWindowDuration(schedule.dailyStartTime, schedule.dailyEndTime);
+      if (winDur > 0) schedule.duration = winDur;
+    } else if (duration !== undefined) {
+      schedule.duration = Number(duration);
+    }
     if (startDate !== undefined) schedule.startDate = startDate ? new Date(startDate) : null;
     if (endDate !== undefined) schedule.endDate = endDate ? new Date(endDate) : null;
     if (daysOfWeek !== undefined && Array.isArray(daysOfWeek)) {

@@ -87,13 +87,29 @@ class SchedulerService {
         // 4. Check time window match
         if (!schedule.dailyStartTime) continue;
         const [sh, sm, ss] = schedule.dailyStartTime.split(':').map(Number);
-        const scheduleSec = (sh || 0) * 3600 + (sm || 0) * 60 + (ss || 0);
+        const startSec = (sh || 0) * 3600 + (sm || 0) * 60 + (ss || 0);
 
-        // Allow match window of 0 to 4 seconds to protect against small clock jitter
-        const diff = currentSecOfDay - scheduleSec;
-        if (diff >= 0 && diff <= 4) {
+        let isMatch = false;
+        if (schedule.dailyEndTime) {
+          const [eh, em, es] = schedule.dailyEndTime.split(':').map(Number);
+          const endSec = (eh || 0) * 3600 + (em || 0) * 60 + (es || 0);
+          
+          if (endSec > startSec) {
+            // Standard daytime window (e.g. 14:00:00 to 14:30:00)
+            isMatch = currentSecOfDay >= startSec && currentSecOfDay < endSec;
+          } else {
+            // Midnight crossing window (e.g. 23:30:00 to 00:30:00)
+            isMatch = currentSecOfDay >= startSec || currentSecOfDay < endSec;
+          }
+        } else {
+          // Point-in-time trigger (0-4s window tolerance)
+          const diff = currentSecOfDay - startSec;
+          isMatch = diff >= 0 && diff <= 4;
+        }
+
+        if (isMatch) {
           console.log(
-            `[SchedulerService] Matched scheduled event "${schedule.title}" for channel ${channelIdStr} at ${schedule.dailyStartTime}`
+            `[SchedulerService] Triggering scheduled event "${schedule.title}" for channel ${channelIdStr} (Window: ${schedule.dailyStartTime} -> ${schedule.dailyEndTime || 'completion'})`
           );
 
           // Mark as aired today immediately to prevent duplicate triggers

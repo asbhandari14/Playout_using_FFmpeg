@@ -24,6 +24,12 @@ const scheduleSchema = new mongoose.Schema(
       required: true,
       trim: true
     },
+    // Exact wall-clock end time (HH:mm:ss or HH:mm, e.g. "15:00:00")
+    dailyEndTime: {
+      type: String,
+      default: '',
+      trim: true
+    },
     // Duration in seconds (0 = use asset duration)
     duration: {
       type: Number,
