@@ -925,6 +925,8 @@ export const updateAshtonBranding = async (req, res, next) => {
         };
       }
 
+      const heightChanged = height !== undefined && Number(height) !== previousHeight;
+
       if (stream.feeder?.isScheduleActive && stream.feeder.scheduleBrandingSnapshot) {
         if (enabled !== undefined) {
           stream.feeder.scheduleBrandingSnapshot.ashton.enabled = !!enabled;
