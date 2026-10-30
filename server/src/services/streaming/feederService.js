@@ -6,6 +6,7 @@ import { Channel } from '../../models/Channel.js';
 import { io } from '../../server.js';
 import { SERVER_ROOT } from '../../config/paths.js';
 import { PLAYLIST_ITEM_STATUS } from '../../config/constants.js';
+import { buildBackInTimerFilter } from './brandingAssets.js';
 
 export class FeederService {
   constructor(channelId, encoderProcess, options = {}, encoder = null) {
@@ -221,9 +222,10 @@ export class FeederService {
   };
 
   /**
-   * Spawns decoder ffmpeg to normalize asset and stream MPEG-TS directly to encoder stdin
+   * Spawns decoder ffmpeg to normalize asset and stream MPEG-TS directly to encoder stdin.
+   * If timerFilter is provided (during schedule ads), burns in the exact frame-accurate countdown overlay.
    */
-  streamAsset(videoPath, _duration, maxDuration = 0) {
+  streamAsset(videoPath, _duration, maxDuration = 0, timerFilter = null) {
     return new Promise((resolve) => {
       if (!this.isRunning || !this.encoderProcess?.stdin?.writable) {
         return resolve();
@@ -235,6 +237,9 @@ export class FeederService {
       this.currentAssetDuration = _duration;
       this.currentOffsetAtStart = startOffset;
 
+      const baseVf = 'scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,fps=25';
+      const vfArg = timerFilter ? `${baseVf},${timerFilter}` : baseVf;
+
       // Decoder process arguments
       // Normalizes to 1280x720, 25fps, AAC, outputs mpegts on stdout
       const decoderArgs = [
@@ -242,7 +247,7 @@ export class FeederService {
         ...(startOffset > 0 ? ['-ss', String(startOffset)] : []),
         '-i', videoPath,
         ...(maxDuration > 0 ? ['-t', String(maxDuration)] : []),
-        '-vf', 'scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,fps=25',
+        '-vf', vfArg,
         '-c:v', 'libx264',
         '-preset', 'ultrafast',
         '-tune', 'zerolatency',
@@ -526,6 +531,21 @@ export class FeederService {
             `[Feeder:${this.channelId}] [Schedule Playlist Item ${assetIdx + 1}/${scheduledAssets.length}] Streaming: "${currentSchedAsset.originalName}" (${remainingSeconds.toFixed(1)}s window remaining)`
           );
 
+          // Build Back In Countdown Timer overlay if enabled for this channel and permitted during ad
+          let timerFilter = null;
+          try {
+            const freshCh = await Channel.findById(this.channelId).select('branding.backInTimer');
+            const timerCfg = freshCh?.branding?.backInTimer;
+            if (timerCfg?.enabled && timerCfg?.showDuringSchedule !== false) {
+              timerFilter = buildBackInTimerFilter(timerCfg, remainingSeconds);
+              console.log(
+                `[Feeder:${this.channelId}] Applied frame-accurate Back In timer (${Math.ceil(remainingSeconds)}s countdown) to scheduled ad`
+              );
+            }
+          } catch (tErr) {
+            console.warn(`[Feeder:${this.channelId}] Warning preparing Back In timer:`, tErr.message);
+          }
+
           if (io) {
             io.to(`channel:${this.channelId}`).emit('schedule_item_playing', {
               channelId: this.channelId,
@@ -533,11 +553,13 @@ export class FeederService {
               assetIndex: assetIdx % scheduledAssets.length,
               assetName: currentSchedAsset.originalName,
               assetDuration: currentSchedAsset.duration,
-              totalAssets: scheduledAssets.length
+              totalAssets: scheduledAssets.length,
+              remainingSeconds: Math.ceil(remainingSeconds),
+              hasTimer: Boolean(timerFilter)
             });
           }
 
-          await this.streamAsset(scheduleAssetPath, currentSchedAsset.duration, remainingSeconds);
+          await this.streamAsset(scheduleAssetPath, currentSchedAsset.duration, remainingSeconds, timerFilter);
         }
 
         assetIdx++;

@@ -112,6 +112,18 @@ const channelSchema = new mongoose.Schema(
         squeeze: { type: Boolean, default: true },
         height: { type: Number, default: 160 }
       },
+      backInTimer: {
+        enabled: { type: Boolean, default: false },
+        showDuringSchedule: { type: Boolean, default: true },
+        label: { type: String, default: 'BACK IN ' },
+        format: { type: String, default: 'MM:SS' },
+        position: { type: String, default: 'top-left' },
+        positionX: { type: Number, default: 5, min: 0, max: 100 },
+        positionY: { type: Number, default: 5, min: 0, max: 100 },
+        fontSize: { type: Number, default: 24, min: 12, max: 60 },
+        fontColor: { type: String, default: '#ffffff' },
+        bgColor: { type: String, default: '#000000cc' }
+      },
       preScheduleBranding: {
         type: mongoose.Schema.Types.Mixed,
         default: null

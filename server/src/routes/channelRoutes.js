@@ -28,7 +28,9 @@ import {
   uploadLBandFile,
   updateAshtonBranding,
   removeAshton,
-  uploadAshtonFile
+  uploadAshtonFile,
+  updateTimerBranding,
+  removeTimer
 } from '../controllers/brandingController.js';
 import {
   getSchedules,
@@ -97,6 +99,10 @@ router.post('/:channelId/lband/upload', uploadLBand.single('lband'), uploadLBand
 router.put('/:channelId/ashton', updateAshtonBranding);
 router.delete('/:channelId/ashton', removeAshton);
 router.post('/:channelId/ashton/upload', uploadAshton.single('ashton'), uploadAshtonFile);
+
+// Back In Timer controls (countdown overlay during commercial / ad schedules)
+router.put('/:channelId/timer', updateTimerBranding);
+router.delete('/:channelId/timer', removeTimer);
 
 // Scheduled Playout routes (time-based video interruption and resumption)
 router.get('/:channelId/schedules', getSchedules);

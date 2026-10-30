@@ -761,3 +761,87 @@ export const analyzeAndNormalizeAshton = async (sourcePath, destinationPath) => 
   };
 };
 
+/**
+ * Returns an existing TrueType font file on the host machine (cross-platform Windows & Linux)
+ */
+export const getSystemFontFile = (customFont = null) => {
+  if (customFont && fs.existsSync(customFont)) return customFont;
+  const candidates = process.platform === 'win32'
+    ? [
+        'C:\\Windows\\Fonts\\arialbd.ttf',
+        'C:\\Windows\\Fonts\\arial.ttf',
+        'C:\\Windows\\Fonts\\segoeuib.ttf',
+        'C:\\Windows\\Fonts\\segoeui.ttf',
+        'C:\\Windows\\Fonts\\tahoma.ttf'
+      ]
+    : [
+        '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+        '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+        '/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf',
+        '/usr/share/fonts/truetype/freefont/FreeSansBold.ttf',
+        '/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf'
+      ];
+  for (const p of candidates) {
+    if (fs.existsSync(p)) return p;
+  }
+  return null;
+};
+
+/**
+ * Builds a high-precision, frame-accurate FFmpeg drawtext filter string for the Back In timer
+ * Dynamically computes real-time countdown down to 00:00 (or 0s)
+ */
+export const buildBackInTimerFilter = (timerConfig = {}, countdownSeconds = 30) => {
+  const rawLabel = timerConfig.label !== undefined ? String(timerConfig.label) : 'BACK IN ';
+  // Sanitize label for FFmpeg drawtext: escape colons and backslashes, remove single quotes
+  const label = rawLabel.replace(/'/g, '').replace(/\\/g, '\\\\').replace(/:/g, '\\:');
+  const format = timerConfig.format || 'MM:SS';
+  const fontSize = Number(timerConfig.fontSize) || 24;
+  const fontColor = timerConfig.fontColor || '#ffffff';
+  let bgColor = timerConfig.bgColor || 'black@0.75';
+
+  if (bgColor.startsWith('#') && bgColor.length === 7) {
+    bgColor = `${bgColor}@0.8`;
+  }
+
+  const position = timerConfig.position || 'top-left';
+  let xExpr = '40';
+  let yExpr = '40';
+
+  if (position === 'top-left') {
+    xExpr = '40';
+    yExpr = '40';
+  } else if (position === 'top-right') {
+    xExpr = 'w-tw-40';
+    yExpr = '40';
+  } else if (position === 'bottom-left') {
+    xExpr = '40';
+    yExpr = 'h-th-40';
+  } else if (position === 'bottom-right') {
+    xExpr = 'w-tw-40';
+    yExpr = 'h-th-40';
+  } else if (position === 'custom') {
+    const clampedX = Math.min(95, Math.max(5, Number(timerConfig.positionX) || 50));
+    const clampedY = Math.min(95, Math.max(5, Number(timerConfig.positionY) || 50));
+    xExpr = `(w-tw)*(${clampedX}/100)`;
+    yExpr = `(h-th)*(${clampedY}/100)`;
+  }
+
+  const fontFile = getSystemFontFile();
+  const fontParam = fontFile
+    ? `fontfile='${fontFile.replace(/\\/g, '/').replace(/:/g, '\\:')}':`
+    : '';
+
+  const totalSec = Math.max(1, Math.ceil(countdownSeconds));
+
+  let timeExpression = '';
+  if (format === 'SS') {
+    timeExpression = `%{eif\\:max(0\\,${totalSec}-t)\\:d}s`;
+  } else {
+    // MM:SS format: e.g. 00:30
+    timeExpression = `%{eif\\:(max(0\\,${totalSec}-t)/60)\\:d\\:2}\\:%{eif\\:mod(max(0\\,${totalSec}-t)\\,60)\\:d\\:2}`;
+  }
+
+  return `drawtext=${fontParam}text='${label}${timeExpression}':fontsize=${fontSize}:fontcolor=${fontColor}:box=1:boxcolor=${bgColor}:boxborderw=10:x='${xExpr}':y='${yExpr}'`;
+};
+

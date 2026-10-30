@@ -1129,3 +1129,95 @@ export const removeAshton = async (req, res, next) => {
     next(error);
   }
 };
+
+// PUT /api/channels/:channelId/timer
+export const updateTimerBranding = async (req, res, next) => {
+  try {
+    const { channelId } = req.params;
+    const {
+      enabled,
+      showDuringSchedule,
+      label,
+      format,
+      position,
+      positionX,
+      positionY,
+      fontSize,
+      fontColor,
+      bgColor
+    } = req.body || {};
+
+    const channel = await Channel.findById(channelId);
+    if (!channel) {
+      return res.status(404).json({ message: 'Channel not found' });
+    }
+
+    const updateFields = {};
+    if (enabled !== undefined) updateFields['branding.backInTimer.enabled'] = Boolean(enabled);
+    if (showDuringSchedule !== undefined) updateFields['branding.backInTimer.showDuringSchedule'] = Boolean(showDuringSchedule);
+    if (label !== undefined) updateFields['branding.backInTimer.label'] = String(label);
+    if (format !== undefined) updateFields['branding.backInTimer.format'] = format === 'SS' ? 'SS' : 'MM:SS';
+    if (position !== undefined) updateFields['branding.backInTimer.position'] = position;
+    if (positionX !== undefined) updateFields['branding.backInTimer.positionX'] = Number(positionX);
+    if (positionY !== undefined) updateFields['branding.backInTimer.positionY'] = Number(positionY);
+    if (fontSize !== undefined) updateFields['branding.backInTimer.fontSize'] = Number(fontSize);
+    if (fontColor !== undefined) updateFields['branding.backInTimer.fontColor'] = fontColor;
+    if (bgColor !== undefined) updateFields['branding.backInTimer.bgColor'] = bgColor;
+
+    const updatedChannel = await Channel.findByIdAndUpdate(
+      channelId,
+      { $set: updateFields },
+      { new: true, runValidators: true }
+    );
+
+    const timer = updatedChannel.branding?.backInTimer;
+
+    if (io) {
+      io.to(`channel:${channelId}`).emit('branding_updated', {
+        type: 'timer',
+        timer
+      });
+    }
+
+    return res.status(200).json({
+      message: timer.enabled
+        ? `Back In Timer enabled (${timer.showDuringSchedule ? 'Active during ads' : 'Hidden during ads'})`
+        : 'Back In Timer disabled',
+      timer
+    });
+  } catch (error) {
+    console.error('[Branding Controller] updateTimerBranding error:', error);
+    next(error);
+  }
+};
+
+// DELETE /api/channels/:channelId/timer
+export const removeTimer = async (req, res, next) => {
+  try {
+    const { channelId } = req.params;
+    const updatedChannel = await Channel.findByIdAndUpdate(
+      channelId,
+      { $set: { 'branding.backInTimer.enabled': false } },
+      { new: true }
+    );
+
+    if (!updatedChannel) {
+      return res.status(404).json({ message: 'Channel not found' });
+    }
+
+    if (io) {
+      io.to(`channel:${channelId}`).emit('branding_updated', {
+        type: 'timer',
+        timer: updatedChannel.branding?.backInTimer
+      });
+    }
+
+    return res.status(200).json({
+      message: 'Back In Timer disabled',
+      timer: updatedChannel.branding?.backInTimer
+    });
+  } catch (error) {
+    console.error('[Branding Controller] removeTimer error:', error);
+    next(error);
+  }
+};

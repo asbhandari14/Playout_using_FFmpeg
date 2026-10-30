@@ -16,7 +16,9 @@ import {
   Circle,
   Sparkles,
   Layers,
-  Crosshair
+  Crosshair,
+  Clock,
+  Timer as TimerIcon
 } from 'lucide-react';
 
 export default function LiveControls({ channel, onBrandingUpdated, currentOnAirSchedule = null }) {
@@ -58,6 +60,18 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
   const [tickerWidth, setTickerWidth] = useState(100);
   const [tickerAlignment, setTickerAlignment] = useState('Center');
   const [tickerSpeed, setTickerSpeed] = useState(3);
+
+  // Back In Timer state (counts down frame-accurately until schedule ad ends)
+  const [timerEnabled, setTimerEnabled] = useState(false);
+  const [timerShowDuringSchedule, setTimerShowDuringSchedule] = useState(true);
+  const [timerLabel, setTimerLabel] = useState('BACK IN ');
+  const [timerFormat, setTimerFormat] = useState('MM:SS');
+  const [timerPosition, setTimerPosition] = useState('top-left');
+  const [timerPositionX, setTimerPositionX] = useState(5);
+  const [timerPositionY, setTimerPositionY] = useState(5);
+  const [timerFontSize, setTimerFontSize] = useState(24);
+  const [timerFontColor, setTimerFontColor] = useState('#ffffff');
+  const [timerBgColor, setTimerBgColor] = useState('#000000cc');
 
   // Toast alert
   const [alert, setAlert] = useState(null);
@@ -126,6 +140,18 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
         else setTickerAlignment('Center');
       }
       if (bTicker.speed !== undefined) setTickerSpeed(bTicker.speed);
+
+      const bTimer = channel.branding.backInTimer || {};
+      setTimerEnabled(!!bTimer.enabled);
+      setTimerShowDuringSchedule(bTimer.showDuringSchedule !== false);
+      setTimerLabel(bTimer.label !== undefined ? bTimer.label : 'BACK IN ');
+      setTimerFormat(bTimer.format || 'MM:SS');
+      setTimerPosition(bTimer.position || 'top-left');
+      setTimerPositionX(bTimer.positionX !== undefined ? Number(bTimer.positionX) : 5);
+      setTimerPositionY(bTimer.positionY !== undefined ? Number(bTimer.positionY) : 5);
+      setTimerFontSize(bTimer.fontSize || 24);
+      setTimerFontColor(bTimer.fontColor || '#ffffff');
+      setTimerBgColor(bTimer.bgColor || '#000000cc');
     }
   }, [channel]);
 
@@ -366,6 +392,60 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
     }
   };
 
+  // Toggle or update Back In Timer settings
+  const handleUpdateTimer = async (updates = {}) => {
+    if (!channel?._id) return;
+
+    if (updates.enabled !== undefined) setTimerEnabled(updates.enabled);
+    if (updates.showDuringSchedule !== undefined) setTimerShowDuringSchedule(updates.showDuringSchedule);
+    if (updates.label !== undefined) setTimerLabel(updates.label);
+    if (updates.format !== undefined) setTimerFormat(updates.format);
+    if (updates.position !== undefined) setTimerPosition(updates.position);
+    if (updates.positionX !== undefined) setTimerPositionX(updates.positionX);
+    if (updates.positionY !== undefined) setTimerPositionY(updates.positionY);
+    if (updates.fontSize !== undefined) setTimerFontSize(updates.fontSize);
+    if (updates.fontColor !== undefined) setTimerFontColor(updates.fontColor);
+    if (updates.bgColor !== undefined) setTimerBgColor(updates.bgColor);
+
+    const payload = {};
+    if (updates.enabled !== undefined) payload.enabled = updates.enabled;
+    if (updates.showDuringSchedule !== undefined) payload.showDuringSchedule = updates.showDuringSchedule;
+    if (updates.label !== undefined) payload.label = updates.label;
+    if (updates.format !== undefined) payload.format = updates.format;
+    if (updates.position !== undefined) payload.position = updates.position;
+    if (updates.positionX !== undefined) payload.positionX = updates.positionX;
+    if (updates.positionY !== undefined) payload.positionY = updates.positionY;
+    if (updates.fontSize !== undefined) payload.fontSize = updates.fontSize;
+    if (updates.fontColor !== undefined) payload.fontColor = updates.fontColor;
+    if (updates.bgColor !== undefined) payload.bgColor = updates.bgColor;
+
+    try {
+      const res = await api.put(`/channels/${channel._id}/timer`, payload);
+      const serverTimer = res.data?.timer;
+      if (serverTimer) {
+        if (serverTimer.enabled !== undefined) setTimerEnabled(!!serverTimer.enabled);
+        if (serverTimer.showDuringSchedule !== undefined) setTimerShowDuringSchedule(serverTimer.showDuringSchedule !== false);
+        if (serverTimer.label !== undefined) setTimerLabel(serverTimer.label);
+        if (serverTimer.format !== undefined) setTimerFormat(serverTimer.format);
+        if (serverTimer.position !== undefined) setTimerPosition(serverTimer.position);
+        if (serverTimer.positionX !== undefined) setTimerPositionX(serverTimer.positionX);
+        if (serverTimer.positionY !== undefined) setTimerPositionY(serverTimer.positionY);
+        if (serverTimer.fontSize !== undefined) setTimerFontSize(serverTimer.fontSize);
+        if (serverTimer.fontColor !== undefined) setTimerFontColor(serverTimer.fontColor);
+        if (serverTimer.bgColor !== undefined) setTimerBgColor(serverTimer.bgColor);
+      }
+      showAlert('success', 'Back In Timer settings updated');
+      if (onBrandingUpdated) onBrandingUpdated({ type: 'timer', data: serverTimer || payload });
+    } catch (err) {
+      if (channel?.branding?.backInTimer) {
+        const b = channel.branding.backInTimer;
+        setTimerEnabled(!!b.enabled);
+        setTimerShowDuringSchedule(b.showDuringSchedule !== false);
+      }
+      showAlert('error', err.response?.data?.message || 'Failed to update Back In Timer');
+    }
+  };
+
   return (
     <div className="h-full flex flex-col bg-[#12151b] border-l border-[#202634] select-none text-slate-200">
       {/* Top Header */}
@@ -378,9 +458,9 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
         </div>
       </div>
 
-      {/* Pill Tabs: LOGO | BUG | TICKER */}
+      {/* Pill Tabs: LOGO | BUG | TICKER | TIMER */}
       <div className="p-3 border-b border-[#1d2331]">
-        <div className="grid grid-cols-3 bg-[#0b0e14] p-1 rounded-xl border border-[#222938]">
+        <div className="grid grid-cols-4 bg-[#0b0e14] p-1 rounded-xl border border-[#222938]">
           <button
             onClick={() => setActiveTab('logo')}
             className={`py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition ${activeTab === 'logo'
@@ -408,6 +488,15 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
           >
             Ticker
           </button>
+          <button
+            onClick={() => setActiveTab('timer')}
+            className={`py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition ${activeTab === 'timer'
+                ? 'bg-[#2563eb] text-white shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
+              }`}
+          >
+            Timer
+          </button>
         </div>
       </div>
 
@@ -429,7 +518,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
         {/* ================= LOGO TAB ================= */}
         {activeTab === 'logo' && (
           <div className="space-y-5">
-            {currentOnAirSchedule && (
+            {/* {currentOnAirSchedule && (
               <div className="p-3 rounded-2xl bg-amber-950/40 border border-amber-500/40 text-amber-200 flex items-start gap-2.5">
                 <Sparkles size={16} className="text-amber-400 shrink-0 mt-0.5 animate-pulse" />
                 <div className="text-xs">
@@ -443,7 +532,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                   </span>
                 </div>
               </div>
-            )}
+            )} */}
 
             {/* Box: Channel Branding */}
             <div className="bg-[#151a24] border border-[#232c3d] rounded-2xl p-4 space-y-4">
@@ -1196,6 +1285,278 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                 <Trash2 size={13} />
                 <span>Remove Ticker</span>
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* ================= BACK IN TIMER TAB ================= */}
+        {activeTab === 'timer' && (
+          <div className="space-y-5">
+            {currentOnAirSchedule && (
+              <div className="p-3 rounded-2xl bg-amber-950/40 border border-amber-500/40 text-amber-200 flex items-start gap-2.5">
+                <Sparkles size={16} className="text-amber-400 shrink-0 mt-0.5 animate-pulse" />
+                <div className="text-xs">
+                  <span className="font-bold text-amber-300 block">
+                    Schedule Active: "{currentOnAirSchedule.title}"
+                  </span>
+                  <span className="text-[10px] text-amber-200/80 leading-relaxed block mt-0.5">
+                    {timerEnabled && timerShowDuringSchedule
+                      ? 'Back In Timer is counting down live on the broadcast stream until the ad ends.'
+                      : 'Back In Timer is hidden because it is turned off or not permitted during ads.'}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Live Timer Preview Box */}
+            <div className="bg-[#151a24] border border-[#232c3d] rounded-2xl p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                  <Clock size={13} className="text-blue-400" />
+                  Live Preview
+                </span>
+                <span
+                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                    timerEnabled
+                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                      : 'bg-slate-800 text-slate-500'
+                  }`}
+                >
+                  {timerEnabled ? 'TIMER ENABLED' : 'DISABLED'}
+                </span>
+              </div>
+
+              <div className="relative aspect-video bg-[#090c12] border border-[#222938] rounded-xl flex items-center justify-center p-3 overflow-hidden">
+                <div
+                  className={`absolute px-3 py-1.5 rounded-md font-mono font-bold text-xs shadow-lg flex items-center gap-1.5 transition-all ${
+                    timerPosition === 'top-left'
+                      ? 'top-3 left-3'
+                      : timerPosition === 'top-right'
+                      ? 'top-3 right-3'
+                      : timerPosition === 'bottom-left'
+                      ? 'bottom-3 left-3'
+                      : timerPosition === 'bottom-right'
+                      ? 'bottom-3 right-3'
+                      : 'top-3 left-3'
+                  }`}
+                  style={{
+                    backgroundColor: timerBgColor || '#000000cc',
+                    color: timerFontColor || '#ffffff',
+                    fontSize: `${Math.max(10, Math.min(22, (timerFontSize / 24) * 12))}px`,
+                    opacity: timerEnabled ? 1 : 0.4
+                  }}
+                >
+                  <Clock size={12} className="opacity-80" />
+                  <span>
+                    {timerLabel || 'BACK IN '}
+                    {timerFormat === 'SS' ? '30s' : '00:30'}
+                  </span>
+                </div>
+                <span className="text-[10px] text-slate-600 font-bold uppercase tracking-wider">
+                  Ad Broadcast Frame (1280x720)
+                </span>
+              </div>
+            </div>
+
+            {/* MASTER TOGGLE: Enable Back In Timer */}
+            <div className="flex items-center justify-between p-3 bg-[#151a24] border border-[#232c3d] rounded-xl">
+              <div>
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-200 block">
+                  Enable Back In Timer
+                </span>
+                <span className="text-[10px] text-slate-400">
+                  Activates countdown overlay for broadcast playout
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const next = !timerEnabled;
+                  setTimerEnabled(next);
+                  handleUpdateTimer({ enabled: next });
+                }}
+                className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors duration-300 ${
+                  timerEnabled ? 'bg-blue-600' : 'bg-slate-700'
+                }`}
+              >
+                <div
+                  className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-300 ${
+                    timerEnabled ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+
+            {/* TOGGLE: Show during scheduled ad */}
+            <div className="flex items-center justify-between p-3 bg-[#151a24] border border-[#232c3d] rounded-xl">
+              <div>
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-200 block">
+                  Show Timer During Ad
+                </span>
+                <span className="text-[10px] text-slate-400">
+                  Display real-time countdown backward until the ad ends
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const next = !timerShowDuringSchedule;
+                  setTimerShowDuringSchedule(next);
+                  handleUpdateTimer({ showDuringSchedule: next });
+                }}
+                className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors duration-300 ${
+                  timerShowDuringSchedule ? 'bg-blue-600' : 'bg-slate-700'
+                }`}
+              >
+                <div
+                  className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-300 ${
+                    timerShowDuringSchedule ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+
+            {/* Configuration Box: Label, Format, Position */}
+            <div className="bg-[#151a24] border border-[#232c3d] rounded-2xl p-4 space-y-4">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
+                Timer Customization
+              </span>
+
+              {/* Text Label */}
+              <div>
+                <label className="text-[11px] text-slate-400 font-medium block mb-1.5">
+                  Text Prefix Label
+                </label>
+                <input
+                  type="text"
+                  value={timerLabel}
+                  onChange={(e) => setTimerLabel(e.target.value)}
+                  placeholder="BACK IN "
+                  className="w-full bg-[#090c12] border border-[#232a39] text-xs text-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 font-mono"
+                />
+              </div>
+
+              {/* Format Selection */}
+              <div>
+                <label className="text-[11px] text-slate-400 font-medium block mb-1.5">
+                  Countdown Format
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTimerFormat('MM:SS');
+                      handleUpdateTimer({ format: 'MM:SS' });
+                    }}
+                    className={`py-2 rounded-lg border text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                      timerFormat === 'MM:SS'
+                        ? 'bg-blue-600 border-blue-400 text-white shadow-md'
+                        : 'bg-[#090c12] border-[#222938] text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <span>MM:SS (00:30)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTimerFormat('SS');
+                      handleUpdateTimer({ format: 'SS' });
+                    }}
+                    className={`py-2 rounded-lg border text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                      timerFormat === 'SS'
+                        ? 'bg-blue-600 border-blue-400 text-white shadow-md'
+                        : 'bg-[#090c12] border-[#222938] text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <span>Seconds (30s)</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Position Presets */}
+              <div>
+                <label className="text-[11px] text-slate-400 font-medium block mb-1.5">
+                  Screen Position
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { id: 'top-left', label: 'Top Left' },
+                    { id: 'top-right', label: 'Top Right' },
+                    { id: 'bottom-left', label: 'Bottom Left' },
+                    { id: 'bottom-right', label: 'Bottom Right' }
+                  ].map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => {
+                        setTimerPosition(p.id);
+                        handleUpdateTimer({ position: p.id });
+                      }}
+                      className={`py-2 px-3 rounded-lg border text-xs font-bold transition flex items-center justify-center ${
+                        timerPosition === p.id
+                          ? 'bg-blue-600 border-blue-400 text-white shadow-md'
+                          : 'bg-[#090c12] border-[#222938] text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Font Size & Colors */}
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                <div>
+                  <label className="text-[11px] text-slate-400 font-medium block mb-1">
+                    Font Size ({timerFontSize}px)
+                  </label>
+                  <input
+                    type="range"
+                    min="14"
+                    max="48"
+                    value={timerFontSize}
+                    onChange={(e) => setTimerFontSize(Number(e.target.value))}
+                    className="w-full accent-blue-600 cursor-pointer"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[11px] text-slate-400 font-medium block mb-1">
+                    Font Color
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={timerFontColor}
+                      onChange={(e) => setTimerFontColor(e.target.value)}
+                      className="w-8 h-8 rounded border border-slate-700 cursor-pointer bg-transparent"
+                    />
+                    <span className="text-xs text-slate-300 font-mono">{timerFontColor}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Save Button */}
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleUpdateTimer({
+                      label: timerLabel,
+                      format: timerFormat,
+                      position: timerPosition,
+                      fontSize: timerFontSize,
+                      fontColor: timerFontColor
+                    })
+                  }
+                  className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition shadow-lg shadow-blue-600/30"
+                >
+                  <Send size={14} />
+                  <span>Save Timer Settings</span>
+                </button>
+              </div>
             </div>
           </div>
         )}
