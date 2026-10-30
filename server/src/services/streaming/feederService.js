@@ -32,7 +32,7 @@ export class FeederService {
   }
 
   /**
-   * Restore all branding overlays (ticker, bug, ashton, lband) that were active before schedule started
+   * Restore all branding overlays (ticker, bug, ashton, lband, logo) that were active before schedule started
    */
   async restorePreScheduleBranding() {
     try {
@@ -45,6 +45,9 @@ export class FeederService {
 
       const encoder = this.getEncoder();
       if (encoder && encoder.isRunning) {
+        if (snap.logo?.suppressed && snap.logo?.enabled) {
+          await encoder.setLogoEnabled(true).catch(() => {});
+        }
         if (snap.bug?.enabled) {
           await encoder.setBugEnabled(true).catch(() => {});
         }
@@ -59,15 +62,20 @@ export class FeederService {
         }
       }
 
+      const restoreDbFields = {
+        'branding.preScheduleBranding': null,
+        'branding.ticker.enabled': !!snap.ticker?.enabled,
+        'branding.bug.enabled': !!snap.bug?.enabled,
+        'branding.ashton.enabled': !!snap.ashton?.enabled,
+        'branding.ashton.squeeze': snap.ashton?.squeeze !== false,
+        'branding.lband.enabled': !!snap.lband?.enabled
+      };
+      if (snap.logo?.suppressed) {
+        restoreDbFields['branding.logo.enabled'] = !!snap.logo.enabled;
+      }
+
       await Channel.findByIdAndUpdate(this.channelId, {
-        $set: {
-          'branding.preScheduleBranding': null,
-          'branding.ticker.enabled': !!snap.ticker?.enabled,
-          'branding.bug.enabled': !!snap.bug?.enabled,
-          'branding.ashton.enabled': !!snap.ashton?.enabled,
-          'branding.ashton.squeeze': snap.ashton?.squeeze !== false,
-          'branding.lband.enabled': !!snap.lband?.enabled
-        }
+        $set: restoreDbFields
       });
 
       if (io) {
@@ -77,7 +85,8 @@ export class FeederService {
             ticker: { enabled: !!snap.ticker?.enabled },
             bug: { enabled: !!snap.bug?.enabled },
             ashton: { enabled: !!snap.ashton?.enabled, squeeze: snap.ashton?.squeeze !== false },
-            lband: { enabled: !!snap.lband?.enabled }
+            lband: { enabled: !!snap.lband?.enabled },
+            ...(snap.logo?.suppressed ? { logo: { enabled: !!snap.logo.enabled } } : {})
           }
         });
       }
@@ -380,9 +389,12 @@ export class FeederService {
       `[Feeder:${this.channelId}] >>> PAUSING PLAYLIST ITEM #${this.interruptedState.index + 1} AT ${this.interruptedState.offsetSeconds.toFixed(1)}s FOR SCHEDULE: "${schedule.title}" (${scheduledAssets.length} video(s)) <<<`
     );
 
-    // 2. Snapshot current branding state (ticker, bug, ashton, lband) and suppress them on air during schedule
+    // 2. Snapshot current branding state (ticker, bug, ashton, lband, logo) and suppress secondary overlays (and logo if showDuringSchedule is false)
     try {
       const channelDoc = await Channel.findById(this.channelId);
+      const shouldShowLogo = channelDoc?.branding?.logo?.showDuringSchedule !== false;
+      const logoWasEnabled = Boolean(channelDoc?.branding?.logo?.enabled);
+
       this.scheduleBrandingSnapshot = {
         ticker: { enabled: !!channelDoc?.branding?.ticker?.enabled },
         bug: { enabled: !!channelDoc?.branding?.bug?.enabled },
@@ -390,7 +402,11 @@ export class FeederService {
           enabled: !!channelDoc?.branding?.ashton?.enabled,
           squeeze: channelDoc?.branding?.ashton?.squeeze !== false
         },
-        lband: { enabled: !!channelDoc?.branding?.lband?.enabled }
+        lband: { enabled: !!channelDoc?.branding?.lband?.enabled },
+        logo: {
+          enabled: logoWasEnabled,
+          suppressed: !shouldShowLogo && logoWasEnabled
+        }
       };
 
       console.log(
@@ -398,9 +414,12 @@ export class FeederService {
         this.scheduleBrandingSnapshot
       );
 
-      // Immediately suppress ticker, bug, ashton, and lband on air via live ZMQ
+      // Immediately suppress overlays on air via live ZMQ
       const encoder = this.getEncoder();
       if (encoder && encoder.isRunning) {
+        if (!shouldShowLogo && logoWasEnabled) {
+          await encoder.setLogoEnabled(false).catch(() => {});
+        }
         if (this.scheduleBrandingSnapshot.ticker.enabled) {
           await encoder.setTickerEnabled(false).catch(() => {});
         }
@@ -416,15 +435,18 @@ export class FeederService {
       }
 
       // Persist snapshot and suppress branding states in DB so UI reflects that overlays are suppressed
-      await Channel.findByIdAndUpdate(this.channelId, {
-        $set: {
-          'branding.preScheduleBranding': this.scheduleBrandingSnapshot,
-          'branding.ticker.enabled': false,
-          'branding.bug.enabled': false,
-          'branding.ashton.enabled': false,
-          'branding.lband.enabled': false
-        }
-      });
+      const updateFields = {
+        'branding.preScheduleBranding': this.scheduleBrandingSnapshot,
+        'branding.ticker.enabled': false,
+        'branding.bug.enabled': false,
+        'branding.ashton.enabled': false,
+        'branding.lband.enabled': false
+      };
+      if (!shouldShowLogo && logoWasEnabled) {
+        updateFields['branding.logo.enabled'] = false;
+      }
+
+      await Channel.findByIdAndUpdate(this.channelId, { $set: updateFields });
 
       if (io) {
         io.to(`channel:${this.channelId}`).emit('branding_updated', {
@@ -433,7 +455,8 @@ export class FeederService {
             ticker: { enabled: false },
             bug: { enabled: false },
             ashton: { enabled: false },
-            lband: { enabled: false }
+            lband: { enabled: false },
+            ...(!shouldShowLogo && logoWasEnabled ? { logo: { enabled: false } } : {})
           }
         });
       }

@@ -93,14 +93,23 @@ export default function VideoSection({ channel, selectedAsset, isLive = false })
           hlsInstanceRef.current.destroy();
         }
 
+        // const hls = new Hls({
+        //   enableWorker: true,
+        //   lowLatencyMode: true,
+        //   liveSyncDurationCount: 2,
+        //   liveMaxLatencyDurationCount: 4,
+        //   maxBufferLength: 4,
+        //   maxMaxBufferLength: 8,
+        //   backBufferLength: 10
+        // });
+
         const hls = new Hls({
           enableWorker: true,
           lowLatencyMode: true,
-          liveSyncDurationCount: 2,
-          liveMaxLatencyDurationCount: 4,
-          maxBufferLength: 4,
-          maxMaxBufferLength: 8,
-          backBufferLength: 10
+          liveSyncDurationCount: 1, // Only buffer 1 segment behind live edge
+          liveMaxLatencyDurationCount: 2, // Never let player lag more than 2 segments
+          maxBufferLength: 4, // Max 4 seconds buffer
+          maxMaxBufferLength: 6
         });
 
         hls.loadSource(hlsUrl);
@@ -112,7 +121,7 @@ export default function VideoSection({ channel, selectedAsset, isLive = false })
             if (liveVideoRef.current) {
               liveVideoRef.current.muted = true;
               setLiveMuted(true);
-              liveVideoRef.current.play().catch(() => {});
+              liveVideoRef.current.play().catch(() => { });
             }
           });
         });
@@ -142,7 +151,7 @@ export default function VideoSection({ channel, selectedAsset, isLive = false })
       } else if (liveVideoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
         // Native HLS (Safari/iOS)
         liveVideoRef.current.src = hlsUrl;
-        liveVideoRef.current.play().catch(() => {});
+        liveVideoRef.current.play().catch(() => { });
       }
     } else if (!isLive) {
       // Only tear down and clear media when explicitly toggled off air
@@ -179,29 +188,27 @@ export default function VideoSection({ channel, selectedAsset, isLive = false })
 
         {/* Live on air badge */}
         <div
-          className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 transition ${
-            isLive && isChannelOnline
-              ? 'bg-red-500/10 border border-red-500/40 text-red-400 shadow-sm'
-              : isLive
+          className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 transition ${isLive && isChannelOnline
+            ? 'bg-red-500/10 border border-red-500/40 text-red-400 shadow-sm'
+            : isLive
               ? 'bg-amber-500/10 border border-amber-500/40 text-amber-400 shadow-sm'
               : 'bg-slate-800 border border-slate-700 text-slate-400'
-          }`}
+            }`}
         >
           <span
-            className={`w-1.5 h-1.5 rounded-full ${
-              isLive && isChannelOnline
-                ? 'bg-red-400 animate-ping'
-                : isLive
+            className={`w-1.5 h-1.5 rounded-full ${isLive && isChannelOnline
+              ? 'bg-red-400 animate-ping'
+              : isLive
                 ? 'bg-amber-400 animate-ping'
                 : 'bg-slate-500'
-            }`}
+              }`}
           ></span>
           <span>
             {isLive && isChannelOnline
               ? 'Live HLS on air'
               : isLive
-              ? (checkingOnline ? 'Polling HLS feed...' : 'Connecting to HLS stream...')
-              : 'Playout Deck Standby'}
+                ? (checkingOnline ? 'Polling HLS feed...' : 'Connecting to HLS stream...')
+                : 'Playout Deck Standby'}
           </span>
         </div>
       </div>
@@ -241,13 +248,12 @@ export default function VideoSection({ channel, selectedAsset, isLive = false })
 
         {/* Right: LIVE PROGRAM (PGM) */}
         <div
-          className={`bg-[#141822] border rounded-xl overflow-hidden flex flex-col shadow-lg transition ${
-            isLive && isChannelOnline
-              ? 'border-red-600/70 shadow-red-950/20'
-              : isLive
+          className={`bg-[#141822] border rounded-xl overflow-hidden flex flex-col shadow-lg transition ${isLive && isChannelOnline
+            ? 'border-red-600/70 shadow-red-950/20'
+            : isLive
               ? 'border-amber-600/50 shadow-amber-950/20'
               : 'border-[#232b3c]'
-          }`}
+            }`}
         >
           <div className="px-3 py-1.5 bg-[#161b26] border-b border-[#232b3c] flex items-center justify-between text-[11px] font-bold uppercase tracking-wider">
             <div className="flex items-center gap-1.5 text-red-500">
@@ -257,13 +263,12 @@ export default function VideoSection({ channel, selectedAsset, isLive = false })
 
             <div className="flex items-center gap-1.5">
               <span
-                className={`text-[9px] px-2 py-0.5 rounded font-bold uppercase ${
-                  isLive && isChannelOnline
-                    ? 'bg-red-950/80 text-red-400 border border-red-800 animate-pulse'
-                    : isLive
+                className={`text-[9px] px-2 py-0.5 rounded font-bold uppercase ${isLive && isChannelOnline
+                  ? 'bg-red-950/80 text-red-400 border border-red-800 animate-pulse'
+                  : isLive
                     ? 'bg-amber-950/80 text-amber-400 border border-amber-800 animate-pulse'
                     : 'bg-slate-800 text-slate-400 border border-slate-700'
-                }`}
+                  }`}
               >
                 {isLive && isChannelOnline ? 'ON AIR' : isLive ? 'CONNECTING' : 'OFF AIR'}
               </span>
@@ -274,9 +279,8 @@ export default function VideoSection({ channel, selectedAsset, isLive = false })
             {/* The live video element stays permanently mounted in the DOM to avoid GPU/Direct3D decoder rebuilds and green/black flashes */}
             <video
               ref={liveVideoRef}
-              className={`w-full h-full object-contain transition-opacity duration-300 ${
-                isLive && isChannelOnline ? 'opacity-100' : 'opacity-0 pointer-events-none'
-              }`}
+              className={`w-full h-full object-contain transition-opacity duration-300 ${isLive && isChannelOnline ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                }`}
               muted={liveMuted}
               autoPlay
               playsInline

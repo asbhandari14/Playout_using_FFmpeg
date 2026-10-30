@@ -61,6 +61,9 @@ class StreamManager {
     if (channel.branding?.preScheduleBranding) {
       const snap = channel.branding.preScheduleBranding;
       console.log(`[StreamManager] Restoring leftover preScheduleBranding for '${channel.name}':`, snap);
+      if (snap.logo?.suppressed && channel.branding.logo) {
+        channel.branding.logo.enabled = !!snap.logo.enabled;
+      }
       if (channel.branding.ticker) channel.branding.ticker.enabled = !!snap.ticker?.enabled;
       if (channel.branding.bug) channel.branding.bug.enabled = !!snap.bug?.enabled;
       if (channel.branding.ashton) {
@@ -71,6 +74,7 @@ class StreamManager {
       channel.branding.preScheduleBranding = null;
       await Channel.findByIdAndUpdate(channelId, {
         $set: {
+          ...(snap.logo?.suppressed ? { 'branding.logo.enabled': !!snap.logo.enabled } : {}),
           'branding.ticker.enabled': !!snap.ticker?.enabled,
           'branding.bug.enabled': !!snap.bug?.enabled,
           'branding.ashton.enabled': !!snap.ashton?.enabled,

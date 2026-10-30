@@ -14,7 +14,7 @@ class SchedulerService {
       this.checkSchedules().catch((err) => {
         console.error('[SchedulerService] Error checking schedules:', err);
       });
-    }, 1000);
+    }, 5000);
   }
 
   stop() {

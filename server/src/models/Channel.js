@@ -67,7 +67,8 @@ const channelSchema = new mongoose.Schema(
         },
         sizePercent: { type: Number, default: 10 },
         marginX: { type: Number, default: 2 },
-        marginY: { type: Number, default: 2 }
+        marginY: { type: Number, default: 2 },
+        showDuringSchedule: { type: Boolean, default: true }
       },
       bug: {
         assetPath: { type: String, default: '' },

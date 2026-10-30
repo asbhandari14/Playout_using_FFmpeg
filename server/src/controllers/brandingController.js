@@ -16,7 +16,7 @@ import {
 export const updateLogoBranding = async (req, res, next) => {
   try {
     const { channelId } = req.params;
-    const { assetPath, enabled, position, sizePercent, marginX, marginY } = req.body || {};
+    const { assetPath, enabled, position, sizePercent, marginX, marginY, showDuringSchedule } = req.body || {};
 
     const channel = await Channel.findById(channelId);
     if (!channel) {
@@ -35,6 +35,7 @@ export const updateLogoBranding = async (req, res, next) => {
     if (sizePercent !== undefined) updateFields['branding.logo.sizePercent'] = Number(sizePercent);
     if (marginX !== undefined) updateFields['branding.logo.marginX'] = Number(marginX);
     if (marginY !== undefined) updateFields['branding.logo.marginY'] = Number(marginY);
+    if (showDuringSchedule !== undefined) updateFields['branding.logo.showDuringSchedule'] = !!showDuringSchedule;
 
     const updatedChannel = await Channel.findByIdAndUpdate(
       channelId,
@@ -82,19 +83,53 @@ export const updateLogoBranding = async (req, res, next) => {
         };
       }
 
-      if (currentLogo.enabled !== false) {
-        if (sizeActuallyChanged) {
-          console.log(`[Branding] Dynamic live logo resize to ${currentLogo.sizePercent}% via ZMQ (zero video interruption)...`);
-          scaledInfo = await stream.encoder.setLogoSize(currentLogo.sizePercent);
+      // Check if a schedule is currently actively broadcasting
+      if (stream.feeder?.isScheduleActive) {
+        const allowOnSchedule = currentLogo.showDuringSchedule !== false;
+
+        // If enabled state or showDuringSchedule was modified while schedule is active, keep pending restore state updated
+        if (stream.feeder.scheduleBrandingSnapshot?.logo) {
+          if (enabled !== undefined) {
+            stream.feeder.scheduleBrandingSnapshot.logo.enabled = !!enabled;
+          }
+          stream.feeder.scheduleBrandingSnapshot.logo.suppressed = !allowOnSchedule && Boolean(currentLogo.enabled);
+          await Channel.findByIdAndUpdate(channelId, {
+            $set: {
+              'branding.preScheduleBranding.logo.enabled': stream.feeder.scheduleBrandingSnapshot.logo.enabled,
+              'branding.preScheduleBranding.logo.suppressed': stream.feeder.scheduleBrandingSnapshot.logo.suppressed
+            }
+          });
+        }
+
+        if (allowOnSchedule && currentLogo.enabled !== false) {
+          if (sizeActuallyChanged) {
+            scaledInfo = await stream.encoder.setLogoSize(currentLogo.sizePercent);
+          } else {
+            await stream.encoder.setLogoPosition(
+              currentLogo.position,
+              currentLogo.marginX,
+              currentLogo.marginY
+            );
+          }
         } else {
-          await stream.encoder.setLogoPosition(
-            currentLogo.position,
-            currentLogo.marginX,
-            currentLogo.marginY
-          );
+          // If not permitted during schedule or disabled, ensure logo is off-screen
+          await stream.encoder.setLogoEnabled(false);
         }
       } else {
-        await stream.encoder.setLogoEnabled(false);
+        if (currentLogo.enabled !== false) {
+          if (sizeActuallyChanged) {
+            console.log(`[Branding] Dynamic live logo resize to ${currentLogo.sizePercent}% via ZMQ (zero video interruption)...`);
+            scaledInfo = await stream.encoder.setLogoSize(currentLogo.sizePercent);
+          } else {
+            await stream.encoder.setLogoPosition(
+              currentLogo.position,
+              currentLogo.marginX,
+              currentLogo.marginY
+            );
+          }
+        } else {
+          await stream.encoder.setLogoEnabled(false);
+        }
       }
     }
 

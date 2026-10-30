@@ -33,6 +33,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
   const [logoSizePercent, setLogoSizePercent] = useState(10);
   const [logoMarginX, setLogoMarginX] = useState(2);
   const [logoMarginY, setLogoMarginY] = useState(2);
+  const [logoShowDuringSchedule, setLogoShowDuringSchedule] = useState(true);
 
   // Station Bug state (supports static images & animated GIF + free positioning)
   const [bugAssetPath, setBugAssetPath] = useState('');
@@ -70,6 +71,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
       setLogoSizePercent(bLogo.sizePercent !== undefined ? bLogo.sizePercent : 10);
       setLogoMarginX(bLogo.marginX || 2);
       setLogoMarginY(bLogo.marginY || 2);
+      setLogoShowDuringSchedule(bLogo.showDuringSchedule !== false);
 
       const bBug = channel.branding.bug || {};
       setBugAssetPath(bBug.assetPath || '');
@@ -163,6 +165,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
     if (updates.sizePercent !== undefined) setLogoSizePercent(updates.sizePercent);
     if (updates.marginX !== undefined) setLogoMarginX(updates.marginX);
     if (updates.marginY !== undefined) setLogoMarginY(updates.marginY);
+    if (updates.showDuringSchedule !== undefined) setLogoShowDuringSchedule(updates.showDuringSchedule);
 
     // Build targeted payload with ONLY the fields explicitly modified
     const payload = {};
@@ -172,6 +175,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
     if (updates.sizePercent !== undefined) payload.sizePercent = updates.sizePercent;
     if (updates.marginX !== undefined) payload.marginX = updates.marginX;
     if (updates.marginY !== undefined) payload.marginY = updates.marginY;
+    if (updates.showDuringSchedule !== undefined) payload.showDuringSchedule = updates.showDuringSchedule;
 
     try {
       const res = await api.put(`/channels/${channel._id}/logo`, payload);
@@ -182,6 +186,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
         if (serverLogo.sizePercent !== undefined) setLogoSizePercent(serverLogo.sizePercent);
         if (serverLogo.marginX !== undefined) setLogoMarginX(serverLogo.marginX);
         if (serverLogo.marginY !== undefined) setLogoMarginY(serverLogo.marginY);
+        if (serverLogo.showDuringSchedule !== undefined) setLogoShowDuringSchedule(serverLogo.showDuringSchedule !== false);
       }
       showAlert('success', 'Live logo overlay updated');
       if (onBrandingUpdated) onBrandingUpdated({ type: 'logo', data: serverLogo || payload });
@@ -424,6 +429,22 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
         {/* ================= LOGO TAB ================= */}
         {activeTab === 'logo' && (
           <div className="space-y-5">
+            {currentOnAirSchedule && (
+              <div className="p-3 rounded-2xl bg-amber-950/40 border border-amber-500/40 text-amber-200 flex items-start gap-2.5">
+                <Sparkles size={16} className="text-amber-400 shrink-0 mt-0.5 animate-pulse" />
+                <div className="text-xs">
+                  <span className="font-bold text-amber-300 block">
+                    Schedule Active: "{currentOnAirSchedule.title}"
+                  </span>
+                  <span className="text-[10px] text-amber-200/80 leading-relaxed block mt-0.5">
+                    {logoShowDuringSchedule
+                      ? 'Main Logo remains visible on air during this scheduled broadcast.'
+                      : 'Main Logo is hidden during this ad because "Show Logo During Ad" is off.'}
+                  </span>
+                </div>
+              </div>
+            )}
+
             {/* Box: Channel Branding */}
             <div className="bg-[#151a24] border border-[#232c3d] rounded-2xl p-4 space-y-4">
               <div className="flex items-center gap-2 text-slate-300 text-xs font-bold uppercase tracking-wider">
@@ -484,6 +505,34 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
               >
                 <div
                   className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-300 ${logoEnabled ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                />
+              </button>
+            </div>
+
+            {/* SHOW LOGO DURING AD Toggle */}
+            <div className="flex items-center justify-between p-3 bg-[#151a24] border border-[#232c3d] rounded-xl">
+              <div className="space-y-0.5">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-200 block">
+                  Show Logo during Ad
+                </span>
+                <span className="text-[10px] text-slate-400">
+                  Keep main channel logo visible when scheduled ad plays
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const next = !logoShowDuringSchedule;
+                  setLogoShowDuringSchedule(next);
+                  handleUpdateLogo({ showDuringSchedule: next });
+                }}
+                className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors duration-300 ${logoShowDuringSchedule ? 'bg-blue-600' : 'bg-slate-700'
+                  }`}
+              >
+                <div
+                  className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-300 ${logoShowDuringSchedule ? 'translate-x-5' : 'translate-x-0'
                     }`}
                 />
               </button>
