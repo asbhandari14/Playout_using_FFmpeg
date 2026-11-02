@@ -279,7 +279,7 @@ export class EncoderService {
         text: bTick.text || 'Welcome to Cloud Playout Live Broadcast',
         bgColor: bTick.bgColor || '#000000dd',
         textColor: bTick.textColor || '#ffffff',
-        fontFamily: bTick.fontFamily || 'Sans Bold',
+        fontFamily: bTick.fontFamily || 'Arial',
         fontSize: bTick.fontSize || 26,
         widthPercent: bTick.width || 100,
         paddingY: bTick.paddingY || 12,

@@ -68,6 +68,18 @@ export default function Navbar({ channelTitle = null, onBack = null }) {
       {!channelTitle && (
         <nav className="hidden md:flex items-center space-x-1 bg-[#131720] p-1 rounded-lg border border-[#222938]">
           <Link
+            to="/dashboard"
+            className={`px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-2 transition ${
+              location.pathname === '/dashboard'
+                ? 'bg-[#2563eb] text-white shadow-sm'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-[#1a202c]'
+            }`}
+          >
+            <Tv size={14} />
+            Dashboard
+          </Link>
+
+          <Link
             to="/channels"
             className={`px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-2 transition ${
               location.pathname === '/channels'
@@ -75,7 +87,7 @@ export default function Navbar({ channelTitle = null, onBack = null }) {
                 : 'text-slate-400 hover:text-slate-200 hover:bg-[#1a202c]'
             }`}
           >
-            <Tv size={14} />
+            <Radio size={14} />
             Channels
           </Link>
 

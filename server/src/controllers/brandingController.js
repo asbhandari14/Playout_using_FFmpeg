@@ -597,14 +597,24 @@ export const updateTickerBranding = async (req, res, next) => {
         };
       }
 
-      // Check if ticker background dimensions or text changed. If so, FFmpeg cannot dynamically
-      // change overlay input dimensions without an input frame error, so reload seamlessly.
-      const textChanged = text !== undefined && text !== previousTicker.text;
+      // Check if rendered ticker assets changed (text, colors, font, dimensions) or if forcePush / toggle-on is requested.
+      // Since FFmpeg loops ticker_bg.png and ticker.png via -loop 1 at startup, FFmpeg holds the decoded
+      // frames in memory. Updating the files on disk will NOT show on air without a seamless stream reload.
+      const norm = (s) => (s === undefined || s === null ? '' : String(s).trim());
+      const normColor = (c) => norm(c).toLowerCase();
+
+      const textChanged = text !== undefined && norm(text) !== norm(previousTicker.text);
+      const bgChanged = bgColor !== undefined && normColor(bgColor) !== normColor(previousTicker.bgColor);
+      const textColChanged = textColor !== undefined && normColor(textColor) !== normColor(previousTicker.textColor);
+      const fontChanged = fontFamily !== undefined && norm(fontFamily).toLowerCase() !== norm(previousTicker.fontFamily).toLowerCase();
       const dimensionsChanged =
         (fontSize !== undefined && Number(fontSize) !== previousFontSize) ||
         (width !== undefined && Number(width) !== previousWidth) ||
-        (paddingY !== undefined && Number(paddingY) !== previousPaddingY) ||
-        textChanged;
+        (paddingY !== undefined && Number(paddingY) !== previousPaddingY);
+      const enableToggledOn = enabled === true && !previousTicker.enabled;
+      const isForcePush = Boolean(req.body.forcePush);
+
+      const visualAssetsChanged = textChanged || bgChanged || textColChanged || fontChanged || dimensionsChanged;
 
       if (stream.feeder?.isScheduleActive && stream.feeder.scheduleBrandingSnapshot) {
         if (enabled !== undefined) {
@@ -615,8 +625,13 @@ export const updateTickerBranding = async (req, res, next) => {
         }
         // Keep ticker suppressed on air while schedule is active
         await stream.encoder.setTickerEnabled(false);
-      } else if (dimensionsChanged) {
-        console.log(`[Branding] Ticker dimensions or text changed. Seamlessly reloading live stream...`);
+      } else if (visualAssetsChanged || enableToggledOn || isForcePush) {
+        console.log(
+          `[Branding] Ticker visual assets or state changed for channel ${channelId} ` +
+          `(textChanged=${textChanged}, bgChanged=${bgChanged}, textColChanged=${textColChanged}, ` +
+          `fontChanged=${fontChanged}, dimensionsChanged=${dimensionsChanged}, enableToggledOn=${enableToggledOn}, forcePush=${isForcePush}). ` +
+          `Seamlessly reloading live stream...`
+        );
         await streamManager.restartStream(channelId);
       } else {
         await stream.encoder.setTickerPosition(

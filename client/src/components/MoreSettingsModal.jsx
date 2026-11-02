@@ -1383,7 +1383,7 @@ export default function MoreSettingsModal({
                       className="px-2.5 py-1 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/40 text-purple-300 text-[10px] font-bold flex items-center gap-1 transition"
                     >
                       <Plus size={11} />
-                      <span>{showScheduleForm ? 'Close Form' : '+ Schedule Ashton'}</span>
+                      <span>{showScheduleForm ? 'Close Form' : 'Schedule Ashton'}</span>
                     </button>
                   </div>
 

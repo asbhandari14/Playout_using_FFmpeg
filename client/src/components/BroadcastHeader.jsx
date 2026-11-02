@@ -64,9 +64,8 @@ export default function BroadcastHeader({
                 {channel?.name || 'SAI LEELA'}
               </span>
               <span
-                className={`w-2 h-2 rounded-full ${
-                  isLive ? 'bg-red-500 animate-ping' : 'bg-slate-600'
-                }`}
+                className={`w-2 h-2 rounded-full ${isLive ? 'bg-red-500 animate-ping' : 'bg-slate-600'
+                  }`}
               ></span>
             </div>
             <span className="text-[9px] font-bold text-slate-400 tracking-widest uppercase">
@@ -104,11 +103,10 @@ export default function BroadcastHeader({
       <div className="flex items-center space-x-3">
         {/* Live indicator dot/tower */}
         <div
-          className={`p-1.5 rounded-lg border flex items-center justify-center transition ${
-            isLive
-              ? 'bg-emerald-950/60 border-emerald-700/60 text-emerald-400 shadow-sm shadow-emerald-500/20'
-              : 'bg-[#141822] border-[#242c3d] text-slate-600'
-          }`}
+          className={`p-1.5 rounded-lg border flex items-center justify-center transition ${isLive
+            ? 'bg-emerald-950/60 border-emerald-700/60 text-emerald-400 shadow-sm shadow-emerald-500/20'
+            : 'bg-[#141822] border-[#242c3d] text-slate-600'
+            }`}
           title={isLive ? 'Stream is ON AIR' : 'Stream is IDLE'}
         >
           <Radio size={14} className={isLive ? 'animate-pulse' : ''} />
@@ -117,11 +115,10 @@ export default function BroadcastHeader({
         {/* START LIVE / STOP LIVE Button */}
         <button
           onClick={onToggleLive}
-          className={`px-4 py-1.5 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center space-x-2 transition shadow-lg ${
-            isLive
-              ? 'bg-[#ef4444] hover:bg-red-600 active:bg-red-700 text-white shadow-red-600/30 animate-pulse'
-              : 'bg-[#10b981] hover:bg-emerald-600 active:bg-emerald-700 text-white shadow-emerald-600/20'
-          }`}
+          className={`px-4 py-1.5 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center space-x-2 transition shadow-lg ${isLive
+            ? 'bg-[#ef4444] hover:bg-red-600 active:bg-red-700 text-white shadow-red-600/30 animate-pulse'
+            : 'bg-[#10b981] hover:bg-emerald-600 active:bg-emerald-700 text-white shadow-emerald-600/20'
+            }`}
         >
           {isLive ? (
             <>
@@ -139,11 +136,10 @@ export default function BroadcastHeader({
         {/* Schedules Playout Button */}
         <button
           onClick={onOpenSchedules}
-          className={`px-3 py-1.5 rounded-lg border flex items-center gap-1.5 text-xs font-bold tracking-wider shadow-sm transition group ${
-            currentOnAirSchedule
-              ? 'bg-amber-950/80 border-amber-500 text-amber-300 animate-pulse shadow-amber-500/30'
-              : 'bg-gradient-to-r from-amber-950/40 via-orange-950/40 to-yellow-950/40 hover:from-amber-900/60 hover:to-orange-900/60 border-amber-500/40 hover:border-amber-400/80 text-amber-200 hover:text-white'
-          }`}
+          className={`px-3 py-1.5 rounded-lg border flex items-center gap-1.5 text-xs font-bold tracking-wider shadow-sm transition group ${currentOnAirSchedule
+            ? 'bg-amber-950/80 border-amber-500 text-amber-300 animate-pulse shadow-amber-500/30'
+            : 'bg-linear-to-r from-amber-950/40 via-orange-950/40 to-yellow-950/40 hover:from-amber-900/60 hover:to-orange-900/60 border-amber-500/40 hover:border-amber-400/80 text-amber-200 hover:text-white'
+            }`}
           title="Open Scheduled Video Playout Manager"
         >
           <Calendar size={13} className={currentOnAirSchedule ? 'text-amber-300 animate-bounce' : 'text-amber-400 group-hover:scale-110 transition duration-200'} />
@@ -152,10 +148,20 @@ export default function BroadcastHeader({
           </span>
         </button>
 
+        {/* Dashboard button */}
+        <button
+          onClick={() => { navigate('/dashboard') }}
+          className="px-3 py-1.5 rounded-lg bg-linear-to-r from-blue-900/40 cursor-pointer text-blue-200 hover:text-white transition flex items-center gap-1.5 text-xs font-bold tracking-wider shadow-sm group"
+          title="Open Ad & Playout Graphics Dashboard (L-Band, Ashton Band)"
+        >
+          <Sliders size={13} className="text-blue-400 group-hover:rotate-45 transition duration-200" />
+          <span className="uppercase text-[10px] tracking-wider font-extrabold">Dashboard</span>
+        </button>
+
         {/* More Setting Button */}
         <button
           onClick={onOpenMoreSettings}
-          className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-blue-900/40 via-indigo-900/40 to-purple-900/40 hover:from-blue-800/60 hover:to-purple-800/60 border border-blue-500/40 hover:border-blue-400/80 text-blue-200 hover:text-white transition flex items-center gap-1.5 text-xs font-bold tracking-wider shadow-sm group"
+          className="px-3 py-1.5 rounded-lg bg-linear-to-r from-blue-900/40 via-indigo-900/40 to-purple-900/40 hover:from-blue-800/60 hover:to-purple-800/60 border border-blue-500/40 hover:border-blue-400/80 text-blue-200 hover:text-white transition flex items-center gap-1.5 text-xs font-bold tracking-wider shadow-sm group"
           title="Open Ad & Playout Graphics Dashboard (L-Band, Ashton Band)"
         >
           <Sliders size={13} className="text-blue-400 group-hover:rotate-45 transition duration-200" />
@@ -172,6 +178,6 @@ export default function BroadcastHeader({
           <span className="hidden sm:inline uppercase text-[10px]">Settings</span>
         </button>
       </div>
-    </header>
+    </header >
   );
 }

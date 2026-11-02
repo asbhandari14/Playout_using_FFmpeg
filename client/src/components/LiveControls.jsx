@@ -21,6 +21,29 @@ import {
   Timer as TimerIcon
 } from 'lucide-react';
 
+export const TICKER_FONT_OPTIONS = [
+  { value: 'Arial', label: 'Arial (Clean Sans)', css: 'Arial, sans-serif' },
+  { value: 'Impact', label: 'Impact (Heavy Headline)', css: 'Impact, sans-serif' },
+  { value: 'Times New Roman', label: 'Times New Roman (Classic Serif)', css: '"Times New Roman", Times, serif' },
+  { value: 'Georgia', label: 'Georgia (Elegant Serif)', css: 'Georgia, serif' },
+  { value: 'Verdana', label: 'Verdana (Wide Sans)', css: 'Verdana, sans-serif' },
+  { value: 'Trebuchet MS', label: 'Trebuchet MS (Modern)', css: '"Trebuchet MS", sans-serif' },
+  { value: 'Courier New', label: 'Courier New (Monospace)', css: '"Courier New", Courier, monospace' },
+  { value: 'Segoe UI', label: 'Segoe UI (Crisp Modern)', css: '"Segoe UI", Tahoma, sans-serif' },
+  { value: 'Noto Sans Devanagari', label: 'Hindi (Devanagari)', css: '"Nirmala UI", "Mangal", "Noto Sans Devanagari", sans-serif' },
+  { value: 'Comic Sans MS', label: 'Comic Sans (Casual)', css: '"Comic Sans MS", cursive, sans-serif' },
+];
+
+export const getCssFontFamily = (font) => {
+  const match = TICKER_FONT_OPTIONS.find(
+    (o) => o.value.toLowerCase() === String(font || '').toLowerCase()
+  );
+  if (match) return match.css;
+  const fLower = String(font || '').toLowerCase();
+  if (fLower === 'sans bold' || fLower === 'sans') return 'Arial, sans-serif';
+  return font ? `"${font}", Arial, sans-serif` : 'Arial, sans-serif';
+};
+
 export default function LiveControls({ channel, onBrandingUpdated, currentOnAirSchedule = null }) {
   const [activeTab, setActiveTab] = useState('logo');
   const logoInputRef = useRef(null);
@@ -53,7 +76,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
   const [tickerText, setTickerText] = useState('Shree Sai Bhakti Dhara');
   const [tickerBgColor, setTickerBgColor] = useState('#000000');
   const [tickerTextColor, setTickerTextColor] = useState('#ffffff');
-  const [tickerFontFamily, setTickerFontFamily] = useState('Sans Bold');
+  const [tickerFontFamily, setTickerFontFamily] = useState('Arial');
   const [tickerFontSize, setTickerFontSize] = useState(18);
   const [tickerMarginBottom, setTickerMarginBottom] = useState(0);
   const [tickerPaddingY, setTickerPaddingY] = useState(13);
@@ -366,7 +389,8 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
       paddingY: Number(tickerPaddingY),
       width: Number(tickerWidth),
       alignment: tickerAlignment,
-      speed: Number(tickerSpeed)
+      speed: Number(tickerSpeed),
+      forcePush: true
     };
 
     try {
@@ -1134,11 +1158,12 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                   value={tickerText}
                   onChange={(e) => setTickerText(e.target.value)}
                   placeholder="Enter Hindi or English ticker text..."
-                  className="w-full p-2.5 bg-[#090c12] border border-[#232a39] rounded-xl text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-blue-500 font-sans"
+                  className="w-full p-2.5 bg-[#090c12] border border-[#232a39] rounded-xl text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-blue-500 transition-all shadow-inner"
                   style={{
                     backgroundColor: tickerBgColor.substring(0, 7),
                     color: tickerTextColor.substring(0, 7),
-                    fontFamily: tickerFontFamily,
+                    fontFamily: getCssFontFamily(tickerFontFamily),
+                    fontWeight: 'bold',
                     fontSize: `${Math.max(11, Math.round(tickerFontSize * 0.55))}px`,
                     padding: `${Math.max(4, Math.round(tickerPaddingY * 0.4))}px 10px`,
                     width: `${tickerWidth}%`,
@@ -1155,7 +1180,8 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                   style={{
                     backgroundColor: tickerBgColor.substring(0, 7),
                     color: tickerTextColor.substring(0, 7),
-                    fontFamily: tickerFontFamily,
+                    fontFamily: getCssFontFamily(tickerFontFamily),
+                    fontWeight: 'bold',
                     fontSize: `${Math.max(11, Math.round(tickerFontSize * 0.55))}px`,
                     padding: `${Math.max(4, Math.round(tickerPaddingY * 0.4))}px 10px`,
                     width: `${tickerWidth}%`,
@@ -1169,20 +1195,27 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
 
             {/* Font select */}
             <div>
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                Font Family
-              </label>
+              <div className="flex items-center justify-between text-slate-400 mb-1">
+                <label className="text-[10px] font-bold uppercase tracking-wider">
+                  Font Family
+                </label>
+                <span className="text-[10px] text-blue-400 font-mono">
+                  {tickerFontFamily}
+                </span>
+              </div>
               <select
                 value={tickerFontFamily}
                 onChange={(e) => setTickerFontFamily(e.target.value)}
                 className="w-full bg-[#090c12] border border-[#232a39] text-xs text-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-blue-500"
               >
-                <option value="Sans Bold">Sans Bold</option>
-                <option value="Sans">Sans</option>
-                <option value="Arial">Arial</option>
-                <option value="Roboto">Roboto</option>
-                <option value="Noto Sans Devanagari">Hindi (Devanagari)</option>
-                <option value="Impact">Impact</option>
+                {['sans bold', 'sans'].includes(String(tickerFontFamily || '').toLowerCase()) && (
+                  <option value={tickerFontFamily}>{tickerFontFamily} (Arial)</option>
+                )}
+                {TICKER_FONT_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value} style={{ fontFamily: opt.css }}>
+                    {opt.label}
+                  </option>
+                ))}
               </select>
             </div>
 

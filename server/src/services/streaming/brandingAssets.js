@@ -92,6 +92,50 @@ export const safeWriteFile = async (filePath, buffer, retries = 5, delayMs = 50)
 
 
 /**
+ * Maps user-selected font families to system font stacks recognized by librsvg on Windows/Linux,
+ * ensuring distinct, high-quality typography (Serif, Sans, Monospace, Headline, Devanagari Hindi).
+ */
+export const resolveTickerFont = (fontFamily = '') => {
+  const norm = String(fontFamily || '').trim().toLowerCase();
+  switch (norm) {
+    case 'impact':
+      return '"Impact", "Arial Black", sans-serif';
+    case 'times new roman':
+    case 'times':
+      return '"Times New Roman", "Times", serif';
+    case 'georgia':
+      return '"Georgia", "Palatino", serif';
+    case 'courier new':
+    case 'courier':
+    case 'monospace':
+      return '"Courier New", "Courier", monospace';
+    case 'verdana':
+      return '"Verdana", "Geneva", sans-serif';
+    case 'trebuchet ms':
+    case 'trebuchet':
+      return '"Trebuchet MS", "Lucida Grande", sans-serif';
+    case 'comic sans ms':
+    case 'comic sans':
+      return '"Comic Sans MS", cursive, sans-serif';
+    case 'segoe ui':
+      return '"Segoe UI", "Tahoma", sans-serif';
+    case 'noto sans devanagari':
+    case 'hindi (devanagari)':
+    case 'hindi':
+    case 'mangal':
+    case 'nirmala ui':
+      return '"Nirmala UI", "Mangal", "Noto Sans Devanagari", "Segoe UI", sans-serif';
+    case 'arial':
+    case 'sans bold':
+    case 'sans':
+    default:
+      return norm && norm !== 'sans' && norm !== 'sans bold'
+        ? `"${fontFamily}", "Arial", "Segoe UI", sans-serif`
+        : '"Arial", "Segoe UI", sans-serif';
+  }
+};
+
+/**
  * Render ticker crawl text to transparent PNG using sharp + SVG with Unicode/Hindi support.
  * Renders two files:
  * 1. ticker_bg.png: STATIC full-width background bar (1280px wide) that remains motionless at the bottom.
@@ -101,7 +145,7 @@ export const renderTickerImage = async ({
   text = '',
   bgColor = '#000000dd',
   textColor = '#ffffff',
-  fontFamily = 'Sans Bold',
+  fontFamily = 'Arial',
   fontSize = 26,
   widthPercent = 100,
   paddingY = 12,
@@ -141,7 +185,7 @@ export const renderTickerImage = async ({
   const tickerHeight = Math.round(fontSize + paddingY * 2);
   const yPos = Math.round(tickerHeight / 2 + fontSize * 0.35);
 
-  const fontDef = `${fontFamily}, -apple-system, system-ui, Arial, sans-serif`;
+  const fontDef = resolveTickerFont(fontFamily);
 
   // XML-escape special characters for SVG
   const escapedText = cleanText
@@ -153,7 +197,7 @@ export const renderTickerImage = async ({
 
   // Measure text pixel width using Sharp
   const textMeasureSvg = `<svg width="8000" height="${tickerHeight}" xmlns="http://www.w3.org/2000/svg">
-    <text x="0" y="${yPos}" font-family="${fontDef}" font-size="${fontSize}px" font-weight="bold">${escapedText}</text>
+    <text x="0" y="${yPos}" font-family='${fontDef}' font-size="${fontSize}px" font-weight="bold">${escapedText}</text>
   </svg>`;
   const textTrimmed = await sharp(Buffer.from(textMeasureSvg))
     .trim({ background: 'rgba(0,0,0,0)' })
@@ -204,7 +248,7 @@ export const renderTickerImage = async ({
           y="${yPos}"
           fill="${cleanTextColor}"
           style="fill: ${cleanTextColor} !important; color: ${cleanTextColor} !important;"
-          font-family="${fontDef}"
+          font-family='${fontDef}'
           font-size="${fontSize}px"
           font-weight="bold"
           text-anchor="start"
@@ -215,7 +259,7 @@ export const renderTickerImage = async ({
     // Reasonable length text: INFINITE seamless scrolling with NO empty section at any time
     // Measure star separator width
     const starMeasureSvg = `<svg width="200" height="${tickerHeight}" xmlns="http://www.w3.org/2000/svg">
-      <text x="0" y="${yPos}" font-family="${fontDef}" font-size="${fontSize}px" font-weight="bold">★</text>
+      <text x="0" y="${yPos}" font-family='${fontDef}' font-size="${fontSize}px" font-weight="bold">★</text>
     </svg>`;
     const starTrimmed = await sharp(Buffer.from(starMeasureSvg))
       .trim({ background: 'rgba(0,0,0,0)' })
@@ -241,7 +285,7 @@ export const renderTickerImage = async ({
           y="${yPos}"
           fill="${cleanTextColor}"
           style="fill: ${cleanTextColor} !important; color: ${cleanTextColor} !important;"
-          font-family="${fontDef}"
+          font-family='${fontDef}'
           font-size="${fontSize}px"
           font-weight="bold"
           text-anchor="start"
@@ -251,7 +295,7 @@ export const renderTickerImage = async ({
           y="${yPos}"
           fill="${cleanTextColor}"
           style="fill: ${cleanTextColor} !important; color: ${cleanTextColor} !important;"
-          font-family="${fontDef}"
+          font-family='${fontDef}'
           font-size="${fontSize}px"
           font-weight="bold"
           text-anchor="start"

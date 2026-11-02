@@ -4,6 +4,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { checkAuth } from './store/slices/authSlice.js';
 
 import LoginPage from './pages/LoginPage.jsx';
+import Dashboard from './pages/dashboard/Dashboard.jsx';
 import ChannelsPage from './pages/ChannelsPage.jsx';
 import ServersPage from './pages/ServersPage.jsx';
 import UsersPage from './pages/UsersPage.jsx';
@@ -53,6 +54,15 @@ export default function App() {
       <Route path="/login" element={<LoginPage />} />
 
       <Route
+        path="/dashboard"
+        element={
+          <ProtectedRoute>
+            <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
         path="/channels"
         element={
           <ProtectedRoute>
@@ -89,8 +99,8 @@ export default function App() {
       />
 
       {/* Default route redirect */}
-      <Route path="/" element={<Navigate to="/channels" replace />} />
-      <Route path="*" element={<Navigate to="/channels" replace />} />
+      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   );
 }
