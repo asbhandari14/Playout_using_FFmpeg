@@ -43,6 +43,17 @@ const scheduleSchema = new mongoose.Schema(
       type: Number,
       default: 0
     },
+    // Schedule type: 'video' (commercial break) | 'lband' (graphic squeeze) | 'ashton' (lower third)
+    type: {
+      type: String,
+      enum: ['video', 'lband', 'ashton'],
+      default: 'video'
+    },
+    // For ashton schedule: true = squeeze, false = overlay
+    ashtonSqueeze: {
+      type: Boolean,
+      default: true
+    },
     // Optional date range window
     startDate: {
       type: Date,

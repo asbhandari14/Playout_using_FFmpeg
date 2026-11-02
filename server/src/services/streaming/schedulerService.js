@@ -56,7 +56,7 @@ class SchedulerService {
         const channelIdStr = String(schedule.channel);
         const stream = streamManager.getStream(channelIdStr);
 
-        if (!stream || !stream.feeder || stream.feeder.isScheduleActive) {
+        if (!stream || !stream.feeder) {
           continue;
         }
 
@@ -110,19 +110,38 @@ class SchedulerService {
 
         if (isMatch) {
           console.log(
-            `[SchedulerService] Triggering scheduled event "${schedule.title}" for channel ${channelIdStr} (Window: ${schedule.dailyStartTime} -> ${schedule.dailyEndTime || 'completion'})`
+            `[SchedulerService] Triggering scheduled event "${schedule.title}" (${schedule.type || 'video'}) for channel ${channelIdStr} (Window: ${schedule.dailyStartTime} -> ${schedule.dailyEndTime || 'completion'})`
           );
 
           // Mark as aired today immediately to prevent duplicate triggers
           schedule.lastAiredDate = todayStr;
           await schedule.save();
 
-          // Trigger smooth video interruption & resumption on feeder
-          stream.feeder
-            .interruptWithSchedule(schedule)
-            .catch((err) => {
-              console.error(`[SchedulerService] Execution error on schedule '${schedule.title}':`, err);
+          if (schedule.type === 'lband') {
+            const dur = Number(schedule.duration) || 60;
+            console.log(`[SchedulerService] Firing scheduled L-Band "${schedule.title}" for ${dur}s on channel ${channelIdStr}`);
+            streamManager.fireLBand(channelIdStr, dur).catch((err) => {
+              console.error(`[SchedulerService] Error triggering L-Band schedule '${schedule.title}':`, err);
             });
+          } else if (schedule.type === 'ashton') {
+            const dur = Number(schedule.duration) || 60;
+            const squeeze = schedule.ashtonSqueeze !== false;
+            console.log(`[SchedulerService] Firing scheduled Ashton Band "${schedule.title}" for ${dur}s (squeeze: ${squeeze}) on channel ${channelIdStr}`);
+            streamManager.fireAshton(channelIdStr, dur, squeeze).catch((err) => {
+              console.error(`[SchedulerService] Error triggering Ashton schedule '${schedule.title}':`, err);
+            });
+          } else {
+            // Default Video schedule: interrupts playback with playlist items
+            if (stream.feeder.isScheduleActive) {
+              console.warn(`[SchedulerService] Channel ${channelIdStr} is already running a video schedule.`);
+              continue;
+            }
+            stream.feeder
+              .interruptWithSchedule(schedule)
+              .catch((err) => {
+                console.error(`[SchedulerService] Execution error on schedule '${schedule.title}':`, err);
+              });
+          }
         }
       }
     } finally {

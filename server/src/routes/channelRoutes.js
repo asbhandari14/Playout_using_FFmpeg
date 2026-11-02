@@ -24,9 +24,11 @@ import {
   updateTickerBranding,
   removeTicker,
   updateLBandBranding,
+  fireLBandLive,
   removeLBand,
   uploadLBandFile,
   updateAshtonBranding,
+  fireAshtonLive,
   removeAshton,
   uploadAshtonFile,
   updateTimerBranding,
@@ -93,10 +95,12 @@ router.delete('/:channelId/ticker', removeTicker);
 
 // Dynamic Ad & Graphics controls (L-Band & Ashton Band)
 router.put('/:channelId/lband', updateLBandBranding);
+router.post('/:channelId/lband/fire', fireLBandLive);
 router.delete('/:channelId/lband', removeLBand);
 router.post('/:channelId/lband/upload', uploadLBand.single('lband'), uploadLBandFile);
 
 router.put('/:channelId/ashton', updateAshtonBranding);
+router.post('/:channelId/ashton/fire', fireAshtonLive);
 router.delete('/:channelId/ashton', removeAshton);
 router.post('/:channelId/ashton/upload', uploadAshton.single('ashton'), uploadAshtonFile);
 

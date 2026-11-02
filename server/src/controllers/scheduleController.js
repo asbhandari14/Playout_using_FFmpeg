@@ -31,7 +31,14 @@ export const calcWindowDuration = (startTime, endTime) => {
 export const getSchedules = async (req, res, next) => {
   try {
     const { channelId } = req.params;
-    const schedules = await Schedule.find({ channel: channelId })
+    const { type } = req.query;
+
+    const query = { channel: channelId };
+    if (type) {
+      query.type = type;
+    }
+
+    const schedules = await Schedule.find(query)
       .populate('assets', 'originalName filePath duration durationFormatted thumbnailPath category')
       .populate('asset', 'originalName filePath duration durationFormatted thumbnailPath category')
       .sort({ dailyStartTime: 1, createdAt: 1 });
@@ -48,6 +55,8 @@ export const createSchedule = async (req, res, next) => {
     const { channelId } = req.params;
     const {
       title,
+      type = 'video',
+      ashtonSqueeze = true,
       assetId,
       assetIds,
       dailyStartTime,
@@ -64,16 +73,32 @@ export const createSchedule = async (req, res, next) => {
       return res.status(400).json({ message: 'Schedule title is required' });
     }
 
+    const scheduleType = ['video', 'lband', 'ashton'].includes(type) ? type : 'video';
+
     let finalAssetIds = [];
-    if (Array.isArray(assetIds) && assetIds.length > 0) {
-      finalAssetIds = assetIds.map(String).filter(Boolean);
-    } else if (assetId) {
-      finalAssetIds = [String(assetId)];
+    let totalAssetDuration = 60;
+
+    if (scheduleType === 'video') {
+      if (Array.isArray(assetIds) && assetIds.length > 0) {
+        finalAssetIds = assetIds.map(String).filter(Boolean);
+      } else if (assetId) {
+        finalAssetIds = [String(assetId)];
+      }
+
+      if (finalAssetIds.length === 0) {
+        return res.status(400).json({ message: 'At least one media asset is required for video schedule' });
+      }
+
+      const foundAssets = await Asset.find({ _id: { $in: finalAssetIds } });
+      if (!foundAssets || foundAssets.length === 0) {
+        return res.status(404).json({ message: 'Selected media assets not found' });
+      }
+
+      totalAssetDuration = foundAssets.reduce((sum, a) => sum + (Number(a.duration) || 0), 0) || 60;
+    } else {
+      totalAssetDuration = duration && Number(duration) > 0 ? Number(duration) : 60;
     }
 
-    if (finalAssetIds.length === 0) {
-      return res.status(400).json({ message: 'At least one media asset is required for schedule' });
-    }
     if (!dailyStartTime) {
       return res.status(400).json({ message: 'Daily air time (HH:mm:ss) is required' });
     }
@@ -82,13 +107,6 @@ export const createSchedule = async (req, res, next) => {
     if (!channel) {
       return res.status(404).json({ message: 'Channel not found' });
     }
-
-    const foundAssets = await Asset.find({ _id: { $in: finalAssetIds } });
-    if (!foundAssets || foundAssets.length === 0) {
-      return res.status(404).json({ message: 'Selected media assets not found' });
-    }
-
-    const totalAssetDuration = foundAssets.reduce((sum, a) => sum + (Number(a.duration) || 0), 0) || 60;
 
     const normalizedTime = normalizeTimeStr(dailyStartTime);
     const normalizedEndTime = dailyEndTime ? normalizeTimeStr(dailyEndTime) : '';
@@ -107,8 +125,10 @@ export const createSchedule = async (req, res, next) => {
     const schedule = new Schedule({
       channel: channelId,
       title: title.trim(),
+      type: scheduleType,
+      ashtonSqueeze: Boolean(ashtonSqueeze),
       assets: finalAssetIds,
-      asset: finalAssetIds[0],
+      asset: finalAssetIds[0] || null,
       dailyStartTime: normalizedTime,
       dailyEndTime: normalizedEndTime,
       duration: finalDuration,
@@ -148,6 +168,8 @@ export const updateSchedule = async (req, res, next) => {
     const { channelId, scheduleId } = req.params;
     const {
       title,
+      type,
+      ashtonSqueeze,
       assetId,
       assetIds,
       dailyStartTime,
@@ -166,6 +188,10 @@ export const updateSchedule = async (req, res, next) => {
     }
 
     if (title !== undefined) schedule.title = title.trim();
+    if (type !== undefined && ['video', 'lband', 'ashton'].includes(type)) {
+      schedule.type = type;
+    }
+    if (ashtonSqueeze !== undefined) schedule.ashtonSqueeze = Boolean(ashtonSqueeze);
 
     if (assetIds !== undefined || assetId !== undefined) {
       let finalAssetIds = [];

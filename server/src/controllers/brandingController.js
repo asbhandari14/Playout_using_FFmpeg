@@ -731,6 +731,10 @@ export const updateLBandBranding = async (req, res, next) => {
       { new: true }
     );
 
+    if (enabled === false) {
+      streamManager.clearFireTimer(channelId, 'lband');
+    }
+
     // LIVE STREAM CONTROL
     const stream = streamManager.getStream(channelId);
     if (stream?.encoder?.isRunning) {
@@ -914,6 +918,25 @@ export const removeLBand = async (req, res, next) => {
   }
 };
 
+// POST /api/channels/:channelId/lband/fire
+export const fireLBandLive = async (req, res, next) => {
+  try {
+    const { channelId } = req.params;
+    const { duration = 60 } = req.body || {};
+
+    const result = await streamManager.fireLBand(channelId, duration);
+
+    return res.status(200).json({
+      success: true,
+      message: `L-Band fired live for ${result.duration} seconds`,
+      ...result
+    });
+  } catch (error) {
+    console.error('[Branding Controller] fireLBandLive error:', error);
+    next(error);
+  }
+};
+
 // PUT /api/channels/:channelId/ashton
 export const updateAshtonBranding = async (req, res, next) => {
   try {
@@ -948,6 +971,10 @@ export const updateAshtonBranding = async (req, res, next) => {
       },
       { new: true }
     );
+
+    if (enabled === false) {
+      streamManager.clearFireTimer(channelId, 'lband');
+    }
 
     // LIVE STREAM CONTROL
     const stream = streamManager.getStream(channelId);
@@ -1126,6 +1153,25 @@ export const removeAshton = async (req, res, next) => {
     });
   } catch (error) {
     console.error('[Branding Controller] removeAshton error:', error);
+    next(error);
+  }
+};
+
+// POST /api/channels/:channelId/ashton/fire
+export const fireAshtonLive = async (req, res, next) => {
+  try {
+    const { channelId } = req.params;
+    const { duration = 60, squeeze = true } = req.body || {};
+
+    const result = await streamManager.fireAshton(channelId, duration, squeeze);
+
+    return res.status(200).json({
+      success: true,
+      message: `Ashton Band fired live for ${result.duration} seconds`,
+      ...result
+    });
+  } catch (error) {
+    console.error('[Branding Controller] fireAshtonLive error:', error);
     next(error);
   }
 };

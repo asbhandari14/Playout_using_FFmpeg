@@ -18,7 +18,11 @@ import {
   Check,
   ArrowUp,
   ArrowDown,
-  Layers
+  Layers,
+  Tv,
+  Flame,
+  Timer,
+  Layout
 } from 'lucide-react';
 
 const DAYS_OF_WEEK = [
@@ -47,6 +51,9 @@ export default function ScheduleModal({
   // Form state
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingScheduleId, setEditingScheduleId] = useState(null);
+  const [scheduleType, setScheduleType] = useState('video'); // 'video' | 'lband' | 'ashton'
+  const [overlayDuration, setOverlayDuration] = useState(60);
+  const [ashtonSqueeze, setAshtonSqueeze] = useState(true);
   const [title, setTitle] = useState('');
   const [selectedAssetIds, setSelectedAssetIds] = useState([]);
   const [assetToAdd, setAssetToAdd] = useState('');
@@ -152,6 +159,9 @@ export default function ScheduleModal({
 
   const resetForm = () => {
     setTitle('');
+    setScheduleType('video');
+    setOverlayDuration(60);
+    setAshtonSqueeze(true);
     setSelectedAssetIds([]);
     setAssetToAdd(assets.length > 0 ? assets[0]._id : '');
     setDailyStartTime('12:00:00');
@@ -177,6 +187,9 @@ export default function ScheduleModal({
   const handleEditSchedule = (sched) => {
     setEditingScheduleId(sched._id);
     setTitle(sched.title || '');
+    setScheduleType(sched.type || 'video');
+    setOverlayDuration(sched.duration || 60);
+    setAshtonSqueeze(sched.ashtonSqueeze !== false);
     
     // Populate playlist of assets
     if (Array.isArray(sched.assets) && sched.assets.length > 0) {
@@ -226,7 +239,7 @@ export default function ScheduleModal({
       showAlert('error', 'Please enter a schedule title');
       return;
     }
-    if (selectedAssetIds.length === 0) {
+    if (scheduleType === 'video' && selectedAssetIds.length === 0) {
       showAlert('error', 'Please add at least one video to the schedule');
       return;
     }
@@ -239,8 +252,7 @@ export default function ScheduleModal({
       setIsSubmitting(true);
       const payload = {
         title: title.trim(),
-        assetIds: selectedAssetIds,
-        assetId: selectedAssetIds[0],
+        type: scheduleType,
         dailyStartTime,
         dailyEndTime: dailyEndTime ? dailyEndTime : '',
         daysOfWeek: selectedDays,
@@ -248,6 +260,16 @@ export default function ScheduleModal({
         endDate: hasDateRange && endDate ? endDate : null,
         enabled
       };
+
+      if (scheduleType === 'video') {
+        payload.assetIds = selectedAssetIds;
+        payload.assetId = selectedAssetIds[0];
+      } else {
+        payload.duration = Number(overlayDuration) || 60;
+        if (scheduleType === 'ashton') {
+          payload.ashtonSqueeze = ashtonSqueeze;
+        }
+      }
 
       if (editingScheduleId) {
         await api.put(`/channels/${channelId}/schedules/${editingScheduleId}`, payload);
@@ -394,7 +416,7 @@ export default function ScheduleModal({
                 <div className="flex items-center gap-2">
                   <Sparkles size={16} className="text-amber-400" />
                   <h3 className="text-xs font-extrabold tracking-wider uppercase text-white">
-                    {editingScheduleId ? 'Edit Scheduled Video' : 'Create New Scheduled Video'}
+                    {editingScheduleId ? 'Edit Scheduled Item' : 'Create New Scheduled Item'}
                   </h3>
                 </div>
                 <button
@@ -407,6 +429,62 @@ export default function ScheduleModal({
               </div>
 
               <form onSubmit={handleSubmitSchedule} className="space-y-4">
+                {/* Schedule Type Selector */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                    Schedule Type
+                  </label>
+                  <div className="grid grid-cols-3 gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setScheduleType('video')}
+                      className={`p-2.5 rounded-xl border text-left flex items-center gap-2.5 transition ${
+                        scheduleType === 'video'
+                          ? 'bg-amber-500/20 border-amber-500 text-white shadow-md'
+                          : 'bg-[#0a0d14] border-[#222b3e] text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <Film size={16} className={scheduleType === 'video' ? 'text-amber-400' : 'text-slate-500'} />
+                      <div>
+                        <div className="font-extrabold text-xs">Video Playout</div>
+                        <div className="text-[10px] text-slate-400">Pauses stream & airs video</div>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setScheduleType('lband')}
+                      className={`p-2.5 rounded-xl border text-left flex items-center gap-2.5 transition ${
+                        scheduleType === 'lband'
+                          ? 'bg-blue-500/20 border-blue-500 text-white shadow-md'
+                          : 'bg-[#0a0d14] border-[#222b3e] text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <Layout size={16} className={scheduleType === 'lband' ? 'text-blue-400' : 'text-slate-500'} />
+                      <div>
+                        <div className="font-extrabold text-xs">L-Band Squeeze</div>
+                        <div className="text-[10px] text-slate-400">Shrinks video into L-frame</div>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setScheduleType('ashton')}
+                      className={`p-2.5 rounded-xl border text-left flex items-center gap-2.5 transition ${
+                        scheduleType === 'ashton'
+                          ? 'bg-purple-500/20 border-purple-500 text-white shadow-md'
+                          : 'bg-[#0a0d14] border-[#222b3e] text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <Tv size={16} className={scheduleType === 'ashton' ? 'text-purple-400' : 'text-slate-500'} />
+                      <div>
+                        <div className="font-extrabold text-xs">Ashton Band</div>
+                        <div className="text-[10px] text-slate-400">Lower-third bulletin banner</div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
                 {/* Title */}
                 <div>
                   <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
@@ -422,109 +500,187 @@ export default function ScheduleModal({
                   />
                 </div>
 
-                {/* Scheduled Video Playlist Builder */}
-                <div className="pt-1">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-                      <Layers size={13} className="text-amber-400" />
-                      <span>Scheduled Video Playlist ({selectedAssetIds.length} video{selectedAssetIds.length === 1 ? '' : 's'})</span>
-                    </label>
-                    <span className="text-[10px] text-slate-400 font-mono">
-                      Combined Runtime: <strong className="text-amber-300">{getTotalSelectedAssetsDurationFormatted()}</strong>
-                    </span>
-                  </div>
+                {/* Conditional: Scheduled Video Playlist Builder */}
+                {scheduleType === 'video' ? (
+                  <div className="pt-1">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                        <Layers size={13} className="text-amber-400" />
+                        <span>Scheduled Video Playlist ({selectedAssetIds.length} video{selectedAssetIds.length === 1 ? '' : 's'})</span>
+                      </label>
+                      <span className="text-[10px] text-slate-400 font-mono">
+                        Combined Runtime: <strong className="text-amber-300">{getTotalSelectedAssetsDurationFormatted()}</strong>
+                      </span>
+                    </div>
 
-                  {/* Add Video to Schedule Bar */}
-                  <div className="flex items-center gap-2 mb-2">
-                    <select
-                      value={assetToAdd}
-                      onChange={(e) => setAssetToAdd(e.target.value)}
-                      className="flex-1 bg-[#0a0d14] border border-[#222b3e] focus:border-amber-500 rounded-xl px-3 py-2 text-xs text-white focus:outline-none transition"
-                    >
-                      {assets.length === 0 ? (
-                        <option value="">No ready video assets found</option>
+                    {/* Add Video to Schedule Bar */}
+                    <div className="flex items-center gap-2 mb-2">
+                      <select
+                        value={assetToAdd}
+                        onChange={(e) => setAssetToAdd(e.target.value)}
+                        className="flex-1 bg-[#0a0d14] border border-[#222b3e] focus:border-amber-500 rounded-xl px-3 py-2 text-xs text-white focus:outline-none transition"
+                      >
+                        {assets.length === 0 ? (
+                          <option value="">No ready video assets found</option>
+                        ) : (
+                          assets.map((asset) => (
+                            <option key={asset._id} value={asset._id}>
+                              {asset.originalName} ({asset.durationFormatted || `${asset.duration}s`})
+                            </option>
+                          ))
+                        )}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => handleAddAssetToSchedule(assetToAdd)}
+                        disabled={!assetToAdd}
+                        className="px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-black font-extrabold text-xs uppercase tracking-wider flex items-center gap-1 transition disabled:opacity-50"
+                      >
+                        <Plus size={13} strokeWidth={2.5} />
+                        <span>Add Video</span>
+                      </button>
+                    </div>
+
+                    {/* Selected Video Playlist Queue List */}
+                    <div className="bg-[#0a0d14] border border-[#222b3e] rounded-xl overflow-hidden max-h-40 overflow-y-auto">
+                      {selectedAssetIds.length === 0 ? (
+                        <div className="py-5 text-center text-xs text-slate-500">
+                          No videos added to this scheduled playlist yet. Select a video above and click "+ Add Video".
+                        </div>
                       ) : (
-                        assets.map((asset) => (
-                          <option key={asset._id} value={asset._id}>
-                            {asset.originalName} ({asset.durationFormatted || `${asset.duration}s`})
-                          </option>
-                        ))
+                        <div className="divide-y divide-[#171f2e]">
+                          {selectedAssetIds.map((id, index) => {
+                            const assetObj = getAssetById(id);
+                            return (
+                              <div
+                                key={`${id}-${index}`}
+                                className="px-3 py-1.5 flex items-center justify-between hover:bg-[#121722] transition text-xs"
+                              >
+                                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                  <span className="font-mono text-[10px] font-bold text-slate-500 w-5">
+                                    #{index + 1}
+                                  </span>
+                                  <Film size={13} className="text-amber-400 shrink-0" />
+                                  <span className="font-semibold text-slate-200 truncate">
+                                    {assetObj ? assetObj.originalName : 'Media Asset'}
+                                  </span>
+                                  <span className="text-[10px] text-slate-500 font-mono shrink-0">
+                                    ({assetObj?.durationFormatted || `${assetObj?.duration || 0}s`})
+                                  </span>
+                                </div>
+
+                                <div className="flex items-center gap-1 shrink-0 ml-3">
+                                  <button
+                                    type="button"
+                                    disabled={index === 0}
+                                    onClick={() => handleMoveAsset(index, -1)}
+                                    className="p-1 rounded bg-[#161d2b] hover:bg-[#20293d] text-slate-400 hover:text-white disabled:opacity-20 disabled:cursor-not-allowed transition"
+                                    title="Move Up"
+                                  >
+                                    <ArrowUp size={12} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={index === selectedAssetIds.length - 1}
+                                    onClick={() => handleMoveAsset(index, 1)}
+                                    className="p-1 rounded bg-[#161d2b] hover:bg-[#20293d] text-slate-400 hover:text-white disabled:opacity-20 disabled:cursor-not-allowed transition"
+                                    title="Move Down"
+                                  >
+                                    <ArrowDown size={12} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveAssetFromSchedule(index)}
+                                    className="p-1 rounded bg-[#161d2b] hover:bg-red-950/60 text-slate-400 hover:text-red-400 transition ml-1"
+                                    title="Remove from schedule"
+                                  >
+                                    <X size={12} />
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
                       )}
-                    </select>
-                    <button
-                      type="button"
-                      onClick={() => handleAddAssetToSchedule(assetToAdd)}
-                      disabled={!assetToAdd}
-                      className="px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-black font-extrabold text-xs uppercase tracking-wider flex items-center gap-1 transition disabled:opacity-50"
-                    >
-                      <Plus size={13} strokeWidth={2.5} />
-                      <span>Add Video</span>
-                    </button>
+                    </div>
                   </div>
+                ) : (
+                  /* Overlay Duration & Mode Settings for L-Band and Ashton */
+                  <div className="bg-[#0a0d14] border border-[#222b3e] rounded-xl p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                        <Timer size={13} className={scheduleType === 'lband' ? 'text-blue-400' : 'text-purple-400'} />
+                        <span>{scheduleType === 'lband' ? 'L-Band' : 'Ashton Band'} Display Duration</span>
+                      </span>
+                      <span className="text-xs font-mono font-bold text-amber-300">
+                        {overlayDuration} seconds
+                      </span>
+                    </div>
 
-                  {/* Selected Video Playlist Queue List */}
-                  <div className="bg-[#0a0d14] border border-[#222b3e] rounded-xl overflow-hidden max-h-40 overflow-y-auto">
-                    {selectedAssetIds.length === 0 ? (
-                      <div className="py-5 text-center text-xs text-slate-500">
-                        No videos added to this scheduled playlist yet. Select a video above and click "+ Add Video".
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min="5"
+                        max="3600"
+                        value={overlayDuration}
+                        onChange={(e) => setOverlayDuration(Number(e.target.value))}
+                        className="w-32 bg-[#121722] border border-[#242e42] rounded-lg px-3 py-1.5 text-xs text-white font-mono focus:outline-none"
+                      />
+                      <div className="flex items-center gap-1.5">
+                        {[30, 60, 90, 120, 300].map((sec) => (
+                          <button
+                            key={sec}
+                            type="button"
+                            onClick={() => setOverlayDuration(sec)}
+                            className={`px-2.5 py-1 rounded text-[10px] font-bold transition ${
+                              overlayDuration === sec
+                                ? (scheduleType === 'lband' ? 'bg-blue-600 text-white' : 'bg-purple-600 text-white')
+                                : 'bg-[#182030] text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            {sec}s
+                          </button>
+                        ))}
                       </div>
-                    ) : (
-                      <div className="divide-y divide-[#171f2e]">
-                        {selectedAssetIds.map((id, index) => {
-                          const assetObj = getAssetById(id);
-                          return (
-                            <div
-                              key={`${id}-${index}`}
-                              className="px-3 py-1.5 flex items-center justify-between hover:bg-[#121722] transition text-xs"
-                            >
-                              <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                                <span className="font-mono text-[10px] font-bold text-slate-500 w-5">
-                                  #{index + 1}
-                                </span>
-                                <Film size={13} className="text-amber-400 shrink-0" />
-                                <span className="font-semibold text-slate-200 truncate">
-                                  {assetObj ? assetObj.originalName : 'Media Asset'}
-                                </span>
-                                <span className="text-[10px] text-slate-500 font-mono shrink-0">
-                                  ({assetObj?.durationFormatted || `${assetObj?.duration || 0}s`})
-                                </span>
-                              </div>
+                    </div>
 
-                              <div className="flex items-center gap-1 shrink-0 ml-3">
-                                <button
-                                  type="button"
-                                  disabled={index === 0}
-                                  onClick={() => handleMoveAsset(index, -1)}
-                                  className="p-1 rounded bg-[#161d2b] hover:bg-[#20293d] text-slate-400 hover:text-white disabled:opacity-20 disabled:cursor-not-allowed transition"
-                                  title="Move Up"
-                                >
-                                  <ArrowUp size={12} />
-                                </button>
-                                <button
-                                  type="button"
-                                  disabled={index === selectedAssetIds.length - 1}
-                                  onClick={() => handleMoveAsset(index, 1)}
-                                  className="p-1 rounded bg-[#161d2b] hover:bg-[#20293d] text-slate-400 hover:text-white disabled:opacity-20 disabled:cursor-not-allowed transition"
-                                  title="Move Down"
-                                >
-                                  <ArrowDown size={12} />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleRemoveAssetFromSchedule(index)}
-                                  className="p-1 rounded bg-[#161d2b] hover:bg-red-950/60 text-slate-400 hover:text-red-400 transition ml-1"
-                                  title="Remove from schedule"
-                                >
-                                  <X size={12} />
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })}
+                    {scheduleType === 'ashton' && (
+                      <div className="pt-2 border-t border-[#1e2738]">
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                          Ashton Display Mode
+                        </label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setAshtonSqueeze(true)}
+                            className={`py-1.5 px-3 rounded-lg text-xs font-bold border transition ${
+                              ashtonSqueeze
+                                ? 'bg-purple-950/60 border-purple-500 text-purple-200'
+                                : 'bg-[#121722] border-[#222b3e] text-slate-400'
+                            }`}
+                          >
+                            Squeeze Video Upward
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setAshtonSqueeze(false)}
+                            className={`py-1.5 px-3 rounded-lg text-xs font-bold border transition ${
+                              !ashtonSqueeze
+                                ? 'bg-purple-950/60 border-purple-500 text-purple-200'
+                                : 'bg-[#121722] border-[#222b3e] text-slate-400'
+                            }`}
+                          >
+                            Overlay On Video
+                          </button>
+                        </div>
                       </div>
                     )}
+
+                    <div className="text-[10px] text-slate-400 italic">
+                      ℹ️ Live graphics will smoothly appear at the scheduled time, stay active for {overlayDuration}s, and automatically retreat without interrupting the ongoing stream.
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* Daily Start/End Time & Days of Week */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-2">
@@ -739,7 +895,7 @@ export default function ScheduleModal({
                   <thead className="bg-[#121622] text-slate-400 uppercase text-[10px] font-bold tracking-wider border-b border-[#222b3e]">
                     <tr>
                       <th className="py-3 px-4">Title</th>
-                      <th className="py-3 px-4">Scheduled Playlist</th>
+                      <th className="py-3 px-4">Scheduled Content</th>
                       <th className="py-3 px-4">Air Time</th>
                       <th className="py-3 px-4">Days</th>
                       <th className="py-3 px-4">Date Window</th>
@@ -759,22 +915,59 @@ export default function ScheduleModal({
                         >
                           {/* Title */}
                           <td className="py-3 px-4">
-                            <div className="font-extrabold text-white flex items-center gap-1.5">
-                              {isOnAir && (
-                                <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-extrabold text-white flex items-center gap-1.5">
+                                {isOnAir && (
+                                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+                                )}
+                                <span>{sched.title}</span>
+                              </span>
+                              {sched.type === 'lband' && (
+                                <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-blue-950/90 border border-blue-500/60 text-blue-300">
+                                  L-BAND
+                                </span>
                               )}
-                              <span>{sched.title}</span>
+                              {sched.type === 'ashton' && (
+                                <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-purple-950/90 border border-purple-500/60 text-purple-300">
+                                  ASHTON
+                                </span>
+                              )}
+                              {(!sched.type || sched.type === 'video') && (
+                                <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-amber-950/90 border border-amber-500/60 text-amber-300">
+                                  VIDEO
+                                </span>
+                              )}
                             </div>
                             {isOnAir && (
-                              <span className="text-[9px] font-bold text-amber-400 uppercase tracking-wider block">
+                              <span className="text-[9px] font-bold text-amber-400 uppercase tracking-wider block mt-0.5">
                                 Currently Playing
                               </span>
                             )}
                           </td>
 
-                          {/* Scheduled Playlist */}
+                          {/* Scheduled Content */}
                           <td className="py-3 px-4">
-                            {sched.assets && sched.assets.length > 1 ? (
+                            {sched.type === 'lband' ? (
+                              <div>
+                                <div className="font-bold text-blue-300 flex items-center gap-1.5">
+                                  <Layout size={13} className="text-blue-400" />
+                                  <span>L-Band Squeeze Overlay</span>
+                                </div>
+                                <div className="text-[10px] text-slate-400 font-mono">
+                                  Duration: {sched.duration || 60}s
+                                </div>
+                              </div>
+                            ) : sched.type === 'ashton' ? (
+                              <div>
+                                <div className="font-bold text-purple-300 flex items-center gap-1.5">
+                                  <Tv size={13} className="text-purple-400" />
+                                  <span>Ashton Band ({sched.ashtonSqueeze !== false ? 'Squeeze' : 'Overlay'})</span>
+                                </div>
+                                <div className="text-[10px] text-slate-400 font-mono">
+                                  Duration: {sched.duration || 60}s
+                                </div>
+                              </div>
+                            ) : sched.assets && sched.assets.length > 1 ? (
                               <div>
                                 <div className="font-bold text-amber-300 flex items-center gap-1.5">
                                   <Layers size={13} className="text-amber-400" />

@@ -11,6 +11,7 @@ class StreamManager {
   constructor() {
     this.activeStreams = new Map();
     this.nextZmqPort = 5600;
+    this.fireTimers = new Map();
   }
 
   /**
@@ -148,6 +149,8 @@ class StreamManager {
       stream.encoder.stop();
     }
 
+    this.clearFireTimer(channelId, 'lband');
+    this.clearFireTimer(channelId, 'ashton');
     this.activeStreams.delete(channelId);
 
     // If reloading for live asset updates, maintain LIVE status and do not broadcast IDLE
@@ -210,6 +213,272 @@ class StreamManager {
     } catch (err) {
       console.error('[StreamManager Recovery Error]', err);
     }
+  }
+
+  /**
+   * Instantly fire L-Band for a given duration (default 60s), then automatically close
+   */
+  async fireLBand(channelId, duration = 60) {
+    const dur = Math.max(5, Math.min(3600, Number(duration) || 60));
+    const channelIdStr = String(channelId);
+    console.log(`[StreamManager] 🔥 Quick Fire L-Band triggered for channel ${channelIdStr} (${dur}s duration)`);
+
+    this.clearFireTimer(channelIdStr, 'lband');
+
+    const stream = this.getStream(channelIdStr);
+    const channel = await Channel.findById(channelIdStr);
+    if (!channel) throw new Error('Channel not found');
+
+    if (!channel.branding) channel.branding = {};
+    if (!channel.branding.lband) channel.branding.lband = {};
+    channel.branding.lband.enabled = true;
+
+    await Channel.findByIdAndUpdate(channelIdStr, {
+      $set: { 'branding.lband.enabled': true }
+    });
+
+    if (stream && stream.encoder) {
+      if (stream.encoder.channel?.branding?.lband) {
+        stream.encoder.channel.branding.lband.enabled = true;
+      }
+      await stream.encoder.setLBandEnabled(true);
+    }
+
+    const expiresAt = Date.now() + dur * 1000;
+    const timerId = setTimeout(async () => {
+      console.log(`[StreamManager] ⏱️ L-Band ${dur}s duration expired for channel ${channelIdStr}. Closing automatically...`);
+      this.fireTimers.delete(`${channelIdStr}:lband`);
+      try {
+        await Channel.findByIdAndUpdate(channelIdStr, {
+          $set: { 'branding.lband.enabled': false }
+        });
+        const currentStream = this.getStream(channelIdStr);
+        if (currentStream && currentStream.encoder) {
+          if (currentStream.encoder.channel?.branding?.lband) {
+            currentStream.encoder.channel.branding.lband.enabled = false;
+          }
+          await currentStream.encoder.setLBandEnabled(false);
+        }
+        if (io) {
+          io.to(`channel:${channelIdStr}`).emit('branding_updated', {
+            type: 'lband',
+            lband: {
+              ...channel.branding.lband,
+              enabled: false,
+              fireActive: false
+            }
+          });
+        }
+      } catch (err) {
+        console.error(`[StreamManager] Error auto-closing fired L-Band on channel ${channelIdStr}:`, err);
+      }
+    }, dur * 1000);
+
+    this.fireTimers.set(`${channelIdStr}:lband`, {
+      timerId,
+      expiresAt,
+      duration: dur
+    });
+
+    if (io) {
+      io.to(`channel:${channelIdStr}`).emit('branding_updated', {
+        type: 'lband',
+        lband: {
+          ...channel.branding.lband,
+          enabled: true,
+          fireActive: true,
+          fireExpiresAt: expiresAt,
+          fireDuration: dur
+        }
+      });
+    }
+
+    return {
+      success: true,
+      fireActive: true,
+      duration: dur,
+      expiresAt
+    };
+  }
+
+  /**
+   * Cancel active fired L-Band and close immediately
+   */
+  async cancelFireLBand(channelId) {
+    const channelIdStr = String(channelId);
+    this.clearFireTimer(channelIdStr, 'lband');
+
+    await Channel.findByIdAndUpdate(channelIdStr, {
+      $set: { 'branding.lband.enabled': false }
+    });
+
+    const stream = this.getStream(channelIdStr);
+    if (stream && stream.encoder) {
+      if (stream.encoder.channel?.branding?.lband) {
+        stream.encoder.channel.branding.lband.enabled = false;
+      }
+      await stream.encoder.setLBandEnabled(false);
+    }
+
+    if (io) {
+      io.to(`channel:${channelIdStr}`).emit('branding_updated', {
+        type: 'lband',
+        lband: {
+          enabled: false,
+          fireActive: false
+        }
+      });
+    }
+
+    return { success: true, enabled: false, fireActive: false };
+  }
+
+  /**
+   * Instantly fire Ashton Band for a given duration (default 60s), then automatically close
+   */
+  async fireAshton(channelId, duration = 60, squeeze = true) {
+    const dur = Math.max(5, Math.min(3600, Number(duration) || 60));
+    const channelIdStr = String(channelId);
+    console.log(`[StreamManager] 🔥 Quick Fire Ashton Band triggered for channel ${channelIdStr} (${dur}s duration, squeeze: ${squeeze})`);
+
+    this.clearFireTimer(channelIdStr, 'ashton');
+
+    const stream = this.getStream(channelIdStr);
+    const channel = await Channel.findById(channelIdStr);
+    if (!channel) throw new Error('Channel not found');
+
+    if (!channel.branding) channel.branding = {};
+    if (!channel.branding.ashton) channel.branding.ashton = {};
+    channel.branding.ashton.enabled = true;
+    channel.branding.ashton.squeeze = !!squeeze;
+
+    await Channel.findByIdAndUpdate(channelIdStr, {
+      $set: {
+        'branding.ashton.enabled': true,
+        'branding.ashton.squeeze': !!squeeze
+      }
+    });
+
+    if (stream && stream.encoder) {
+      if (stream.encoder.channel?.branding?.ashton) {
+        stream.encoder.channel.branding.ashton.enabled = true;
+        stream.encoder.channel.branding.ashton.squeeze = !!squeeze;
+      }
+      await stream.encoder.setAshtonLive(true, !!squeeze);
+    }
+
+    const expiresAt = Date.now() + dur * 1000;
+    const timerId = setTimeout(async () => {
+      console.log(`[StreamManager] ⏱️ Ashton Band ${dur}s duration expired for channel ${channelIdStr}. Closing automatically...`);
+      this.fireTimers.delete(`${channelIdStr}:ashton`);
+      try {
+        await Channel.findByIdAndUpdate(channelIdStr, {
+          $set: { 'branding.ashton.enabled': false }
+        });
+        const currentStream = this.getStream(channelIdStr);
+        if (currentStream && currentStream.encoder) {
+          if (currentStream.encoder.channel?.branding?.ashton) {
+            currentStream.encoder.channel.branding.ashton.enabled = false;
+          }
+          await currentStream.encoder.setAshtonLive(false, !!squeeze);
+        }
+        if (io) {
+          io.to(`channel:${channelIdStr}`).emit('branding_updated', {
+            type: 'ashton',
+            ashton: {
+              ...channel.branding.ashton,
+              enabled: false,
+              fireActive: false
+            }
+          });
+        }
+      } catch (err) {
+        console.error(`[StreamManager] Error auto-closing fired Ashton Band on channel ${channelIdStr}:`, err);
+      }
+    }, dur * 1000);
+
+    this.fireTimers.set(`${channelIdStr}:ashton`, {
+      timerId,
+      expiresAt,
+      duration: dur
+    });
+
+    if (io) {
+      io.to(`channel:${channelIdStr}`).emit('branding_updated', {
+        type: 'ashton',
+        ashton: {
+          ...channel.branding.ashton,
+          enabled: true,
+          squeeze: !!squeeze,
+          fireActive: true,
+          fireExpiresAt: expiresAt,
+          fireDuration: dur
+        }
+      });
+    }
+
+    return {
+      success: true,
+      fireActive: true,
+      duration: dur,
+      expiresAt
+    };
+  }
+
+  /**
+   * Cancel active fired Ashton Band and close immediately
+   */
+  async cancelFireAshton(channelId) {
+    const channelIdStr = String(channelId);
+    this.clearFireTimer(channelIdStr, 'ashton');
+
+    await Channel.findByIdAndUpdate(channelIdStr, {
+      $set: { 'branding.ashton.enabled': false }
+    });
+
+    const stream = this.getStream(channelIdStr);
+    if (stream && stream.encoder) {
+      if (stream.encoder.channel?.branding?.ashton) {
+        stream.encoder.channel.branding.ashton.enabled = false;
+      }
+      await stream.encoder.setAshtonLive(false);
+    }
+
+    if (io) {
+      io.to(`channel:${channelIdStr}`).emit('branding_updated', {
+        type: 'ashton',
+        ashton: {
+          enabled: false,
+          fireActive: false
+        }
+      });
+    }
+
+    return { success: true, enabled: false, fireActive: false };
+  }
+
+  clearFireTimer(channelId, type) {
+    const key = `${channelId}:${type}`;
+    if (this.fireTimers.has(key)) {
+      const item = this.fireTimers.get(key);
+      clearTimeout(item.timerId);
+      this.fireTimers.delete(key);
+    }
+  }
+
+  getFireStatus(channelId, type) {
+    const key = `${channelId}:${type}`;
+    if (this.fireTimers.has(key)) {
+      const item = this.fireTimers.get(key);
+      const remaining = Math.max(0, Math.ceil((item.expiresAt - Date.now()) / 1000));
+      return {
+        fireActive: remaining > 0,
+        fireExpiresAt: item.expiresAt,
+        fireDuration: item.duration,
+        fireRemaining: remaining
+      };
+    }
+    return { fireActive: false };
   }
 
   /**

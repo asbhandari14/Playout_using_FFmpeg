@@ -16,7 +16,14 @@ import {
   Layers,
   Radio,
   RefreshCw,
-  Info
+  Info,
+  Flame,
+  Clock,
+  Calendar,
+  Plus,
+  Trash2,
+  Timer,
+  Check
 } from 'lucide-react';
 
 export default function MoreSettingsModal({
@@ -45,6 +52,164 @@ export default function MoreSettingsModal({
   const [ashtonHeight, setAshtonHeight] = useState(160);
   const [ashtonAssetPath, setAshtonAssetPath] = useState('');
   const ashtonInputRef = useRef(null);
+
+  // Quick Fire state for L-Band and Ashton Band (auto-closes after duration)
+  const [lbandFireDuration, setLbandFireDuration] = useState(60);
+  const [lbandFireRemaining, setLbandFireRemaining] = useState(0);
+  const [ashtonFireDuration, setAshtonFireDuration] = useState(60);
+  const [ashtonFireRemaining, setAshtonFireRemaining] = useState(0);
+
+  // Scheduled overlay states
+  const [lbandSchedules, setLbandSchedules] = useState([]);
+  const [ashtonSchedules, setAshtonSchedules] = useState([]);
+  const [showScheduleForm, setShowScheduleForm] = useState(false);
+  const [schedTitle, setSchedTitle] = useState('');
+  const [schedStartTime, setSchedStartTime] = useState('14:00:00');
+  const [schedDuration, setSchedDuration] = useState(60);
+  const [schedDays, setSchedDays] = useState([0, 1, 2, 3, 4, 5, 6]);
+
+  // Countdown effect for fired L-Band
+  useEffect(() => {
+    if (lbandFireRemaining <= 0) return;
+    const interval = setInterval(() => {
+      setLbandFireRemaining((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          setLbandEnabled(false);
+          showAlert('info', 'L-Band 60s Fire duration completed. Closed automatically.');
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [lbandFireRemaining]);
+
+  // Countdown effect for fired Ashton Band
+  useEffect(() => {
+    if (ashtonFireRemaining <= 0) return;
+    const interval = setInterval(() => {
+      setAshtonFireRemaining((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          setAshtonEnabled(false);
+          showAlert('info', 'Ashton Band 60s Fire duration completed. Closed automatically.');
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [ashtonFireRemaining]);
+
+  // Fetch overlay schedules
+  const fetchSchedules = async () => {
+    if (!channel?._id) return;
+    try {
+      const res = await api.get(`/channels/${channel._id}/schedules`);
+      const all = res.data || [];
+      setLbandSchedules(all.filter((s) => s.type === 'lband'));
+      setAshtonSchedules(all.filter((s) => s.type === 'ashton'));
+    } catch (err) {
+      console.warn('Failed to load overlay schedules:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen && channel?._id) {
+      fetchSchedules();
+    }
+  }, [isOpen, channel?._id]);
+
+  const handleFireLBand = async (duration = lbandFireDuration) => {
+    if (lbandFireRemaining > 0) {
+      setLbandFireRemaining(0);
+      handleSaveLBand(false);
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const res = await api.post(`/channels/${channel._id}/lband/fire`, { duration });
+      setLbandEnabled(true);
+      setLbandFireRemaining(res.data?.duration || duration);
+      showAlert('success', `L-Band fired live for ${res.data?.duration || duration}s! Will close automatically.`);
+      if (onChannelUpdated) onChannelUpdated();
+    } catch (err) {
+      showAlert('error', err.response?.data?.message || 'Failed to fire L-Band');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleFireAshton = async (duration = ashtonFireDuration) => {
+    if (ashtonFireRemaining > 0) {
+      setAshtonFireRemaining(0);
+      handleSaveAshton(false, ashtonSqueeze);
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const res = await api.post(`/channels/${channel._id}/ashton/fire`, { duration, squeeze: ashtonSqueeze });
+      setAshtonEnabled(true);
+      setAshtonFireRemaining(res.data?.duration || duration);
+      showAlert('success', `Ashton Band fired live for ${res.data?.duration || duration}s! Will close automatically.`);
+      if (onChannelUpdated) onChannelUpdated();
+    } catch (err) {
+      showAlert('error', err.response?.data?.message || 'Failed to fire Ashton Band');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleCreateOverlaySchedule = async (type) => {
+    if (!schedTitle.trim()) {
+      showAlert('error', 'Please enter a title for the schedule');
+      return;
+    }
+    if (!schedStartTime) {
+      showAlert('error', 'Please specify a start air time');
+      return;
+    }
+    try {
+      await api.post(`/channels/${channel._id}/schedules`, {
+        title: schedTitle.trim(),
+        type,
+        dailyStartTime: schedStartTime,
+        duration: Number(schedDuration) || 60,
+        daysOfWeek: schedDays,
+        ashtonSqueeze: ashtonSqueeze !== false,
+        enabled: true
+      });
+      showAlert('success', `${type === 'lband' ? 'L-Band' : 'Ashton Band'} schedule created!`);
+      setSchedTitle('');
+      setShowScheduleForm(false);
+      fetchSchedules();
+      if (onChannelUpdated) onChannelUpdated();
+    } catch (err) {
+      showAlert('error', err.response?.data?.message || 'Failed to create schedule');
+    }
+  };
+
+  const handleDeleteSchedule = async (scheduleId) => {
+    try {
+      await api.delete(`/channels/${channel._id}/schedules/${scheduleId}`);
+      showAlert('success', 'Schedule deleted');
+      fetchSchedules();
+    } catch (err) {
+      showAlert('error', 'Failed to delete schedule');
+    }
+  };
+
+  const handleToggleSchedule = async (schedule) => {
+    try {
+      await api.put(`/channels/${channel._id}/schedules/${schedule._id}`, {
+        enabled: !schedule.enabled
+      });
+      fetchSchedules();
+    } catch (err) {
+      showAlert('error', 'Failed to toggle schedule');
+    }
+  };
 
   // Sync state from channel branding
   useEffect(() => {
@@ -345,13 +510,24 @@ export default function MoreSettingsModal({
                     </span>
                   </div>
                   <span
-                    className={`px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wider ${
-                      lbandEnabled
+                    className={`px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wider flex items-center gap-1 ${
+                      lbandFireRemaining > 0
+                        ? 'bg-amber-950 border border-amber-500 text-amber-300 animate-pulse'
+                        : lbandEnabled
                         ? 'bg-emerald-950 border border-emerald-600 text-emerald-400'
                         : 'bg-slate-800 text-slate-400 border border-slate-700'
                     }`}
                   >
-                    {lbandEnabled ? '● ON AIR (Squeezed)' : 'Full Screen'}
+                    {lbandFireRemaining > 0 ? (
+                      <>
+                        <Flame size={11} className="fill-current text-amber-400" />
+                        <span>FIRED ({lbandFireRemaining}s)</span>
+                      </>
+                    ) : lbandEnabled ? (
+                      '● ON AIR (Squeezed)'
+                    ) : (
+                      'Full Screen'
+                    )}
                   </span>
                 </div>
 
@@ -491,32 +667,90 @@ export default function MoreSettingsModal({
               {/* Right Column: Controls & Upload Settings (5 cols) */}
               <div className="lg:col-span-5 space-y-5 bg-[#0f131c] border border-[#1e2738] p-5 rounded-2xl">
                 
-                {/* Apply to Air Switch */}
-                <div>
-                  <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block mb-2">
-                    Live Broadcast Status
-                  </span>
-                  <button
-                    onClick={() => handleSaveLBand(!lbandEnabled)}
-                    disabled={isSubmitting}
-                    className={`w-full py-3 px-4 rounded-xl font-black text-xs uppercase tracking-wider flex items-center justify-center space-x-2.5 transition shadow-lg ${
-                      lbandEnabled
-                        ? 'bg-red-600 hover:bg-red-500 text-white shadow-red-900/40'
-                        : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-900/40'
-                    }`}
-                  >
-                    {lbandEnabled ? (
-                      <>
-                        <Square size={14} className="fill-current" />
-                        <span>REMOVE L-BAND FROM AIR</span>
-                      </>
-                    ) : (
-                      <>
-                        <Play size={14} className="fill-current" />
-                        <span>APPLY L-BAND TO LIVE AIR</span>
-                      </>
+                {/* Apply to Air Switch & Quick Fire */}
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
+                      Live Broadcast Status
+                    </span>
+                    {lbandFireRemaining > 0 && (
+                      <span className="flex items-center gap-1 text-[10px] font-bold text-amber-400 bg-amber-950/80 border border-amber-600/70 px-2 py-0.5 rounded-full animate-pulse">
+                        <Flame size={11} className="fill-current text-amber-400" />
+                        <span>Fired Countdown: {lbandFireRemaining}s</span>
+                      </span>
                     )}
-                  </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {/* Manual Air Toggle */}
+                    <button
+                      onClick={() => {
+                        if (lbandFireRemaining > 0) setLbandFireRemaining(0);
+                        handleSaveLBand(!lbandEnabled);
+                      }}
+                      disabled={isSubmitting}
+                      className={`py-3 px-3 rounded-xl font-black text-xs uppercase tracking-wider flex items-center justify-center space-x-2 transition shadow-lg ${
+                        lbandEnabled && lbandFireRemaining === 0
+                          ? 'bg-red-600 hover:bg-red-500 text-white shadow-red-900/40'
+                          : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-900/40'
+                      }`}
+                    >
+                      {lbandEnabled && lbandFireRemaining === 0 ? (
+                        <>
+                          <Square size={13} className="fill-current" />
+                          <span>REMOVE FROM AIR</span>
+                        </>
+                      ) : (
+                        <>
+                          <Play size={13} className="fill-current" />
+                          <span>TAKE TO AIR</span>
+                        </>
+                      )}
+                    </button>
+
+                    {/* 🔥 QUICK FIRE BUTTON (Default 60s) */}
+                    <button
+                      onClick={() => handleFireLBand(lbandFireDuration)}
+                      disabled={isSubmitting}
+                      className={`py-3 px-3 rounded-xl font-black text-xs uppercase tracking-wider flex items-center justify-center space-x-2 transition shadow-lg ${
+                        lbandFireRemaining > 0
+                          ? 'bg-amber-600 hover:bg-amber-500 text-white animate-pulse shadow-amber-900/50'
+                          : 'bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white shadow-orange-900/40'
+                      }`}
+                      title="Instantly display L-Band for 60 seconds and automatically close"
+                    >
+                      <Flame size={14} className={lbandFireRemaining > 0 ? 'text-yellow-200 fill-current' : 'text-amber-200'} />
+                      <span>
+                        {lbandFireRemaining > 0
+                          ? `FIRED: ${lbandFireRemaining}s (STOP)`
+                          : `FIRE (${lbandFireDuration}s)`}
+                      </span>
+                    </button>
+                  </div>
+
+                  {/* Duration Selector for Quick Fire */}
+                  <div className="flex items-center justify-between px-1 pt-0.5">
+                    <span className="text-[10px] text-slate-400 font-semibold flex items-center gap-1">
+                      <Timer size={11} className="text-amber-400" />
+                      <span>Fire Duration:</span>
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      {[30, 60, 90, 120].map((sec) => (
+                        <button
+                          key={sec}
+                          type="button"
+                          onClick={() => setLbandFireDuration(sec)}
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold transition ${
+                            lbandFireDuration === sec
+                              ? 'bg-amber-500 text-black shadow-sm font-extrabold'
+                              : 'bg-[#182030] text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          {sec}s
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
 
                 {/* Cutout Window Geometry Presets */}
@@ -651,6 +885,142 @@ export default function MoreSettingsModal({
                   <RefreshCw size={13} className={isSubmitting ? 'animate-spin' : ''} />
                   <span>Update Cutout Dimensions</span>
                 </button>
+
+                {/* Scheduled L-Band Events Section */}
+                <div className="border-t border-[#1e2738] pt-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <Calendar size={12} className="text-amber-400" />
+                      <span>Scheduled L-Band Events ({lbandSchedules.length})</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowScheduleForm(!showScheduleForm)}
+                      className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-[10px] font-bold flex items-center gap-1 transition"
+                    >
+                      <Plus size={11} />
+                      <span>{showScheduleForm ? 'Close Form' : '+ Schedule L-Band'}</span>
+                    </button>
+                  </div>
+
+                  {/* Inline Form to create an L-Band Schedule */}
+                  {showScheduleForm && (
+                    <div className="bg-[#141a26] border border-[#232d40] rounded-xl p-3.5 space-y-2.5 shadow-inner">
+                      <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wide block">
+                        New Scheduled L-Band Trigger
+                      </span>
+                      <div>
+                        <label className="text-[10px] text-slate-400 font-semibold block mb-1">Schedule Name / Title</label>
+                        <input
+                          type="text"
+                          value={schedTitle}
+                          onChange={(e) => setSchedTitle(e.target.value)}
+                          placeholder="e.g. Daily Promo Squeeze"
+                          className="w-full bg-[#0a0d14] border border-[#222b3e] focus:border-amber-500 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] text-slate-400 font-semibold block mb-1">Air Time</label>
+                          <input
+                            type="time"
+                            step="1"
+                            value={schedStartTime}
+                            onChange={(e) => setSchedStartTime(e.target.value)}
+                            className="w-full bg-[#0a0d14] border border-[#222b3e] focus:border-amber-500 rounded-lg px-2.5 py-1.5 text-xs font-mono text-amber-300 focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-slate-400 font-semibold block mb-1">Duration (seconds)</label>
+                          <input
+                            type="number"
+                            min="5"
+                            max="3600"
+                            value={schedDuration}
+                            onChange={(e) => setSchedDuration(Number(e.target.value))}
+                            className="w-full bg-[#0a0d14] border border-[#222b3e] focus:border-amber-500 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Days of week selector */}
+                      <div>
+                        <label className="text-[10px] text-slate-400 font-semibold block mb-1">Days of Week</label>
+                        <div className="flex gap-1">
+                          {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => {
+                                setSchedDays((prev) =>
+                                  prev.includes(idx) ? prev.filter((d) => d !== idx) : [...prev, idx]
+                                );
+                              }}
+                              className={`flex-1 h-6 rounded text-[9px] font-bold transition ${
+                                schedDays.includes(idx)
+                                  ? 'bg-amber-500 text-black font-extrabold shadow-sm'
+                                  : 'bg-[#0a0d14] text-slate-500 hover:text-white'
+                              }`}
+                            >
+                              {day}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleCreateOverlaySchedule('lband')}
+                        className="w-full py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-extrabold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition mt-2 shadow-md"
+                      >
+                        <Check size={12} strokeWidth={3} />
+                        <span>Save L-Band Schedule</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* List of L-Band schedules */}
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                    {lbandSchedules.length === 0 ? (
+                      <span className="text-[10px] text-slate-500 italic block py-1">
+                        No L-Band schedules configured. Schedule an event to automatically display L-Band at set times.
+                      </span>
+                    ) : (
+                      lbandSchedules.map((s) => (
+                        <div
+                          key={s._id}
+                          className="flex items-center justify-between p-2 rounded-lg bg-[#141a26] border border-[#1e2738] text-xs"
+                        >
+                          <div>
+                            <span className="font-bold text-slate-200 block text-[11px]">{s.title}</span>
+                            <span className="text-[10px] font-mono text-amber-400/90">
+                              {s.dailyStartTime} ({s.duration}s)
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleToggleSchedule(s)}
+                              className={`px-2 py-0.5 rounded text-[9px] font-bold transition ${
+                                s.enabled ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-slate-800 text-slate-500'
+                              }`}
+                            >
+                              {s.enabled ? 'ACTIVE' : 'OFF'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteSchedule(s._id)}
+                              className="p-1 rounded text-slate-500 hover:text-red-400 transition"
+                              title="Delete schedule"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -671,6 +1041,12 @@ export default function MoreSettingsModal({
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
+                    {ashtonFireRemaining > 0 && (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-black bg-amber-500/20 border border-amber-500/50 text-amber-300 flex items-center gap-1 animate-pulse">
+                        <Flame size={10} className="fill-current text-amber-400" />
+                        <span>FIRED ({ashtonFireRemaining}s)</span>
+                      </span>
+                    )}
                     <span
                       className={`px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wider ${
                         ashtonEnabled
@@ -794,32 +1170,77 @@ export default function MoreSettingsModal({
               {/* Right Column: Controls & Mode Selector (5 cols) */}
               <div className="lg:col-span-5 space-y-5 bg-[#0f131c] border border-[#1e2738] p-5 rounded-2xl">
                 
-                {/* Apply to Air Switch */}
-                <div>
-                  <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block mb-2">
+                {/* Apply to Air Switch & Quick Fire */}
+                <div className="space-y-2">
+                  <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
                     Live Broadcast Status
                   </span>
-                  <button
-                    onClick={() => handleSaveAshton(!ashtonEnabled)}
-                    disabled={isSubmitting}
-                    className={`w-full py-3 px-4 rounded-xl font-black text-xs uppercase tracking-wider flex items-center justify-center space-x-2.5 transition shadow-lg ${
-                      ashtonEnabled
-                        ? 'bg-red-600 hover:bg-red-500 text-white shadow-red-900/40'
-                        : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-900/40'
-                    }`}
-                  >
-                    {ashtonEnabled ? (
-                      <>
-                        <Square size={14} className="fill-current" />
-                        <span>REMOVE ASHTON FROM AIR</span>
-                      </>
-                    ) : (
-                      <>
-                        <Play size={14} className="fill-current" />
-                        <span>APPLY ASHTON BAND TO LIVE AIR</span>
-                      </>
-                    )}
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleSaveAshton(!ashtonEnabled)}
+                      disabled={isSubmitting}
+                      className={`flex-1 py-3 px-3 rounded-xl font-black text-xs uppercase tracking-wider flex items-center justify-center space-x-2 transition shadow-lg ${
+                        ashtonEnabled
+                          ? 'bg-red-600 hover:bg-red-500 text-white shadow-red-900/40'
+                          : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-900/40'
+                      }`}
+                    >
+                      {ashtonEnabled ? (
+                        <>
+                          <Square size={14} className="fill-current" />
+                          <span>REMOVE ASHTON</span>
+                        </>
+                      ) : (
+                        <>
+                          <Play size={14} className="fill-current" />
+                          <span>APPLY ASHTON</span>
+                        </>
+                      )}
+                    </button>
+
+                    {/* 🔥 Quick Fire Button */}
+                    <button
+                      onClick={handleFireAshton}
+                      disabled={isSubmitting}
+                      className={`py-3 px-4 rounded-xl font-black text-xs uppercase tracking-wider flex items-center justify-center space-x-2 transition shadow-lg ${
+                        ashtonFireRemaining > 0
+                          ? 'bg-gradient-to-r from-red-600 to-amber-600 text-white shadow-amber-900/50 animate-pulse'
+                          : 'bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white shadow-amber-900/40'
+                      }`}
+                      title="Instantly display Ashton Band for duration and automatically close"
+                    >
+                      <Flame size={14} className={ashtonFireRemaining > 0 ? 'text-yellow-200 fill-current' : 'text-amber-200'} />
+                      <span>
+                        {ashtonFireRemaining > 0
+                          ? `FIRED: ${ashtonFireRemaining}s (STOP)`
+                          : `FIRE (${ashtonFireDuration}s)`}
+                      </span>
+                    </button>
+                  </div>
+
+                  {/* Duration Selector for Quick Fire */}
+                  <div className="flex items-center justify-between px-1 pt-0.5">
+                    <span className="text-[10px] text-slate-400 font-semibold flex items-center gap-1">
+                      <Timer size={11} className="text-purple-400" />
+                      <span>Fire Duration:</span>
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      {[30, 60, 90, 120].map((sec) => (
+                        <button
+                          key={sec}
+                          type="button"
+                          onClick={() => setAshtonFireDuration(sec)}
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold transition ${
+                            ashtonFireDuration === sec
+                              ? 'bg-purple-600 text-white shadow-sm font-extrabold'
+                              : 'bg-[#182030] text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          {sec}s
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
 
                 {/* Squeeze vs Overlay Mode Selector */}
@@ -948,6 +1369,171 @@ export default function MoreSettingsModal({
                   <RefreshCw size={13} className={isSubmitting ? 'animate-spin' : ''} />
                   <span>Update Ashton Settings</span>
                 </button>
+
+                {/* Scheduled Ashton Band Events Section */}
+                <div className="border-t border-[#1e2738] pt-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <Calendar size={12} className="text-purple-400" />
+                      <span>Scheduled Ashton Events ({ashtonSchedules.length})</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowScheduleForm(!showScheduleForm)}
+                      className="px-2.5 py-1 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/40 text-purple-300 text-[10px] font-bold flex items-center gap-1 transition"
+                    >
+                      <Plus size={11} />
+                      <span>{showScheduleForm ? 'Close Form' : '+ Schedule Ashton'}</span>
+                    </button>
+                  </div>
+
+                  {/* Inline Form to create an Ashton Band Schedule */}
+                  {showScheduleForm && (
+                    <div className="bg-[#141a26] border border-[#232d40] rounded-xl p-3.5 space-y-2.5 shadow-inner">
+                      <span className="text-[10px] font-bold text-purple-400 uppercase tracking-wide block">
+                        New Scheduled Ashton Band Trigger
+                      </span>
+                      <div>
+                        <label className="text-[10px] text-slate-400 font-semibold block mb-1">Schedule Name / Title</label>
+                        <input
+                          type="text"
+                          value={schedTitle}
+                          onChange={(e) => setSchedTitle(e.target.value)}
+                          placeholder="e.g. Breaking News Lower Third"
+                          className="w-full bg-[#0a0d14] border border-[#222b3e] focus:border-purple-500 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] text-slate-400 font-semibold block mb-1">Air Time</label>
+                          <input
+                            type="time"
+                            step="1"
+                            value={schedStartTime}
+                            onChange={(e) => setSchedStartTime(e.target.value)}
+                            className="w-full bg-[#0a0d14] border border-[#222b3e] focus:border-purple-500 rounded-lg px-2.5 py-1.5 text-xs font-mono text-purple-300 focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-slate-400 font-semibold block mb-1">Duration (seconds)</label>
+                          <input
+                            type="number"
+                            min="5"
+                            max="3600"
+                            value={schedDuration}
+                            onChange={(e) => setSchedDuration(Number(e.target.value))}
+                            className="w-full bg-[#0a0d14] border border-[#222b3e] focus:border-purple-500 rounded-lg px-2.5 py-1.5 text-xs font-mono text-white focus:outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Ashton Mode Selector in Schedule Form */}
+                      <div>
+                        <label className="text-[10px] text-slate-400 font-semibold block mb-1">Display Mode</label>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setAshtonSqueeze(true)}
+                            className={`py-1.5 px-2 rounded-lg text-[10px] font-bold border transition ${
+                              ashtonSqueeze
+                                ? 'bg-purple-950/60 border-purple-500 text-purple-200'
+                                : 'bg-[#0a0d14] border-[#222b3e] text-slate-400'
+                            }`}
+                          >
+                            Squeeze Video
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setAshtonSqueeze(false)}
+                            className={`py-1.5 px-2 rounded-lg text-[10px] font-bold border transition ${
+                              !ashtonSqueeze
+                                ? 'bg-purple-950/60 border-purple-500 text-purple-200'
+                                : 'bg-[#0a0d14] border-[#222b3e] text-slate-400'
+                            }`}
+                          >
+                            Overlay Only
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Days of week selector */}
+                      <div>
+                        <label className="text-[10px] text-slate-400 font-semibold block mb-1">Days of Week</label>
+                        <div className="flex gap-1">
+                          {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => {
+                                setSchedDays((prev) =>
+                                  prev.includes(idx) ? prev.filter((d) => d !== idx) : [...prev, idx]
+                                );
+                              }}
+                              className={`flex-1 h-6 rounded text-[9px] font-bold transition ${
+                                schedDays.includes(idx)
+                                  ? 'bg-purple-600 text-white font-extrabold shadow-sm'
+                                  : 'bg-[#0a0d14] text-slate-500 hover:text-white'
+                              }`}
+                            >
+                              {day}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleCreateOverlaySchedule('ashton')}
+                        className="w-full py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition mt-2 shadow-md"
+                      >
+                        <Check size={12} strokeWidth={3} />
+                        <span>Save Ashton Schedule</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* List of Ashton schedules */}
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                    {ashtonSchedules.length === 0 ? (
+                      <span className="text-[10px] text-slate-500 italic block py-1">
+                        No Ashton Band schedules configured. Schedule an event to automatically display Ashton Band at set times.
+                      </span>
+                    ) : (
+                      ashtonSchedules.map((s) => (
+                        <div
+                          key={s._id}
+                          className="flex items-center justify-between p-2 rounded-lg bg-[#141a26] border border-[#1e2738] text-xs"
+                        >
+                          <div>
+                            <span className="font-bold text-slate-200 block text-[11px]">{s.title}</span>
+                            <span className="text-[10px] font-mono text-purple-400/90">
+                              {s.dailyStartTime} ({s.duration}s) • {s.ashtonSqueeze !== false ? 'Squeeze' : 'Overlay'}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleToggleSchedule(s)}
+                              className={`px-2 py-0.5 rounded text-[9px] font-bold transition ${
+                                s.enabled ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-slate-800 text-slate-500'
+                              }`}
+                            >
+                              {s.enabled ? 'ACTIVE' : 'OFF'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteSchedule(s._id)}
+                              className="p-1 rounded text-slate-500 hover:text-red-400 transition"
+                              title="Delete schedule"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           )}
