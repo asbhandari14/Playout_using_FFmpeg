@@ -536,7 +536,7 @@ export class FeederService {
           try {
             const freshCh = await Channel.findById(this.channelId).select('branding.backInTimer');
             const timerCfg = freshCh?.branding?.backInTimer;
-            if (timerCfg?.enabled && timerCfg?.showDuringSchedule !== false) {
+            if (timerCfg?.enabled) {
               timerFilter = buildBackInTimerFilter(timerCfg, remainingSeconds);
               console.log(
                 `[Feeder:${this.channelId}] Applied frame-accurate Back In timer (${Math.ceil(remainingSeconds)}s countdown) to scheduled ad`

@@ -1153,8 +1153,13 @@ export const updateTimerBranding = async (req, res, next) => {
     }
 
     const updateFields = {};
-    if (enabled !== undefined) updateFields['branding.backInTimer.enabled'] = Boolean(enabled);
-    if (showDuringSchedule !== undefined) updateFields['branding.backInTimer.showDuringSchedule'] = Boolean(showDuringSchedule);
+    if (enabled !== undefined) {
+      updateFields['branding.backInTimer.enabled'] = Boolean(enabled);
+      updateFields['branding.backInTimer.showDuringSchedule'] = Boolean(enabled);
+    } else if (showDuringSchedule !== undefined) {
+      updateFields['branding.backInTimer.enabled'] = Boolean(showDuringSchedule);
+      updateFields['branding.backInTimer.showDuringSchedule'] = Boolean(showDuringSchedule);
+    }
     if (label !== undefined) updateFields['branding.backInTimer.label'] = String(label);
     if (format !== undefined) updateFields['branding.backInTimer.format'] = format === 'SS' ? 'SS' : 'MM:SS';
     if (position !== undefined) updateFields['branding.backInTimer.position'] = position;

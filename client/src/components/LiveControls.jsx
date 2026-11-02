@@ -396,8 +396,10 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
   const handleUpdateTimer = async (updates = {}) => {
     if (!channel?._id) return;
 
-    if (updates.enabled !== undefined) setTimerEnabled(updates.enabled);
-    if (updates.showDuringSchedule !== undefined) setTimerShowDuringSchedule(updates.showDuringSchedule);
+    if (updates.enabled !== undefined) {
+      setTimerEnabled(updates.enabled);
+      setTimerShowDuringSchedule(updates.enabled);
+    }
     if (updates.label !== undefined) setTimerLabel(updates.label);
     if (updates.format !== undefined) setTimerFormat(updates.format);
     if (updates.position !== undefined) setTimerPosition(updates.position);
@@ -408,8 +410,10 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
     if (updates.bgColor !== undefined) setTimerBgColor(updates.bgColor);
 
     const payload = {};
-    if (updates.enabled !== undefined) payload.enabled = updates.enabled;
-    if (updates.showDuringSchedule !== undefined) payload.showDuringSchedule = updates.showDuringSchedule;
+    if (updates.enabled !== undefined) {
+      payload.enabled = updates.enabled;
+      payload.showDuringSchedule = updates.enabled;
+    }
     if (updates.label !== undefined) payload.label = updates.label;
     if (updates.format !== undefined) payload.format = updates.format;
     if (updates.position !== undefined) payload.position = updates.position;
@@ -1300,9 +1304,9 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                     Schedule Active: "{currentOnAirSchedule.title}"
                   </span>
                   <span className="text-[10px] text-amber-200/80 leading-relaxed block mt-0.5">
-                    {timerEnabled && timerShowDuringSchedule
+                    {timerEnabled
                       ? 'Back In Timer is counting down live on the broadcast stream until the ad ends.'
-                      : 'Back In Timer is hidden because it is turned off or not permitted during ads.'}
+                      : 'Back In Timer is disabled and will not show during ads.'}
                   </span>
                 </div>
               </div>
@@ -1322,7 +1326,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                       : 'bg-slate-800 text-slate-500'
                   }`}
                 >
-                  {timerEnabled ? 'TIMER ENABLED' : 'DISABLED'}
+                  {timerEnabled ? 'SHOWING DURING AD' : 'OFF'}
                 </span>
               </div>
 
@@ -1358,38 +1362,8 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
               </div>
             </div>
 
-            {/* MASTER TOGGLE: Enable Back In Timer */}
-            <div className="flex items-center justify-between p-3 bg-[#151a24] border border-[#232c3d] rounded-xl">
-              <div>
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-200 block">
-                  Enable Back In Timer
-                </span>
-                <span className="text-[10px] text-slate-400">
-                  Activates countdown overlay for broadcast playout
-                </span>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  const next = !timerEnabled;
-                  setTimerEnabled(next);
-                  handleUpdateTimer({ enabled: next });
-                }}
-                className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors duration-300 ${
-                  timerEnabled ? 'bg-blue-600' : 'bg-slate-700'
-                }`}
-              >
-                <div
-                  className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-300 ${
-                    timerEnabled ? 'translate-x-5' : 'translate-x-0'
-                  }`}
-                />
-              </button>
-            </div>
-
-            {/* TOGGLE: Show during scheduled ad */}
-            <div className="flex items-center justify-between p-3 bg-[#151a24] border border-[#232c3d] rounded-xl">
+            {/* SINGLE TOGGLE: Show Back In Timer During Ad */}
+            <div className="flex items-center justify-between p-3.5 bg-[#151a24] border border-[#232c3d] rounded-xl">
               <div>
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-200 block">
                   Show Timer During Ad
@@ -1402,17 +1376,18 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
               <button
                 type="button"
                 onClick={() => {
-                  const next = !timerShowDuringSchedule;
+                  const next = !timerEnabled;
+                  setTimerEnabled(next);
                   setTimerShowDuringSchedule(next);
-                  handleUpdateTimer({ showDuringSchedule: next });
+                  handleUpdateTimer({ enabled: next, showDuringSchedule: next });
                 }}
                 className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors duration-300 ${
-                  timerShowDuringSchedule ? 'bg-blue-600' : 'bg-slate-700'
+                  timerEnabled ? 'bg-blue-600' : 'bg-slate-700'
                 }`}
               >
                 <div
                   className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-300 ${
-                    timerShowDuringSchedule ? 'translate-x-5' : 'translate-x-0'
+                    timerEnabled ? 'translate-x-5' : 'translate-x-0'
                   }`}
                 />
               </button>
