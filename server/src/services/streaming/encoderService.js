@@ -16,6 +16,11 @@ export class EncoderService {
     this.isRunning = false;
     this.lbandAnimId = 0;
     this.ashtonAnimId = 0;
+    this.canvasWidth = Number(channel.outputSettings?.width) || 1280;
+    this.canvasHeight = Number(channel.outputSettings?.height) || 720;
+    this.lastReportedPts = 0;
+    this.lastReportedAt = Date.now();
+    this.streamStartTime = Date.now();
 
     // Stream working directory
     this.channelDir = path.join(STREAMS_DIR, String(channel._id));
@@ -55,6 +60,18 @@ export class EncoderService {
     this.bugFile = bugFile;
     this.isBugGif = resolvedIsBugGif;
     this.bugAspectRatio = 1.0;
+  }
+
+  // Get current presentation timestamp (PTS) in seconds
+  getCurrentStreamTime() {
+    if (this.lastReportedPts !== undefined && this.lastReportedAt) {
+      const elapsed = (Date.now() - this.lastReportedAt) / 1000;
+      return Math.max(0, this.lastReportedPts + elapsed);
+    }
+    if (this.streamStartTime) {
+      return Math.max(0, (Date.now() - this.streamStartTime) / 1000);
+    }
+    return 0;
   }
 
   // Calculate bug overlay expressions based on flexible position (custom X/Y percentages) or preset corners
@@ -139,7 +156,7 @@ export class EncoderService {
   // Dynamically adapts position when L-Band or Ashton Band are active:
   // - If L-Band is active: ticker appears strictly in the cutout region where video appears (windowX..windowX+windowWidth, windowY+windowHeight-h).
   // - If Ashton Band is active: ticker appears directly above the lower third banner (H - ashtonH - h).
-  getTickerPositionExpressions(mbPercent = 0, speed = 3, alignment = 'center', tickerMeta = null) {
+  getTickerPositionExpressions(mbPercent = 0, speed = 3, alignment = 'center', tickerMeta = null, lbandOverride = null) {
     const meta = tickerMeta || this.tickerMeta || {};
     const bTick = this.channel?.branding?.ticker || {};
     const bLband = this.channel?.branding?.lband || {};
@@ -150,7 +167,7 @@ export class EncoderService {
 
     // Crawl scrolling speed in pixels per second (speed 1..10 maps to 70..295 px/s)
     const s = Math.max(1, Math.min(10, Number(speed) || 3));
-    const scrollSpeed = Math.round(45 + s * 25);
+    const scrollSpeed = Math.round(10 + s * 25);
 
     // Text crawling expression:
     // If small text (< 15 chars): crawl across with empty section W - mod(t * scrollSpeed, W + w)
@@ -163,7 +180,7 @@ export class EncoderService {
       xTextExpr = `0-mod(t*${scrollSpeed},${u})`;
     }
 
-    const isLbandActive = !!bLband.enabled;
+    const isLbandActive = lbandOverride !== null ? !!lbandOverride : !!bLband.enabled;
     const isAshtonActive = !!bAshton.enabled;
 
     let xBarExpr = '0';
@@ -301,7 +318,7 @@ export class EncoderService {
           this.logoAspectRatio = meta.width / meta.height;
         }
       }
-    } catch {}
+    } catch { }
 
     let logoW = Math.round(logoH * this.logoAspectRatio);
     if (logoW % 2 !== 0) logoW += 1;
@@ -314,15 +331,38 @@ export class EncoderService {
     const logoEnabled = bLogo.enabled ? 1 : 0;
     const tickEnabled = bTick.enabled ? 1 : 0;
     const lbandEnabled = bLband.enabled ? 1 : 0;
-    const lbandW = Number(bLband.windowWidth) || 960;
-    const lbandH = Number(bLband.windowHeight) || 540;
-    const lbandX = bLband.windowX !== undefined ? Number(bLband.windowX) : 300;
-    const lbandY = bLband.windowY !== undefined ? Number(bLband.windowY) : 20;
+    const canvasW = this.canvasWidth;
+    const canvasH = this.canvasHeight;
+
+    let targetW = Number(bLband.windowWidth) || 960;
+    let targetH = Number(bLband.windowHeight) || 540;
+    let targetX = bLband.windowX !== undefined ? Number(bLband.windowX) : 300;
+    let targetY = bLband.windowY !== undefined ? Number(bLband.windowY) : 20;
+
+    // Ensure even dimensions
+    if (targetW % 2 !== 0) targetW -= 1;
+    if (targetH % 2 !== 0) targetH -= 1;
+    if (targetX % 2 !== 0) targetX -= 1;
+    if (targetY % 2 !== 0) targetY -= 1;
+
+    const isLeftPillar = targetX > 50;
+    const deltaW = canvasW - targetW;
+    const deltaH = canvasH - targetH;
+
+    // Initial parameters based on whether L-Band is enabled at stream boot
+    const initW = lbandEnabled ? targetW : canvasW;
+    const initH = lbandEnabled ? targetH : canvasH;
+    const initX = lbandEnabled ? targetX : 0;
+    const initY = lbandEnabled ? targetY : 0;
 
     const ashtonEnabled = bAshton.enabled ? 1 : 0;
     const ashtonSqueeze = bAshton.squeeze !== false;
-    const ashtonH = Number(bAshton.height) || 160;
-    const ashtonVidH = Math.max(300, 720 - ashtonH);
+    let ashtonH = Number(bAshton.height) || 160;
+    if (ashtonH % 2 !== 0) ashtonH -= 1;
+    const ashtonVidH = Math.max(20, canvasH - ashtonH);
+    const ashtonGfxY = canvasH - ashtonH;
+
+    const initAshtonVidH = (ashtonEnabled && ashtonSqueeze) ? ashtonVidH : canvasH;
 
     const lbandMasterX = lbandEnabled ? '0' : '-5000';
     const lbandMasterY = lbandEnabled ? '0' : '-5000';
@@ -331,7 +371,7 @@ export class EncoderService {
     const ashtonSqY = (ashtonEnabled && ashtonSqueeze) ? '0' : '-5000';
 
     const ashtonOvX = (ashtonEnabled && !ashtonSqueeze) ? '0' : '-5000';
-    const ashtonOvY = (ashtonEnabled && !ashtonSqueeze) ? 'H-h' : '-5000';
+    const ashtonOvY = (ashtonEnabled && !ashtonSqueeze) ? `${ashtonGfxY}` : '-5000';
 
     // Bug setup & sizing (input 6)
     const bugPos = this.getBugPositionExpressions(bBug);
@@ -349,7 +389,7 @@ export class EncoderService {
           this.bugAspectRatio = meta.width / effectiveHeight;
         }
       }
-    } catch {}
+    } catch { }
 
     // Both static images and animated GIFs scale width and height proportionally based on aspect ratio
     let bugW = Math.round(bugH * (this.bugAspectRatio || 1.0));
@@ -369,23 +409,32 @@ export class EncoderService {
     // Complex filter with ZMQ broker and dynamic DVE squeeze + overlay filters:
     // 1. Moving ticker text over static background bar
     // 2. Incoming video with ZMQ broker & 3-way split: full, lband_in, ashton_in
-    // 3. L-Band Squeeze: video scaled to window cutout (e.g. 960x540) & padded to 1280x720, then lband.png overlaid on top
+    // 3. Dynamic Smootherstep Broadcast DVE Squeeze for Uncut L-Band:
+    //    - [0:v] scaled dynamically with eval=frame
+    //    - [lband_bg] black canvas
+    //    - [4:v] whole uncut lband.png with transparent video cutout overlaid dynamically in lockstep
     // 4. Ashton Squeeze: video scaled to fit above banner (e.g. 1280x560) & padded, then ashton.png (bottom banner) overlaid at (0, H-h)
     // 5. Compositing switches: lband_master, ashton_squeeze, ashton_overlay
     // 6. Bug Overlay: [6:v] scaled and overlaid onto [v_after_ashton] -> [v_after_bug]
     // 7. Logo Overlay: [1:v] scaled and overlaid onto [v_after_bug] -> [v_after_logo] (LOGO ON TOP OF BUG IF SAME POSITION!)
     // 8. Ticker Overlay: [v_after_logo] + [tickbar] -> [vout]
     const filtergraph = [
+      `color=c=black:s=${canvasW}x${canvasH}:r=25[lband_bg]`,
+      `color=c=black:s=${canvasW}x${canvasH}:r=25[ashton_bg]`,
       `[2:v][3:v]overlay@ticktext=x='${tickPos.text.x}':y='${tickPos.text.y}':format=auto[tickbar_raw]`,
-      `[tickbar_raw]crop@tick_crop=w=${tickPos.bar.width || 1280}:h=ih:x=0:y=0[tickbar]`,
+      `[tickbar_raw]crop@tick_crop=w=${tickPos.bar.width || canvasW}:h=ih:x=0:y=0[tickbar]`,
       `[0:v]zmq=bind_address=tcp\\\\://127.0.0.1\\\\:${this.zmqPort},split=3[v_full][v_lband_in][v_ashton_in]`,
-      `[v_lband_in]scale=w=${lbandW}:h=${lbandH},pad=1280:720:${lbandX}:${lbandY}:black[v_lband_padded]`,
-      `[v_lband_padded][4:v]overlay@lband_gfx=x=0:y=0[lband_composite]`,
-      `[v_ashton_in]scale=w=1280:h=${ashtonVidH},pad=1280:720:0:0:black[v_ashton_padded]`,
-      `[v_ashton_padded][5:v]overlay@ashton_sq_gfx=x=0:y='H-h'[ashton_sq_composite]`,
+      `[v_lband_in]scale@lband_sq=w='${initW}':h='${initH}':eval=frame[v_lband_scaled]`,
+      `[4:v]format=rgba[lband_g]`,
+      `[lband_bg][lband_g]overlay@lband_gfx=x=0:y=0[lband_base]`,
+      `[lband_base][v_lband_scaled]overlay@lband_vid_pos=x='${initX}':y='${initY}'[lband_composite]`,
+      `[5:v]format=rgba,split[ashton_sq_g][ashton_ov_g]`,
+      `[ashton_bg][ashton_sq_g]overlay@ashton_sq_gfx=x=0:y='${ashtonGfxY}'[ashton_base]`,
+      `[v_ashton_in]scale@ashton_sq=w=${canvasW}:h='${initAshtonVidH}':eval=frame[v_ashton_scaled]`,
+      `[ashton_base][v_ashton_scaled]overlay@ashton_sq_vid=x=0:y=0[ashton_sq_composite]`,
       `[v_full][lband_composite]overlay@lband_master=x='${lbandMasterX}':y='${lbandMasterY}'[v_after_lband]`,
       `[v_after_lband][ashton_sq_composite]overlay@ashton_squeeze=x='${ashtonSqX}':y='${ashtonSqY}'[v_after_ashton_sq]`,
-      `[v_after_ashton_sq][5:v]overlay@ashton_overlay=x='${ashtonOvX}':y='${ashtonOvY}'[v_after_ashton]`,
+      `[v_after_ashton_sq][ashton_ov_g]overlay@ashton_overlay=x='${ashtonOvX}':y='${ashtonOvY}'[v_after_ashton]`,
       `[6:v]scale@bug_scale=w=${bugW}:h=${bugH}:eval=frame[v_bug_scaled]`,
       `[v_after_ashton][v_bug_scaled]overlay@bug=x='${bugX}':y='${bugY}'[v_after_bug]`,
       `[1:v]scale@logo_scale=w=${logoW}:h=${logoH}:eval=frame[v_logo_scaled]`,
@@ -393,141 +442,150 @@ export class EncoderService {
       `[v_after_logo][tickbar]overlay@tick=x='${tickBarX}':y='${tickBarY}'[vout]`
     ].join('; ');
 
-        const hlsManifest = path.join(this.hlsDir, 'index.m3u8').replace(/\\/g, '/');
-        let rtmpTarget = this.channel.rtmpUrl?.trim();
-        let streamKey = sanitizeStreamKey(this.channel.streamKey || this.channel.name);
+    const hlsManifest = path.join(this.hlsDir, 'index.m3u8').replace(/\\/g, '/');
+    let rtmpTarget = this.channel.rtmpUrl?.trim();
+    let streamKey = sanitizeStreamKey(this.channel.streamKey || this.channel.name);
 
-        if (rtmpTarget) {
-          // Clean spaces from rtmpUrl while preserving exact casing (e.g. rtmp://94.136.185.222/static/newTestChannel)
-          rtmpTarget = rtmpTarget.replace(/\s+/g, '_');
-          const urlMatch = rtmpTarget.match(/\/([^/?#]+)(?:\?.*)?$/);
-          if (urlMatch && urlMatch[1]) {
-            streamKey = sanitizeStreamKey(urlMatch[1]);
-          }
-        } else {
-          // Extract host from server
-          const sUrl = this.channel.server?.streamUrl || this.channel.server?.hlsBaseUrl || 'http://127.0.0.1:81';
-          let hostname = '127.0.0.1';
-          try {
-            const p = new URL(sUrl.startsWith('http') ? sUrl : `http://${sUrl}`);
-            hostname = p.hostname;
-          } catch {
-            const m = sUrl.match(/^(?:https?:\/\/)?([^:/]+)/i);
-            if (m) hostname = m[1];
-          }
+    if (rtmpTarget) {
+      // Clean spaces from rtmpUrl while preserving exact casing (e.g. rtmp://94.136.185.222/static/newTestChannel)
+      rtmpTarget = rtmpTarget.replace(/\s+/g, '_');
+      const urlMatch = rtmpTarget.match(/\/([^/?#]+)(?:\?.*)?$/);
+      if (urlMatch && urlMatch[1]) {
+        streamKey = sanitizeStreamKey(urlMatch[1]);
+      }
+    } else {
+      // Extract host from server
+      const sUrl = this.channel.server?.streamUrl || this.channel.server?.hlsBaseUrl || 'http://127.0.0.1:81';
+      let hostname = '127.0.0.1';
+      try {
+        const p = new URL(sUrl.startsWith('http') ? sUrl : `http://${sUrl}`);
+        hostname = p.hostname;
+      } catch {
+        const m = sUrl.match(/^(?:https?:\/\/)?([^:/]+)/i);
+        if (m) hostname = m[1];
+      }
 
-          // Build clean RTMP target
-          let rtmpBase = this.channel.server?.rtmpBaseUrl?.trim();
-          if (!rtmpBase) {
-            rtmpBase = `rtmp://${hostname}/static`;
-          }
-          rtmpBase = rtmpBase.replace(/\/+$/, '');
-          if (!rtmpBase.endsWith('/static') && !rtmpBase.endsWith('/live')) {
-            rtmpBase = `${rtmpBase}/static`;
-          }
+      // Build clean RTMP target
+      let rtmpBase = this.channel.server?.rtmpBaseUrl?.trim();
+      if (!rtmpBase) {
+        rtmpBase = `rtmp://${hostname}/static`;
+      }
+      rtmpBase = rtmpBase.replace(/\/+$/, '');
+      if (!rtmpBase.endsWith('/static') && !rtmpBase.endsWith('/live')) {
+        rtmpBase = `${rtmpBase}/static`;
+      }
 
-          rtmpTarget = `${rtmpBase}/${streamKey}`;
+      rtmpTarget = `${rtmpBase}/${streamKey}`;
+    }
+
+    // Low-latency local HLS for live monitoring + remote RTMP
+    const teeOutput = `[f=hls:hls_time=1:hls_list_size=3:hls_flags=delete_segments+split_by_time]${hlsManifest}|[f=flv:flvflags=no_duration_filesize:onfail=ignore]${rtmpTarget}`;
+
+    const ffmpegArgs = [
+      '-y',
+      // Input 0: MPEG-TS stdin from Feeder
+      '-f', 'mpegts', '-i', 'pipe:0',
+      // Input 1: Looping logo.png
+      '-loop', '1', '-i', this.logoFile,
+      // Input 2: Looping ticker_bg.png (STATIC BACKGROUND BAR)
+      '-loop', '1', '-i', this.tickerBgFile,
+      // Input 3: Looping ticker.png (MOVING TEXT OVERLAY)
+      '-loop', '1', '-i', this.tickerFile,
+      // Input 4: Looping lband.png (L-BAND GRAPHIC WITH TRANSPARENT CUTOUT)
+      '-loop', '1', '-i', this.lbandFile,
+      // Input 5: Looping ashton.png (ASHTON BAND LOWER THIRD)
+      '-loop', '1', '-i', this.ashtonFile,
+      // Input 6: Station Bug (animated GIF via -ignore_loop 0 or static image via -loop 1)
+      ...(this.isBugGif ? ['-ignore_loop', '0', '-i', this.bugFile] : ['-loop', '1', '-i', this.bugFile]),
+      // Filtergraph
+      '-filter_complex', filtergraph,
+      '-map', '[vout]',
+      '-map', '0:a?',
+      // Video encoding (libx264, CPU only, low CPU veryfast preset, 25fps GOP 50)
+      '-c:v', 'libx264',
+      '-preset', 'veryfast',
+      '-g', '50',
+      '-keyint_min', '25',
+      '-sc_threshold', '0',
+      '-b:v', this.channel.outputSettings?.videoBitrate || '2500k',
+      '-maxrate', this.channel.outputSettings?.videoBitrate || '2500k',
+      '-bufsize', '5000k',
+      '-pix_fmt', 'yuv420p',
+      '-flags', '+global_header', // Required for FLV/RTMP to include SPS/PPS headers for Flussonic!
+      // Audio encoding
+      '-c:a', 'aac',
+      '-b:a', this.channel.outputSettings?.audioBitrate || '128k',
+      '-ar', '44100',
+      '-ac', '2',
+      // Dual output via tee
+      '-f', 'tee',
+      teeOutput
+    ];
+
+    console.log(`[Encoder] Launching FFmpeg encoder for channel '${this.channel.name}' -> RTMP: ${rtmpTarget} (ZMQ: ${this.zmqPort})`);
+    this.process = spawn('ffmpeg', ffmpegArgs, {
+      stdio: ['pipe', 'pipe', 'pipe']
+    });
+
+    this.isRunning = true;
+    this.streamStartTime = Date.now();
+    this.lastReportedPts = 0;
+    this.lastReportedAt = Date.now();
+
+    // Catch broken pipe (EPIPE) when feeder or encoder restarts/stops
+    this.process.stdin?.on('error', (err) => {
+      if (err.code === 'EPIPE' || err.code === 'EOF') return;
+      console.error('[Encoder stdin error]', err.message);
+    });
+
+    this.process.on('error', (err) => {
+      console.error('[Encoder process error]', err.message);
+    });
+
+    this.process.stderr.on('data', (d) => {
+      const msg = d.toString();
+      const timeMatch = msg.match(/time=(\d+):(\d+):(\d+(?:\.\d+)?)/);
+      if (timeMatch) {
+        this.lastReportedPts = Number(timeMatch[1]) * 3600 + Number(timeMatch[2]) * 60 + Number(timeMatch[3]);
+        this.lastReportedAt = Date.now();
+      }
+
+      // Log notable encoder events, RTMP connection messages, and errors
+      if (
+        msg.includes('Error') ||
+        msg.includes('failed') ||
+        msg.includes('rtmp') ||
+        msg.includes('Connection') ||
+        msg.includes('Slave')
+      ) {
+        console.log(`[Encoder:${streamKey}] ${msg.trim()}`);
+      }
+    });
+
+    this.process.on('close', (code) => {
+      console.log(`[Encoder] FFmpeg encoder exited with code ${code}`);
+      this.isRunning = false;
+      if (this.zmqSocket) {
+        try {
+          this.zmqSocket.close();
+        } catch { }
+        this.zmqSocket = null;
+      }
+    });
+
+    // Initialize ZMQ Request client after brief warmup
+    return new Promise((resolve) => {
+      setTimeout(async () => {
+        try {
+          this.zmqSocket = new zmq.Request();
+          this.zmqSocket.connect(`tcp://127.0.0.1:${this.zmqPort}`);
+          console.log(`[Encoder] ZMQ socket connected for live overlay commands on port ${this.zmqPort}`);
+        } catch (err) {
+          console.error('[Encoder] ZMQ connect error:', err);
         }
-
-        // Low-latency local HLS for live monitoring + remote RTMP
-        const teeOutput = `[f=hls:hls_time=1:hls_list_size=3:hls_flags=delete_segments+split_by_time]${hlsManifest}|[f=flv:flvflags=no_duration_filesize:onfail=ignore]${rtmpTarget}`;
-
-        const ffmpegArgs = [
-          '-y',
-          // Input 0: MPEG-TS stdin from Feeder
-          '-f', 'mpegts', '-i', 'pipe:0',
-          // Input 1: Looping logo.png
-          '-loop', '1', '-i', this.logoFile,
-          // Input 2: Looping ticker_bg.png (STATIC BACKGROUND BAR)
-          '-loop', '1', '-i', this.tickerBgFile,
-          // Input 3: Looping ticker.png (MOVING TEXT OVERLAY)
-          '-loop', '1', '-i', this.tickerFile,
-          // Input 4: Looping lband.png (L-BAND GRAPHIC WITH TRANSPARENT CUTOUT)
-          '-loop', '1', '-i', this.lbandFile,
-          // Input 5: Looping ashton.png (ASHTON BAND LOWER THIRD)
-          '-loop', '1', '-i', this.ashtonFile,
-          // Input 6: Station Bug (animated GIF via -ignore_loop 0 or static image via -loop 1)
-          ...(this.isBugGif ? ['-ignore_loop', '0', '-i', this.bugFile] : ['-loop', '1', '-i', this.bugFile]),
-          // Filtergraph
-          '-filter_complex', filtergraph,
-          '-map', '[vout]',
-          '-map', '0:a?',
-          // Video encoding (libx264, CPU only, low CPU veryfast preset, 25fps GOP 50)
-          '-c:v', 'libx264',
-          '-preset', 'veryfast',
-          '-g', '50',
-          '-keyint_min', '25',
-          '-sc_threshold', '0',
-          '-b:v', this.channel.outputSettings?.videoBitrate || '2500k',
-          '-maxrate', this.channel.outputSettings?.videoBitrate || '2500k',
-          '-bufsize', '5000k',
-          '-pix_fmt', 'yuv420p',
-          '-flags', '+global_header', // Required for FLV/RTMP to include SPS/PPS headers for Flussonic!
-          // Audio encoding
-          '-c:a', 'aac',
-          '-b:a', this.channel.outputSettings?.audioBitrate || '128k',
-          '-ar', '44100',
-          '-ac', '2',
-          // Dual output via tee
-          '-f', 'tee',
-          teeOutput
-        ];
-
-        console.log(`[Encoder] Launching FFmpeg encoder for channel '${this.channel.name}' -> RTMP: ${rtmpTarget} (ZMQ: ${this.zmqPort})`);
-        this.process = spawn('ffmpeg', ffmpegArgs, {
-          stdio: ['pipe', 'pipe', 'pipe']
-        });
-
-        this.isRunning = true;
-
-        // Catch broken pipe (EPIPE) when feeder or encoder restarts/stops
-        this.process.stdin?.on('error', (err) => {
-          if (err.code === 'EPIPE' || err.code === 'EOF') return;
-          console.error('[Encoder stdin error]', err.message);
-        });
-
-        this.process.on('error', (err) => {
-          console.error('[Encoder process error]', err.message);
-        });
-
-        this.process.stderr.on('data', (d) => {
-          const msg = d.toString();
-          // Log notable encoder events, RTMP connection messages, and errors
-          if (
-            msg.includes('Error') ||
-            msg.includes('failed') ||
-            msg.includes('rtmp') ||
-            msg.includes('Connection') ||
-            msg.includes('Slave')
-          ) {
-            console.log(`[Encoder:${streamKey}] ${msg.trim()}`);
-          }
-        });
-
-        this.process.on('close', (code) => {
-          console.log(`[Encoder] FFmpeg encoder exited with code ${code}`);
-          this.isRunning = false;
-          if (this.zmqSocket) {
-            try {
-              this.zmqSocket.close();
-            } catch {}
-            this.zmqSocket = null;
-          }
-        });
-
-        // Initialize ZMQ Request client after brief warmup
-        return new Promise((resolve) => {
-          setTimeout(async () => {
-            try {
-              this.zmqSocket = new zmq.Request();
-              this.zmqSocket.connect(`tcp://127.0.0.1:${this.zmqPort}`);
-              console.log(`[Encoder] ZMQ socket connected for live overlay commands on port ${this.zmqPort}`);
-            } catch (err) {
-              console.error('[Encoder] ZMQ connect error:', err);
-            }
-            resolve(this);
-          }, 1200);
-        });
+        resolve(this);
+      }, 1200);
+    });
   }
 
   /**
@@ -562,7 +620,7 @@ export class EncoderService {
           this.zmqSocket = new zmq.Request();
           this.zmqSocket.connect(`tcp://127.0.0.1:${this.zmqPort}`);
         }
-      } catch {}
+      } catch { }
       return null;
     }
   }
@@ -630,7 +688,7 @@ export class EncoderService {
             this.logoAspectRatio = meta.width / meta.height;
           }
         }
-      } catch {}
+      } catch { }
     }
 
     let targetWidth = Math.round(targetHeight * (this.logoAspectRatio || 1.0));
@@ -728,7 +786,7 @@ export class EncoderService {
             this.bugAspectRatio = meta.width / effectiveHeight;
           }
         }
-      } catch {}
+      } catch { }
     }
 
     // Both static images and animated GIFs scale width and height proportionally, maintaining original aspect ratio
@@ -821,7 +879,26 @@ export class EncoderService {
     return this.sendZmqCommand(`overlay@ticktext x ${expr.text.x}`);
   }
 
-  // Live L-Band control via ZMQ with smooth sliding animation
+  // Ticker x/y that blend between the normal (no L-band) and L-band positions using the same eased E
+  getTickerMoveExpressions(E) {
+    const bTick = this.channel?.branding?.ticker;
+    if (!bTick || !bTick.enabled) return null;
+
+    const mb = bTick.marginBottom !== undefined ? bTick.marginBottom : 0;
+    const spd = bTick.speed ?? 3;
+    const al = bTick.alignment ?? 'center';
+
+    const off = this.getTickerPositionExpressions(mb, spd, al, this.tickerMeta, false);
+    const on = this.getTickerPositionExpressions(mb, spd, al, this.tickerMeta, true);
+
+    return {
+      x: `(1-${E})*(${off.bar.x})+${E}*(${on.bar.x})`,
+      y: `(1-${E})*(${off.bar.y})+${E}*(${on.bar.y})`,
+      offWidth: off.bar.width
+    };
+  }
+
+  // Live Broadcast-Grade Smootherstep DVE Squeeze & L-Band control via ZMQ
   async setLBandEnabled(enabled) {
     if (!this.channel) this.channel = {};
     if (!this.channel.branding) this.channel.branding = {};
@@ -829,50 +906,142 @@ export class EncoderService {
     this.channel.branding.lband.enabled = !!enabled;
 
     const animId = ++this.lbandAnimId;
+    const bLband = this.channel.branding.lband;
+    const canvasW = this.canvasWidth || 1280;
+    const canvasH = this.canvasHeight || 720;
+
+    let targetW = Number(bLband.windowWidth) || 960;
+    let targetH = Number(bLband.windowHeight) || 540;
+    let targetX = bLband.windowX !== undefined ? Number(bLband.windowX) : 300;
+    let targetY = bLband.windowY !== undefined ? Number(bLband.windowY) : 20;
+
+    if (targetW % 2 !== 0) targetW -= 1;
+    if (targetH % 2 !== 0) targetH -= 1;
+    if (targetX % 2 !== 0) targetX -= 1;
+    if (targetY % 2 !== 0) targetY -= 1;
+
+    const isLeftPillar = targetX > 50;
+    const deltaW = canvasW - targetW;
+    const deltaH = canvasH - targetH;
+
+    // const currentPts = this.getCurrentStreamTime();
+    // const T = Math.max(0, currentPts);
+    // const D = 1.8; // 1.8s smootherstep duration as requested
+
+    const LEAD = 0.8;   // start in the future so all ZMQ commands land before motion begins
+    const T = Math.max(0, this.getCurrentStreamTime()) + LEAD;
+    const D = 1.8;
+
+    console.log(`[Encoder] L-Band smootherstep transition starting: enabled=${enabled}, T=${T.toFixed(3)}s, D=${D}s`);
+
     try {
       if (enabled) {
-        // Adjust ticker position so it appears within the video region
-        this.updateLiveTickerPosition().catch(() => {});
+        // Smootherstep progress for the VIDEO squeeze:
+        // Video starts full screen ABOVE the L-band, and then squeezes into the cutout window revealing the L-band
+        const P = `clip((t-${T.toFixed(3)})/${D},0,1)`;
+        const E = `(${P}*${P}*${P}*(${P}*(${P}*6-15)+10))`;
 
-        // Smooth slide-in from left: x: -1280 -> 0
-        await this.sendZmqCommand('overlay@lband_master y 0', 250);
-        const steps = [-1280, -850, -480, -220, -70, 0];
-        for (const x of steps) {
-          if (this.lbandAnimId !== animId) return;
-          await this.sendZmqCommand(`overlay@lband_master x ${x}`, 180);
-          await new Promise((r) => setTimeout(r, 25));
+        const W_expr = `trunc((${canvasW}-${deltaW}*${E})/2)*2`;
+        const H_expr = `trunc((${canvasH}-${deltaH}*${E})/2)*2`;
+        const X_expr = isLeftPillar ? `trunc((${targetX}*${E})/2)*2` : '0';
+        const Y_expr = `trunc((${targetY}*${E})/2)*2`;
+
+        // 1. Video squeeze expressions (E = 0 until T, so the video stays full-size above the L-band at first)
+        await this.sendZmqCommand(`scale@lband_sq w ${W_expr}`);
+        await this.sendZmqCommand(`scale@lband_sq h ${H_expr}`);
+        await this.sendZmqCommand(`overlay@lband_vid_pos x ${X_expr}`);
+        await this.sendZmqCommand(`overlay@lband_vid_pos y ${Y_expr}`);
+
+        // 2. Ticker follows the squeeze
+        const tk = this.getTickerMoveExpressions(E);
+        if (tk) {
+          await this.sendZmqCommand(`overlay@tick x ${tk.x}`);
+          await this.sendZmqCommand(`overlay@tick y ${tk.y}`);
         }
-        await this.sendZmqCommand('overlay@lband_master x 0', 250);
-        await this.sendZmqCommand('overlay@lband_master y 0', 250);
-        return this.updateLiveTickerPosition();
+
+        // 3. Switch the master composite on (video is currently full-screen above the L-band, zero pop)
+        await this.sendZmqCommand('overlay@lband_master y 0');
+        await this.sendZmqCommand('overlay@lband_master x 0');
+
+        // 4. When the squeeze finishes, pin final window position and update ticker
+        setTimeout(async () => {
+          if (this.lbandAnimId !== animId) return;
+          await this.sendZmqCommand(`scale@lband_sq w ${targetW}`);
+          await this.sendZmqCommand(`scale@lband_sq h ${targetH}`);
+          await this.sendZmqCommand(`overlay@lband_vid_pos x ${targetX}`);
+          await this.sendZmqCommand(`overlay@lband_vid_pos y ${targetY}`);
+          this.updateLiveTickerPosition().catch(() => { });
+        }, Math.round((LEAD + D + 0.2) * 1000));
+
+        return { success: true, enabled: true };
       } else {
-        // Smooth slide-out to left: x: 0 -> -1280
-        const steps = [-70, -220, -480, -850, -1280];
-        for (const x of steps) {
-          if (this.lbandAnimId !== animId) return;
-          await this.sendZmqCommand(`overlay@lband_master x ${x}`, 180);
-          await new Promise((r) => setTimeout(r, 25));
-        }
-        await this.sendZmqCommand('overlay@lband_master x -5000', 250);
-        await this.sendZmqCommand('overlay@lband_master y -5000', 250);
+        // Reverse smootherstep: smoothly expand video back from squeezed size to full screen ABOVE the L-band
+        const P = `clip((t-${T.toFixed(3)})/${D},0,1)`;
+        const E = `(1-(${P}*${P}*${P}*(${P}*(${P}*6-15)+10)))`;
 
-        // Restore ticker position to full video width / bottom
-        return this.updateLiveTickerPosition();
+        const W_expr = `trunc((${canvasW}-${deltaW}*${E})/2)*2`;
+        const H_expr = `trunc((${canvasH}-${deltaH}*${E})/2)*2`;
+        const X_expr = isLeftPillar ? `trunc((${targetX}*${E})/2)*2` : '0';
+        const Y_expr = `trunc((${targetY}*${E})/2)*2`;
+
+        // NO layer swapping! Video is already above the L-band graphic, expands smoothly over it:
+        await this.sendZmqCommand(`scale@lband_sq w ${W_expr}`);
+        await this.sendZmqCommand(`scale@lband_sq h ${H_expr}`);
+        await this.sendZmqCommand(`overlay@lband_vid_pos x ${X_expr}`);
+        await this.sendZmqCommand(`overlay@lband_vid_pos y ${Y_expr}`);
+
+        const tk = this.getTickerMoveExpressions(E);
+        if (tk) {
+          await this.sendZmqCommand(`crop@tick_crop w ${tk.offWidth}`);
+          await this.sendZmqCommand(`overlay@tick x ${tk.x}`);
+          await this.sendZmqCommand(`overlay@tick y ${tk.y}`);
+        }
+
+        // After transition duration (1.8s + lead + buffer), video is completely full-screen covering graphic.
+        // Park master overlay off-screen seamlessly with zero blink:
+        setTimeout(async () => {
+          if (this.lbandAnimId !== animId) return;
+          await this.sendZmqCommand(`scale@lband_sq w ${canvasW}`);
+          await this.sendZmqCommand(`scale@lband_sq h ${canvasH}`);
+          await this.sendZmqCommand('overlay@lband_vid_pos x 0');
+          await this.sendZmqCommand('overlay@lband_vid_pos y 0');
+          await this.sendZmqCommand('overlay@lband_master x -5000');
+          await this.sendZmqCommand('overlay@lband_master y -5000');
+          await this.updateLiveTickerPosition();
+        }, Math.round((LEAD + D + 0.2) * 1000));
+
+        return { success: true, enabled: false };
       }
     } catch (e) {
-      console.warn('[Encoder ZMQ] L-Band animation fallback:', e.message);
+      console.warn('[Encoder ZMQ] L-Band smootherstep animation fallback:', e.message);
+      const offGfxX = isLeftPillar ? -targetX : deltaW;
       if (enabled) {
         await this.sendZmqCommand('overlay@lband_master x 0', 250);
         await this.sendZmqCommand('overlay@lband_master y 0', 250);
+        await this.sendZmqCommand(`scale@lband_sq w ${targetW}`, 250);
+        await this.sendZmqCommand(`scale@lband_sq h ${targetH}`, 250);
+        await this.sendZmqCommand(`overlay@lband_vid_pos x ${targetX}`, 250);
+        await this.sendZmqCommand(`overlay@lband_vid_pos y ${targetY}`, 250);
       } else {
         await this.sendZmqCommand('overlay@lband_master x -5000', 250);
         await this.sendZmqCommand('overlay@lband_master y -5000', 250);
+        await this.sendZmqCommand(`scale@lband_sq w ${canvasW}`, 250);
+        await this.sendZmqCommand(`scale@lband_sq h ${canvasH}`, 250);
+        await this.sendZmqCommand('overlay@lband_vid_pos x 0', 250);
+        await this.sendZmqCommand('overlay@lband_vid_pos y 0', 250);
       }
-      return this.updateLiveTickerPosition();
+      await this.updateLiveTickerPosition();
+      return { success: true, fallback: true, enabled };
     }
   }
 
-  // Live Ashton Band control via ZMQ (Squeeze vs Overlay vs Off) with smooth bottom slide animation
+  // Live Ashton Band control via ZMQ (Squeeze vs Overlay vs Off)
+  // - Squeeze Mode:
+  //     Appear: Ashton band appears on top at bottom, video squeezes in height underneath it
+  //     Disappear: Video expands in height above the Ashton band, then Ashton band disappears
+  // - Overlay Mode:
+  //     Appear: Ashton band slides from the bottom to the top (canvasH -> canvasH - ashtonH)
+  //     Disappear: Ashton band slides back down from top to bottom (canvasH - ashtonH -> canvasH)
   async setAshtonLive(enabled, squeeze = true) {
     if (!this.channel) this.channel = {};
     if (!this.channel.branding) this.channel.branding = {};
@@ -881,80 +1050,113 @@ export class EncoderService {
     this.channel.branding.ashton.squeeze = !!squeeze;
 
     const animId = ++this.ashtonAnimId;
-    const ashtonH = Number(this.channel.branding?.ashton?.height) || 160;
-    const targetY = 720 - ashtonH; // Bottom position (e.g. 560)
+    const canvasW = this.canvasWidth || 1280;
+    const canvasH = this.canvasHeight || 720;
+    let ashtonH = Number(this.channel.branding?.ashton?.height) || 160;
+    if (ashtonH % 2 !== 0) ashtonH -= 1;
+    const ashtonVidH = Math.max(20, canvasH - ashtonH);
+    const targetY = canvasH - ashtonH;
+
+    const LEAD = 0.8;
+    const currentPts = this.getCurrentStreamTime();
+    const T = Math.max(0, currentPts) + LEAD;
+    const D = 1.8; // 1.8s smootherstep duration
+
+    console.log(`[Encoder] Ashton transition starting: enabled=${enabled}, squeeze=${squeeze}, T=${T.toFixed(3)}s, D=${D}s`);
 
     try {
       if (enabled) {
         // Move ticker above Ashton Band
-        this.updateLiveTickerPosition().catch(() => {});
+        this.updateLiveTickerPosition().catch(() => { });
 
         if (squeeze) {
+          // --- SQUEEZE MODE APPEAR ---
+          // 1. Turn off overlay mode
           await this.sendZmqCommand('overlay@ashton_overlay x -5000', 180);
           await this.sendZmqCommand('overlay@ashton_overlay y -5000', 180);
 
-          // Smooth slide-up from bottom for squeezed frame: y: 720 -> 0
-          await this.sendZmqCommand('overlay@ashton_squeeze x 0', 250);
-          const steps = [720, 500, 300, 150, 40, 0];
-          for (const y of steps) {
-            if (this.ashtonAnimId !== animId) return;
-            await this.sendZmqCommand(`overlay@ashton_squeeze y ${y}`, 180);
-            await new Promise((r) => setTimeout(r, 25));
-          }
+          // 2. Squeeze video in height ABOVE the Ashton band: canvasH -> (canvasH - ashtonH)
+          // Video starts full screen (E = 0 until T) completely covering graphic, then shrinks upward revealing the Ashton band
+          const P = `clip((t-${T.toFixed(3)})/${D},0,1)`;
+          const E = `(${P}*${P}*${P}*(${P}*(${P}*6-15)+10))`;
+          const H_expr = `trunc((${canvasH}-${ashtonH}*${E})/2)*2`;
+
+          await this.sendZmqCommand(`scale@ashton_sq h ${H_expr}`);
+
+          // 3. Bring squeeze composite on air (video is currently full height, zero pop)
           await this.sendZmqCommand('overlay@ashton_squeeze x 0', 250);
           await this.sendZmqCommand('overlay@ashton_squeeze y 0', 250);
-          return this.updateLiveTickerPosition();
+
+          // 4. When motion completes, pin final height and update ticker
+          setTimeout(async () => {
+            if (this.ashtonAnimId !== animId) return;
+            await this.sendZmqCommand(`scale@ashton_sq h ${ashtonVidH}`);
+            this.updateLiveTickerPosition().catch(() => { });
+          }, Math.round((LEAD + D + 0.2) * 1000));
+
+          return { success: true, enabled: true, squeeze: true };
         } else {
+          // --- OVERLAY MODE APPEAR ---
+          // 1. Turn off squeeze mode
           await this.sendZmqCommand('overlay@ashton_squeeze x -5000', 180);
           await this.sendZmqCommand('overlay@ashton_squeeze y -5000', 180);
 
-          // Smooth slide-up from bottom for lower-third banner: y: 720 -> targetY (e.g. 560)
+          // 2. Ashton graphic slides UP from bottom to top: canvasH -> targetY
+          const P = `clip((t-${T.toFixed(3)})/${D},0,1)`;
+          const E = `(${P}*${P}*${P}*(${P}*(${P}*6-15)+10))`;
+          const Y_expr = `trunc((${canvasH}-${ashtonH}*${E})/2)*2`;
+
           await this.sendZmqCommand('overlay@ashton_overlay x 0', 250);
-          const diff = 720 - targetY;
-          const steps = [
-            720,
-            Math.round(720 - diff * 0.35),
-            Math.round(720 - diff * 0.65),
-            Math.round(720 - diff * 0.88),
-            targetY
-          ];
-          for (const y of steps) {
+          await this.sendZmqCommand(`overlay@ashton_overlay y ${Y_expr}`);
+
+          setTimeout(() => {
             if (this.ashtonAnimId !== animId) return;
-            await this.sendZmqCommand(`overlay@ashton_overlay y ${y}`, 180);
-            await new Promise((r) => setTimeout(r, 25));
-          }
-          await this.sendZmqCommand('overlay@ashton_overlay x 0', 250);
-          await this.sendZmqCommand('overlay@ashton_overlay y H-h', 250);
-          return this.updateLiveTickerPosition();
+            this.updateLiveTickerPosition().catch(() => { });
+          }, Math.round((LEAD + D + 0.2) * 1000));
+
+          return { success: true, enabled: true, squeeze: false };
         }
       } else {
-        // Disappearing: slide down off bottom edge
+        // --- DISAPPEARING ---
         if (squeeze) {
-          const steps = [40, 150, 300, 500, 720];
-          for (const y of steps) {
+          // --- SQUEEZE MODE DISAPPEAR ---
+          // NO layer swapping! Video is ALREADY above the Ashton band graphic!
+          // 1. Video smoothly expands downward in height from (canvasH - ashtonH) back to canvasH:
+          const P = `clip((t-${T.toFixed(3)})/${D},0,1)`;
+          const E = `(1-(${P}*${P}*${P}*(${P}*(${P}*6-15)+10)))`;
+          const H_expr = `trunc((${canvasH}-${ashtonH}*${E})/2)*2`;
+
+          await this.sendZmqCommand(`scale@ashton_sq h ${H_expr}`);
+
+          // 2. When expansion completes (video covers entire canvas), park squeeze composite off-screen:
+          setTimeout(async () => {
             if (this.ashtonAnimId !== animId) return;
-            await this.sendZmqCommand(`overlay@ashton_squeeze y ${y}`, 180);
-            await new Promise((r) => setTimeout(r, 25));
-          }
-          await this.sendZmqCommand('overlay@ashton_squeeze x -5000', 250);
-          await this.sendZmqCommand('overlay@ashton_squeeze y -5000', 250);
+            await this.sendZmqCommand(`scale@ashton_sq h ${canvasH}`);
+            await this.sendZmqCommand('overlay@ashton_squeeze x -5000');
+            await this.sendZmqCommand('overlay@ashton_squeeze y -5000');
+            await this.updateLiveTickerPosition();
+          }, Math.round((LEAD + D + 0.2) * 1000));
+
+          return { success: true, enabled: false, squeeze: true };
         } else {
-          const diff = 720 - targetY;
-          const steps = [
-            Math.round(targetY + diff * 0.25),
-            Math.round(targetY + diff * 0.55),
-            Math.round(targetY + diff * 0.85),
-            720
-          ];
-          for (const y of steps) {
+          // --- OVERLAY MODE DISAPPEAR ---
+          // 1. Ashton graphic slides DOWN from targetY to bottom off-screen (canvasH)
+          const P = `clip((t-${T.toFixed(3)})/${D},0,1)`;
+          const E = `(1-(${P}*${P}*${P}*(${P}*(${P}*6-15)+10)))`;
+          const Y_expr = `trunc((${canvasH}-${ashtonH}*${E})/2)*2`;
+
+          await this.sendZmqCommand(`overlay@ashton_overlay y ${Y_expr}`);
+
+          // 2. When slide-down completes, park overlay off-screen
+          setTimeout(async () => {
             if (this.ashtonAnimId !== animId) return;
-            await this.sendZmqCommand(`overlay@ashton_overlay y ${y}`, 180);
-            await new Promise((r) => setTimeout(r, 25));
-          }
-          await this.sendZmqCommand('overlay@ashton_overlay x -5000', 250);
-          await this.sendZmqCommand('overlay@ashton_overlay y -5000', 250);
+            await this.sendZmqCommand('overlay@ashton_overlay x -5000');
+            await this.sendZmqCommand('overlay@ashton_overlay y -5000');
+            await this.updateLiveTickerPosition();
+          }, Math.round((LEAD + D + 0.2) * 1000));
+
+          return { success: true, enabled: false, squeeze: false };
         }
-        return this.updateLiveTickerPosition();
       }
     } catch (e) {
       console.warn('[Encoder ZMQ] Ashton animation fallback:', e.message);
@@ -962,21 +1164,24 @@ export class EncoderService {
         if (squeeze) {
           await this.sendZmqCommand('overlay@ashton_overlay x -5000', 200);
           await this.sendZmqCommand('overlay@ashton_overlay y -5000', 200);
+          await this.sendZmqCommand(`scale@ashton_sq h ${ashtonVidH}`, 200);
           await this.sendZmqCommand('overlay@ashton_squeeze x 0', 200);
           await this.sendZmqCommand('overlay@ashton_squeeze y 0', 200);
         } else {
           await this.sendZmqCommand('overlay@ashton_squeeze x -5000', 200);
           await this.sendZmqCommand('overlay@ashton_squeeze y -5000', 200);
           await this.sendZmqCommand('overlay@ashton_overlay x 0', 200);
-          await this.sendZmqCommand('overlay@ashton_overlay y H-h', 200);
+          await this.sendZmqCommand(`overlay@ashton_overlay y ${targetY}`, 200);
         }
       } else {
+        await this.sendZmqCommand(`scale@ashton_sq h ${canvasH}`, 200);
         await this.sendZmqCommand('overlay@ashton_squeeze x -5000', 200);
         await this.sendZmqCommand('overlay@ashton_squeeze y -5000', 200);
         await this.sendZmqCommand('overlay@ashton_overlay x -5000', 200);
         await this.sendZmqCommand('overlay@ashton_overlay y -5000', 200);
       }
-      return this.updateLiveTickerPosition();
+      await this.updateLiveTickerPosition();
+      return { success: false, error: e.message };
     }
   }
 
@@ -985,14 +1190,14 @@ export class EncoderService {
     if (this.zmqSocket) {
       try {
         this.zmqSocket.close();
-      } catch {}
+      } catch { }
       this.zmqSocket = null;
     }
     if (this.process) {
       try {
         this.process.stdin.end();
         this.process.kill('SIGINT');
-      } catch {}
+      } catch { }
     }
   }
 }

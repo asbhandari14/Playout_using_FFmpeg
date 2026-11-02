@@ -363,7 +363,7 @@ export default function MoreSettingsModal({
                     style={{
                       transform: lbandEnabled ? 'translateX(0) scale(1)' : 'translateX(-50px) scale(0.97)',
                       opacity: lbandEnabled ? 1 : 0,
-                      transition: 'transform 0.45s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.4s ease-in-out',
+                      transition: 'transform 1.8s cubic-bezier(0.65, 0, 0.35, 1), opacity 1.8s cubic-bezier(0.65, 0, 0.35, 1)',
                       pointerEvents: lbandEnabled ? 'auto' : 'none'
                     }}
                     className="absolute inset-0 z-20 pointer-events-none"
@@ -439,7 +439,7 @@ export default function MoreSettingsModal({
                             top: `${(lbandWindowY / 720) * 100}%`,
                             width: `${(lbandWindowW / 1280) * 100}%`,
                             height: `${(lbandWindowH / 720) * 100}%`,
-                            transition: 'all 0.45s cubic-bezier(0.16, 1, 0.3, 1)'
+                            transition: 'all 1.8s cubic-bezier(0.65, 0, 0.35, 1)'
                           }
                         : {
                             position: 'absolute',
@@ -447,7 +447,7 @@ export default function MoreSettingsModal({
                             top: '0%',
                             width: '100%',
                             height: '100%',
-                            transition: 'all 0.45s cubic-bezier(0.16, 1, 0.3, 1)'
+                            transition: 'all 1.8s cubic-bezier(0.65, 0, 0.35, 1)'
                           }
                     }
                     className={`bg-slate-900 border-2 overflow-hidden flex flex-col items-center justify-center relative ${
@@ -696,7 +696,7 @@ export default function MoreSettingsModal({
                         ? `${((720 - ashtonHeight) / 720) * 100}%`
                         : '100%',
                       width: '100%',
-                      transition: 'height 0.42s cubic-bezier(0.16, 1, 0.3, 1)'
+                      transition: 'height 1.8s cubic-bezier(0.65, 0, 0.35, 1)'
                     }}
                     className="relative bg-slate-900 flex items-center justify-center overflow-hidden border-b border-indigo-500/40"
                   >
@@ -730,7 +730,7 @@ export default function MoreSettingsModal({
                             width: '100%',
                             transform: ashtonEnabled ? 'translateY(0)' : 'translateY(100%)',
                             opacity: ashtonEnabled ? 1 : 0,
-                            transition: 'transform 0.42s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.35s ease-in-out',
+                            transition: 'transform 1.8s cubic-bezier(0.65, 0, 0.35, 1), opacity 1.8s cubic-bezier(0.65, 0, 0.35, 1)',
                             pointerEvents: ashtonEnabled ? 'auto' : 'none'
                           }
                         : {
@@ -741,7 +741,7 @@ export default function MoreSettingsModal({
                             height: `${(ashtonHeight / 720) * 100}%`,
                             transform: ashtonEnabled ? 'translateY(0)' : 'translateY(100%)',
                             opacity: ashtonEnabled ? 1 : 0,
-                            transition: 'transform 0.42s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.35s ease-in-out',
+                            transition: 'transform 1.8s cubic-bezier(0.65, 0, 0.35, 1), opacity 1.8s cubic-bezier(0.65, 0, 0.35, 1)',
                             pointerEvents: ashtonEnabled ? 'auto' : 'none'
                           }
                     }
