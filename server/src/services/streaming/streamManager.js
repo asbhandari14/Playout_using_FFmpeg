@@ -272,7 +272,11 @@ class StreamManager {
       if (stream.encoder.channel?.branding?.lband) {
         stream.encoder.channel.branding.lband.enabled = true;
       }
-      await stream.encoder.setLBandEnabled(true);
+      try {
+        await stream.encoder.setLBandEnabled(true);
+      } catch (encErr) {
+        console.warn(`[StreamManager] Warning setting L-Band live on encoder:`, encErr.message);
+      }
     }
 
     const expiresAt = Date.now() + dur * 1000;
@@ -395,7 +399,11 @@ class StreamManager {
         stream.encoder.channel.branding.ashton.enabled = true;
         stream.encoder.channel.branding.ashton.squeeze = !!squeeze;
       }
-      await stream.encoder.setAshtonLive(true, !!squeeze);
+      try {
+        await stream.encoder.setAshtonLive(true, !!squeeze);
+      } catch (encErr) {
+        console.warn(`[StreamManager] Warning setting Ashton live on encoder:`, encErr.message);
+      }
     }
 
     const expiresAt = Date.now() + dur * 1000;

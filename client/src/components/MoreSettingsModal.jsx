@@ -122,6 +122,7 @@ export default function MoreSettingsModal({
   }, [isOpen, channel?._id]);
 
   const handleFireLBand = async (duration = lbandFireDuration) => {
+    const dur = typeof duration === 'number' ? duration : (Number(lbandFireDuration) || 60);
     if (lbandFireRemaining > 0) {
       setLbandFireRemaining(0);
       handleSaveLBand(false);
@@ -129,19 +130,20 @@ export default function MoreSettingsModal({
     }
     setIsSubmitting(true);
     try {
-      const res = await api.post(`/channels/${channel._id}/lband/fire`, { duration });
+      const res = await api.post(`/channels/${channel._id}/lband/fire`, { duration: dur });
       setLbandEnabled(true);
-      setLbandFireRemaining(res.data?.duration || duration);
-      showAlert('success', `L-Band fired live for ${res.data?.duration || duration}s! Will close automatically.`);
+      setLbandFireRemaining(res.data?.duration || dur);
+      showAlert('success', `L-Band fired live for ${res.data?.duration || dur}s! Will close automatically.`);
       if (onChannelUpdated) onChannelUpdated();
     } catch (err) {
-      showAlert('error', err.response?.data?.message || 'Failed to fire L-Band');
+      showAlert('error', err.response?.data?.message || err.message || 'Failed to fire L-Band');
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleFireAshton = async (duration = ashtonFireDuration) => {
+    const dur = typeof duration === 'number' ? duration : (Number(ashtonFireDuration) || 60);
     if (ashtonFireRemaining > 0) {
       setAshtonFireRemaining(0);
       handleSaveAshton(false, ashtonSqueeze);
@@ -149,13 +151,13 @@ export default function MoreSettingsModal({
     }
     setIsSubmitting(true);
     try {
-      const res = await api.post(`/channels/${channel._id}/ashton/fire`, { duration, squeeze: ashtonSqueeze });
+      const res = await api.post(`/channels/${channel._id}/ashton/fire`, { duration: dur, squeeze: ashtonSqueeze });
       setAshtonEnabled(true);
-      setAshtonFireRemaining(res.data?.duration || duration);
-      showAlert('success', `Ashton Band fired live for ${res.data?.duration || duration}s! Will close automatically.`);
+      setAshtonFireRemaining(res.data?.duration || dur);
+      showAlert('success', `Ashton Band fired live for ${res.data?.duration || dur}s! Will close automatically.`);
       if (onChannelUpdated) onChannelUpdated();
     } catch (err) {
-      showAlert('error', err.response?.data?.message || 'Failed to fire Ashton Band');
+      showAlert('error', err.response?.data?.message || err.message || 'Failed to fire Ashton Band');
     } finally {
       setIsSubmitting(false);
     }
@@ -1200,7 +1202,8 @@ export default function MoreSettingsModal({
 
                     {/* 🔥 Quick Fire Button */}
                     <button
-                      onClick={handleFireAshton}
+                      type="button"
+                      onClick={() => handleFireAshton(ashtonFireDuration)}
                       disabled={isSubmitting}
                       className={`py-3 px-4 rounded-xl font-black text-xs uppercase tracking-wider flex items-center justify-center space-x-2 transition shadow-lg ${
                         ashtonFireRemaining > 0

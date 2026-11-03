@@ -1086,14 +1086,6 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                 />
               </div>
             </div>
-
-            {/* Layering Notice */}
-            <div className="p-3 rounded-xl bg-[#10141d] border border-[#1f2838] text-[11px] text-slate-400 flex items-start gap-2">
-              <Layers size={14} className="text-amber-400 shrink-0 mt-0.5" />
-              <span>
-                <strong className="text-slate-300">Layering Rule:</strong> If the Logo and Bug are set to the same position, the Logo automatically renders on top of the Bug.
-              </span>
-            </div>
           </div>
         )}
 

@@ -939,7 +939,8 @@ export const fireLBandLive = async (req, res, next) => {
     const { channelId } = req.params;
     const { duration = 60 } = req.body || {};
 
-    const result = await streamManager.fireLBand(channelId, duration);
+    const cleanDuration = Math.max(5, Math.min(3600, Number(duration) || 60));
+    const result = await streamManager.fireLBand(channelId, cleanDuration);
 
     return res.status(200).json({
       success: true,
@@ -948,7 +949,9 @@ export const fireLBandLive = async (req, res, next) => {
     });
   } catch (error) {
     console.error('[Branding Controller] fireLBandLive error:', error);
-    next(error);
+    return res.status(error.status || 500).json({
+      message: error.message || 'Failed to fire L-Band'
+    });
   }
 };
 
@@ -988,7 +991,7 @@ export const updateAshtonBranding = async (req, res, next) => {
     );
 
     if (enabled === false) {
-      streamManager.clearFireTimer(channelId, 'lband');
+      streamManager.clearFireTimer(channelId, 'ashton');
     }
 
     // LIVE STREAM CONTROL
@@ -1178,7 +1181,8 @@ export const fireAshtonLive = async (req, res, next) => {
     const { channelId } = req.params;
     const { duration = 60, squeeze = true } = req.body || {};
 
-    const result = await streamManager.fireAshton(channelId, duration, squeeze);
+    const cleanDuration = Math.max(5, Math.min(3600, Number(duration) || 60));
+    const result = await streamManager.fireAshton(channelId, cleanDuration, squeeze !== false);
 
     return res.status(200).json({
       success: true,
@@ -1187,7 +1191,9 @@ export const fireAshtonLive = async (req, res, next) => {
     });
   } catch (error) {
     console.error('[Branding Controller] fireAshtonLive error:', error);
-    next(error);
+    return res.status(error.status || 500).json({
+      message: error.message || 'Failed to fire Ashton Band'
+    });
   }
 };
 
