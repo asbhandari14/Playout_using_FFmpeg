@@ -284,6 +284,9 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
 
   const handleBugPadPointerDown = (e) => {
     isDraggingBugRef.current = true;
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch (_) {}
     const coords = calculateBugCoordsFromEvent(e);
     if (!coords) return;
     setBugPositionX(coords.x);
@@ -303,6 +306,9 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
   const handleBugPadPointerUp = (e) => {
     if (!isDraggingBugRef.current) return;
     isDraggingBugRef.current = false;
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch (_) {}
     const coords = calculateBugCoordsFromEvent(e);
     const finalX = coords ? coords.x : bugPositionX;
     const finalY = coords ? coords.y : bugPositionY;
@@ -933,7 +939,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                   style={{
                     left: `${bugPositionX}%`,
                     top: `${bugPositionY}%`,
-                    transform: 'translate(-50%, -50%)',
+                    transform: `translate(-${bugPositionX}%, -${bugPositionY}%)`,
                     width: `${Math.max(16, Math.min(64, Math.round(16 + (bugSizePercent * 0.9))))}px`,
                     height: `${Math.max(16, Math.min(64, Math.round(16 + (bugSizePercent * 0.9))))}px`
                   }}
@@ -960,10 +966,10 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
               <div className="grid grid-cols-5 gap-1 pt-1">
                 {[
                   { label: 'Top-L', x: 3, y: 3 },
-                  { label: 'Top-R', x: 95, y: 3 },
+                  { label: 'Top-R', x: 97, y: 3 },
                   { label: 'Center', x: 50, y: 50 },
-                  { label: 'Bot-L', x: 3, y: 95 },
-                  { label: 'Bot-R', x: 95, y: 95 }
+                  { label: 'Bot-L', x: 3, y: 97 },
+                  { label: 'Bot-R', x: 97, y: 97 }
                 ].map((preset) => {
                   const isActive =
                     Math.abs(bugPositionX - preset.x) <= 3 && Math.abs(bugPositionY - preset.y) <= 3;
