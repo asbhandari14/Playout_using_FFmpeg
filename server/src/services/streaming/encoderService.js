@@ -7,6 +7,7 @@ import { ensureBrandingFiles, renderTickerImage, generateDefaultAshtonSvg, safeW
 import { STREAMS_DIR, SERVER_ROOT } from '../../config/paths.js';
 import { sanitizeStreamKey } from '../flussonicService.js';
 import { probeVideo } from '../../utils/media.js';
+import { killProcessTree } from '../../utils/processHelper.js';
 
 export class EncoderService {
   constructor(channel, zmqPort) {
@@ -712,8 +713,9 @@ export class EncoderService {
       rtmpTarget = `${rtmpBase}/${streamKey}`;
     }
 
-    // Low-latency local HLS for live monitoring + remote RTMP (onfail=ignore preserves local HLS if remote RTMP drops)
-    const teeOutput = `[f=hls:hls_time=1:hls_list_size=3:hls_flags=delete_segments+split_by_time]${hlsManifest}|[onfail=ignore:f=flv:flvflags=no_duration_filesize]${rtmpTarget}`;
+    // Dual output via tee: local HLS for preview monitoring + remote RTMP for broadcast playout
+    // Note: Remote RTMP must not ignore failure so network drops trigger immediate failover / recovery
+    const teeOutput = `[f=hls:hls_time=1:hls_list_size=3:hls_flags=delete_segments+split_by_time]${hlsManifest}|[f=flv:flvflags=no_duration_filesize]${rtmpTarget}`;
 
     const ffmpegArgs = [
       '-y',
@@ -795,6 +797,20 @@ export class EncoderService {
         this.lastReportedAt = Date.now();
       }
 
+      // Detect RTMP socket failure, broken connection, or slave drop during network outage
+      if (
+        !this.isStopping &&
+        (msg.includes('Slave muxer #1 failed') ||
+          msg.includes('Connection reset by peer') ||
+          (msg.includes('Connection to') && msg.includes('failed')) ||
+          msg.includes('Cannot open connection') ||
+          msg.includes('Failed to update header with correct duration') ||
+          (msg.includes('rtmp://') && (msg.includes('Broken pipe') || msg.includes('Error') || msg.includes('failed'))))
+      ) {
+        console.warn(`[Encoder:${streamKey}] RTMP slave output disconnected: ${msg.trim()}`);
+        this.triggerFailure('RTMP output disconnected');
+      }
+
       // Log notable encoder events, RTMP connection messages, and errors
       if (
         msg.includes('Error') ||
@@ -809,7 +825,6 @@ export class EncoderService {
 
     this.process.on('close', (code) => {
       console.log(`[Encoder] FFmpeg encoder exited with code ${code}`);
-      const wasRunning = this.isRunning;
       this.isRunning = false;
       if (this.zmqSocket) {
         try {
@@ -817,14 +832,42 @@ export class EncoderService {
         } catch { }
         this.zmqSocket = null;
       }
-      if (wasRunning && !this.isStopping && typeof this.onUnexpectedExit === 'function') {
+      if (!this.isStopping && typeof this.onUnexpectedExit === 'function') {
         this.onUnexpectedExit(code);
       }
     });
 
-    // Initialize ZMQ Request client after brief warmup
-    return new Promise((resolve) => {
-      setTimeout(async () => {
+    // Initialize ZMQ Request client after brief warmup, with early exit / error rejection
+    return new Promise((resolve, reject) => {
+      let settled = false;
+
+      const earlyExitHandler = (code) => {
+        if (!settled) {
+          settled = true;
+          this.isRunning = false;
+          cleanupWarmup();
+          reject(new Error(`FFmpeg encoder exited prematurely with code ${code}`));
+        }
+      };
+
+      const earlyErrorHandler = (err) => {
+        if (!settled) {
+          settled = true;
+          this.isRunning = false;
+          cleanupWarmup();
+          reject(err);
+        }
+      };
+
+      const warmupTimer = setTimeout(async () => {
+        if (settled) return;
+        settled = true;
+        cleanupWarmup();
+
+        if (!this.isRunning || !this.process || this.process.killed || this.process.exitCode !== null) {
+          return reject(new Error('FFmpeg encoder process died during startup'));
+        }
+
         try {
           this.zmqSocket = new zmq.Request();
           this.zmqSocket.connect(`tcp://127.0.0.1:${this.zmqPort}`);
@@ -834,6 +877,15 @@ export class EncoderService {
         }
         resolve(this);
       }, 1200);
+
+      const cleanupWarmup = () => {
+        clearTimeout(warmupTimer);
+        this.process?.removeListener('close', earlyExitHandler);
+        this.process?.removeListener('error', earlyErrorHandler);
+      };
+
+      this.process.once('close', earlyExitHandler);
+      this.process.once('error', earlyErrorHandler);
     });
   }
 
@@ -1763,7 +1815,19 @@ export class EncoderService {
     }
   }
 
+  triggerFailure(reason) {
+    if (this.isStopping || !this.isRunning) return;
+    console.warn(`[Encoder] Triggering failure recovery for channel '${this.channel?.name}': ${reason}`);
+    this.isRunning = false;
+    if (this.process) {
+      try {
+        killProcessTree(this.process);
+      } catch { }
+    }
+  }
+
   stop() {
+    this.isStopping = true;
     this.isRunning = false;
     if (this.zmqSocket) {
       try {
@@ -1773,9 +1837,12 @@ export class EncoderService {
     }
     if (this.process) {
       try {
-        this.process.stdin.end();
-        this.process.kill('SIGINT');
+        if (this.process.stdin && !this.process.stdin.destroyed) {
+          this.process.stdin.end();
+        }
+        killProcessTree(this.process);
       } catch { }
+      this.process = null;
     }
   }
 }

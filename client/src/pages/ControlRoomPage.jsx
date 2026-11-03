@@ -74,7 +74,20 @@ export default function ControlRoomPage() {
 
     socket.on('connect', () => {
       socket.emit('join_channel', channelId);
+      // Re-sync channel data and playlist immediately upon socket connection or reconnection
+      dispatch(fetchChannelById(channelId));
+      dispatch(fetchPlaylist(channelId));
     });
+
+    const handleOnline = () => {
+      console.log('[Network] Internet connectivity restored. Re-syncing channel and playlist...');
+      dispatch(fetchChannelById(channelId));
+      dispatch(fetchPlaylist(channelId));
+      if (!socket.connected) {
+        socket.connect();
+      }
+    };
+    window.addEventListener('online', handleOnline);
 
     socket.on('asset_progress', (data) => {
       dispatch(updateAssetProgress(data));
@@ -103,10 +116,15 @@ export default function ControlRoomPage() {
 
     socket.on('stream_status', (data) => {
       if (data.channelId === channelId) {
-        setIsLive(data.status === 'live');
-        dispatch(updateChannelStatus({ channelId, status: data.status }));
-        if (data.status === 'idle') {
+        if (data.status === 'live') {
+          setIsLive(true);
+          dispatch(updateChannelStatus({ channelId, status: 'live' }));
+        } else if (data.status === 'idle') {
+          setIsLive(false);
+          dispatch(updateChannelStatus({ channelId, status: 'idle' }));
           setCurrentOnAirSchedule(null);
+        } else if (data.status === 'reconnecting') {
+          console.log(`[StreamStatus] Channel auto-reconnecting (attempt #${data.attempt})...`);
         }
       }
     });
@@ -126,6 +144,7 @@ export default function ControlRoomPage() {
     });
 
     return () => {
+      window.removeEventListener('online', handleOnline);
       socket.emit('leave_channel', channelId);
       socket.disconnect();
     };

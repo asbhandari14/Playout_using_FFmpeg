@@ -50,7 +50,7 @@ const videoFilter = (req, file, cb) => {
 
 export const uploadChunk = multer({
   storage: chunkStorage,
-  limits: { fileSize: 50 * 1024 * 1024 } // 50MB per chunk max
+  limits: { fileSize: 250 * 1024 * 1024 } // 50MB per chunk max
 });
 
 export const uploadDirect = multer({

@@ -12,26 +12,110 @@ class StreamManager {
     this.activeStreams = new Map();
     this.nextZmqPort = 5600;
     this.fireTimers = new Map();
+    this.recoveryMap = new Map();
+  }
+
+  clearRecovery(channelId) {
+    const chIdStr = String(channelId);
+    if (this.recoveryMap.has(chIdStr)) {
+      const rec = this.recoveryMap.get(chIdStr);
+      if (rec?.timer) clearTimeout(rec.timer);
+      this.recoveryMap.delete(chIdStr);
+    }
+  }
+
+  /**
+   * Continuous auto-recovery retry loop with exponential backoff for network outages
+   */
+  scheduleAutoRecovery(channelId, lastPos = null) {
+    const chIdStr = String(channelId);
+    const existingRec = this.recoveryMap.get(chIdStr) || { count: 0, lastPos };
+    const count = existingRec.count + 1;
+    const pos = lastPos || existingRec.lastPos || { index: 0, offsetSeconds: 0 };
+
+    if (existingRec.timer) clearTimeout(existingRec.timer);
+
+    let delayMs = 3000;
+    if (count === 2) delayMs = 5000;
+    else if (count >= 3) delayMs = 10000;
+
+    console.log(`[StreamManager Auto-Recovery] Scheduling reconnect attempt #${count} for channel ${chIdStr} in ${delayMs / 1000}s...`);
+
+    if (io) {
+      io.to(`channel:${chIdStr}`).emit('stream_status', {
+        channelId: chIdStr,
+        status: 'reconnecting',
+        attempt: count
+      });
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        const channel = await Channel.findById(chIdStr);
+        if (!channel) {
+          this.clearRecovery(chIdStr);
+          return;
+        }
+
+        await this.stopStream(chIdStr, { isReloading: true });
+
+        console.log(`[StreamManager Auto-Recovery] Executing reconnect attempt #${count} for '${channel.name}'...`);
+        const streamInstance = await this.startStream(chIdStr, pos.index, {
+          isReloading: true,
+          startOffsetSeconds: pos.offsetSeconds
+        });
+
+        if (streamInstance) {
+          console.log(`[StreamManager Auto-Recovery] 🚀 Channel '${channel.name}' (${chIdStr}) recovered successfully on attempt #${count}!`);
+          this.clearRecovery(chIdStr);
+        }
+      } catch (err) {
+        console.warn(`[StreamManager Auto-Recovery] Attempt #${count} for channel ${chIdStr} failed (${err.message}). Retrying...`);
+        this.scheduleAutoRecovery(chIdStr, pos);
+      }
+    }, delayMs);
+
+    this.recoveryMap.set(chIdStr, { count, timer, lastPos: pos });
   }
 
   /**
    * Start live broadcast for a channel
    */
   async startStream(channelId, startIndex = 0, { isReloading = false, startOffsetSeconds = 0 } = {}) {
-    if (this.activeStreams.has(channelId)) {
-      console.log(`[StreamManager] Channel ${channelId} is already running.`);
-      return this.activeStreams.get(channelId);
+    const chIdStr = String(channelId);
+    if (this.activeStreams.has(chIdStr)) {
+      const existing = this.activeStreams.get(chIdStr);
+      const isAlive = existing &&
+        existing.encoder?.isRunning &&
+        existing.encoder?.process &&
+        !existing.encoder.process.killed &&
+        existing.encoder.process.exitCode === null;
+
+      if (isAlive) {
+        console.log(`[StreamManager] Channel ${chIdStr} is already running.`);
+        return existing;
+      }
+
+      console.warn(`[StreamManager] Channel ${chIdStr} has a stale/dead stream instance. Cleaning up before restart...`);
+      await this.stopStream(chIdStr, { isReloading: true });
     }
 
-    const channel = await Channel.findById(channelId).populate({
+    if (!isReloading) {
+      this.clearRecovery(chIdStr);
+    }
+
+    const channel = await Channel.findById(chIdStr).populate({
       path: 'server',
       select: '+serverPasswordEncrypted'
     });
     if (!channel) {
-      throw new Error(`Channel ${channelId} not found`);
+      throw new Error(`Channel ${chIdStr} not found`);
     }
 
-    // Allocate ZMQ port
+    // Allocate ZMQ port (wrap within 5600-5999)
+    if (this.nextZmqPort > 5999) {
+      this.nextZmqPort = 5600;
+    }
     const zmqPort = this.nextZmqPort++;
 
     console.log(`[StreamManager] Initializing stream for channel '${channel.name}' (Port: ${zmqPort})`);
@@ -73,7 +157,7 @@ class StreamManager {
       }
       if (channel.branding.lband) channel.branding.lband.enabled = !!snap.lband?.enabled;
       channel.branding.preScheduleBranding = null;
-      await Channel.findByIdAndUpdate(channelId, {
+      await Channel.findByIdAndUpdate(chIdStr, {
         $set: {
           ...(snap.logo?.suppressed ? { 'branding.logo.enabled': !!snap.logo.enabled } : {}),
           'branding.ticker.enabled': !!snap.ticker?.enabled,
@@ -89,48 +173,51 @@ class StreamManager {
     // 1. Launch long-running Encoder process
     const encoder = new EncoderService(channel, zmqPort);
     encoder.onUnexpectedExit = (code) => {
-      const activeStream = this.activeStreams.get(channelId);
-      if (activeStream && !activeStream.isStopping) {
+      const activeStream = this.activeStreams.get(chIdStr);
+      if (!encoder.isStopping) {
+        const pos = activeStream?.feeder?.getCurrentPlaybackPosition
+          ? activeStream.feeder.getCurrentPlaybackPosition()
+          : { index: startIndex, offsetSeconds: startOffsetSeconds };
+
         console.warn(
-          `[StreamManager] Live encoder for channel '${channel.name}' (${channelId}) exited unexpectedly (code ${code}). ` +
-          `Network connection may have reset. Auto-recovering live stream in 3s...`
+          `[StreamManager] Live encoder for channel '${channel.name}' (${chIdStr}) exited unexpectedly (code ${code}). ` +
+          `Auto-recovering live stream...`
         );
-        setTimeout(async () => {
-          const current = this.activeStreams.get(channelId);
-          if (current && !current.isStopping) {
-            try {
-              await this.restartStream(channelId);
-            } catch (rErr) {
-              console.error(`[StreamManager] Auto-recovery error for channel ${channelId}:`, rErr.message);
-            }
-          }
-        }, 3000);
+        this.scheduleAutoRecovery(chIdStr, pos);
       }
     };
-    await encoder.start();
+
+    try {
+      await encoder.start();
+    } catch (encErr) {
+      encoder.stop();
+      throw encErr;
+    }
 
     // 2. Launch playlist Feeder process
-    const feeder = new FeederService(channelId, encoder.process, { startIndex, startOffsetSeconds }, encoder);
+    const feeder = new FeederService(chIdStr, encoder.process, { startIndex, startOffsetSeconds }, encoder);
     feeder.encoder = encoder;
     feeder.start();
 
     const streamInstance = {
-      channelId,
+      channelId: chIdStr,
       channel,
       encoder,
       feeder,
       zmqPort,
-      startedAt: new Date()
+      startedAt: new Date(),
+      isStopping: false
     };
 
-    this.activeStreams.set(channelId, streamInstance);
+    this.activeStreams.set(chIdStr, streamInstance);
+    this.clearRecovery(chIdStr);
 
     // Update Channel status in DB
-    await Channel.findByIdAndUpdate(channelId, { status: CHANNEL_STATUS.LIVE });
+    await Channel.findByIdAndUpdate(chIdStr, { status: CHANNEL_STATUS.LIVE });
 
     if (io) {
-      io.to(`channel:${channelId}`).emit('stream_status', {
-        channelId,
+      io.to(`channel:${chIdStr}`).emit('stream_status', {
+        channelId: chIdStr,
         status: CHANNEL_STATUS.LIVE,
         zmqPort
       });
@@ -153,11 +240,16 @@ class StreamManager {
    * Stop live broadcast for a channel
    */
   async stopStream(channelId, { isReloading = false } = {}) {
-    const stream = this.activeStreams.get(channelId);
+    const chIdStr = String(channelId);
+    if (!isReloading) {
+      this.clearRecovery(chIdStr);
+    }
+
+    const stream = this.activeStreams.get(chIdStr);
     if (!stream) {
       if (!isReloading) {
         // Ensure DB status is set to idle
-        await Channel.findByIdAndUpdate(channelId, {
+        await Channel.findByIdAndUpdate(chIdStr, {
           status: CHANNEL_STATUS.IDLE,
           currentPlayingIndex: -1
         });
@@ -165,7 +257,7 @@ class StreamManager {
       return false;
     }
 
-    console.log(`[StreamManager] ${isReloading ? 'Pausing for reload' : 'Stopping'} stream for channel ${channelId}`);
+    console.log(`[StreamManager] ${isReloading ? 'Pausing for reload' : 'Stopping'} stream for channel ${chIdStr}`);
 
     stream.isStopping = true;
     if (stream.encoder) stream.encoder.isStopping = true;
@@ -180,21 +272,21 @@ class StreamManager {
       stream.encoder.stop();
     }
 
-    this.clearFireTimer(channelId, 'lband');
-    this.clearFireTimer(channelId, 'ashton');
-    this.activeStreams.delete(channelId);
+    this.clearFireTimer(chIdStr, 'lband');
+    this.clearFireTimer(chIdStr, 'ashton');
+    this.activeStreams.delete(chIdStr);
 
     // If reloading for live asset updates, maintain LIVE status and do not broadcast IDLE
     if (!isReloading) {
       // Update channel status to idle
-      await Channel.findByIdAndUpdate(channelId, {
+      await Channel.findByIdAndUpdate(chIdStr, {
         status: CHANNEL_STATUS.IDLE,
         currentPlayingIndex: -1
       });
 
       if (io) {
-        io.to(`channel:${channelId}`).emit('stream_status', {
-          channelId,
+        io.to(`channel:${chIdStr}`).emit('stream_status', {
+          channelId: chIdStr,
           status: CHANNEL_STATUS.IDLE
         });
       }
@@ -239,7 +331,12 @@ class StreamManager {
 
       for (const channel of liveChannels) {
         const resumeIndex = Math.max(0, channel.currentPlayingIndex || 0);
-        await this.startStream(String(channel._id), resumeIndex);
+        try {
+          await this.startStream(String(channel._id), resumeIndex);
+        } catch (startErr) {
+          console.warn(`[StreamManager PM2 Recovery] Could not immediately start channel '${channel.name}': ${startErr.message}. Initiating auto-recovery loop...`);
+          this.scheduleAutoRecovery(String(channel._id), { index: resumeIndex, offsetSeconds: 0 });
+        }
       }
     } catch (err) {
       console.error('[StreamManager Recovery Error]', err);

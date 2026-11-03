@@ -13,6 +13,7 @@ import { fetchUsers } from '../store/slices/userSlice.js';
 import Navbar from '../components/Navbar.jsx';
 import Modal from '../components/Modal.jsx';
 import ConfirmDeleteModal from '../components/ConfirmDeleteModal.jsx';
+import { io } from 'socket.io-client';
 import {
   Tv,
   Plus,
@@ -59,6 +60,32 @@ export default function ChannelsPage() {
       dispatch(fetchServers());
       dispatch(fetchUsers());
     }
+
+    const handleOnline = () => {
+      console.log('[ChannelsPage] Internet restored. Re-fetching channels...');
+      dispatch(fetchChannels({ search }));
+    };
+    window.addEventListener('online', handleOnline);
+
+    const socket = io({
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 4000
+    });
+
+    socket.on('connect', () => {
+      dispatch(fetchChannels({ search }));
+    });
+
+    socket.on('stream_status', () => {
+      dispatch(fetchChannels({ search }));
+    });
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      socket.disconnect();
+    };
   }, [dispatch, search, canManage]);
 
   useEffect(() => {

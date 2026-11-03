@@ -62,6 +62,7 @@ import {
 import { fetchServers } from '../../store/slices/serverSlice.js';
 import { logoutUser } from '../../store/slices/authSlice.js';
 import ConfirmDeleteModal from '../../components/ConfirmDeleteModal.jsx';
+import { io } from 'socket.io-client';
 
 // Available permission modules matching the UI
 const DEFAULT_PERMISSIONS = [
@@ -150,11 +151,39 @@ export default function Dashboard() {
   // Copy URL state
   const [copiedUrl, setCopiedUrl] = useState('');
 
-  // Fetch initial data
+  // Fetch initial data + automatic recovery on network reconnect
   useEffect(() => {
     dispatch(fetchUsers());
     dispatch(fetchChannels());
     dispatch(fetchServers());
+
+    const handleOnline = () => {
+      console.log('[Dashboard] Internet connectivity restored. Re-fetching channels and servers...');
+      dispatch(fetchChannels());
+      dispatch(fetchUsers());
+      dispatch(fetchServers());
+    };
+    window.addEventListener('online', handleOnline);
+
+    const socket = io({
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 4000
+    });
+
+    socket.on('connect', () => {
+      dispatch(fetchChannels());
+    });
+
+    socket.on('stream_status', () => {
+      dispatch(fetchChannels());
+    });
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      socket.disconnect();
+    };
   }, [dispatch]);
 
   // Clear alerts after 4s
@@ -561,10 +590,10 @@ export default function Dashboard() {
                   {/* Title & Action Header */}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
-                      <h1 className="text-xl font-extrabold text-white tracking-wide">
+                      <h1 className="text-xl text-white tracking-wide">
                         Admin Panel
                       </h1>
-                      <p className="text-xs text-slate-400 mt-0.5">
+                      <p className="text-xs text-slate-400">
                         Manage System Access & Permissions
                       </p>
                     </div>

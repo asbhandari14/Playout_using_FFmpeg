@@ -9,6 +9,7 @@ import { io } from '../../server.js';
 import { SERVER_ROOT } from '../../config/paths.js';
 import { PLAYLIST_ITEM_STATUS } from '../../config/constants.js';
 import { buildBackInTimerFilter } from './brandingAssets.js';
+import { killProcessTree } from '../../utils/processHelper.js';
 
 export class FeederService {
   constructor(channelId, encoderProcess, options = {}, encoder = null) {
@@ -742,7 +743,7 @@ export class FeederService {
           this.currentDecoder.stdout.unpipe();
           this.currentDecoder.stdout.destroy();
         }
-        this.currentDecoder.kill('SIGINT');
+        killProcessTree(this.currentDecoder);
       } catch { }
       this.currentDecoder = null;
     }

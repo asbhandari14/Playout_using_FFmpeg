@@ -101,5 +101,5 @@ const bugFilter = (req, file, cb) => {
 export const uploadBug = multer({
   storage: bugStorage,
   fileFilter: bugFilter,
-  limits: { fileSize: 30 * 1024 * 1024 }
+  limits: { fileSize: 300 * 1024 * 1024 }
 });
