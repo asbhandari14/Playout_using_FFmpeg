@@ -6,6 +6,7 @@ import sharp from 'sharp';
 import { ensureBrandingFiles, renderTickerImage, generateDefaultAshtonSvg, safeWriteFileSync } from './brandingAssets.js';
 import { STREAMS_DIR, SERVER_ROOT } from '../../config/paths.js';
 import { sanitizeStreamKey } from '../flussonicService.js';
+import { probeVideo } from '../../utils/media.js';
 
 export class EncoderService {
   constructor(channel, zmqPort) {
@@ -43,14 +44,16 @@ export class EncoderService {
     const bugSource = channel.branding?.bug?.assetPath
       ? path.resolve(SERVER_ROOT, channel.branding.bug.assetPath)
       : null;
-    const isBugGif = !!channel.branding?.bug?.isGif || (bugSource && bugSource.toLowerCase().endsWith('.gif'));
+    const isBugMov = !!channel.branding?.bug?.isMov || (bugSource && bugSource.toLowerCase().endsWith('.mov'));
+    const isBugGif = !isBugMov && (!!channel.branding?.bug?.isGif || (bugSource && bugSource.toLowerCase().endsWith('.gif')));
 
-    const { logoFile, tickerBgFile, tickerFile, lbandFile, ashtonFile, bugFile, isBugGif: resolvedIsBugGif } = ensureBrandingFiles(this.channelDir, {
+    const { logoFile, tickerBgFile, tickerFile, lbandFile, ashtonFile, bugFile, isBugGif: resolvedIsBugGif, isBugMov: resolvedIsBugMov } = ensureBrandingFiles(this.channelDir, {
       logoSourcePath: logoSource,
       lbandSourcePath: lbandSource,
       ashtonSourcePath: ashtonSource,
       bugSourcePath: bugSource,
-      isBugGif
+      isBugGif,
+      isBugMov
     });
     this.logoFile = logoFile;
     this.tickerBgFile = tickerBgFile;
@@ -59,6 +62,7 @@ export class EncoderService {
     this.ashtonFile = ashtonFile;
     this.bugFile = bugFile;
     this.isBugGif = resolvedIsBugGif;
+    this.isBugMov = resolvedIsBugMov || (this.bugFile && this.bugFile.toLowerCase().endsWith('.mov'));
     this.bugAspectRatio = 1.0;
   }
 
@@ -595,11 +599,18 @@ export class EncoderService {
     this.bugAspectRatio = 1.0;
     try {
       if (fs.existsSync(this.bugFile)) {
-        const meta = await sharp(this.bugFile, { animated: this.isBugGif }).metadata();
-        // For animated GIFs, meta.pageHeight holds single-frame height (meta.height is total of all frames concatenated!)
-        const effectiveHeight = (this.isBugGif && meta.pageHeight) ? meta.pageHeight : meta.height;
-        if (meta && meta.width && effectiveHeight) {
-          this.bugAspectRatio = meta.width / effectiveHeight;
+        if (this.isBugMov) {
+          const meta = await probeVideo(this.bugFile);
+          if (meta && meta.width && meta.height) {
+            this.bugAspectRatio = meta.width / meta.height;
+          }
+        } else {
+          const meta = await sharp(this.bugFile, { animated: this.isBugGif }).metadata();
+          // For animated GIFs, meta.pageHeight holds single-frame height (meta.height is total of all frames concatenated!)
+          const effectiveHeight = (this.isBugGif && meta.pageHeight) ? meta.pageHeight : meta.height;
+          if (meta && meta.width && effectiveHeight) {
+            this.bugAspectRatio = meta.width / effectiveHeight;
+          }
         }
       }
     } catch { }
@@ -718,8 +729,10 @@ export class EncoderService {
       '-loop', '1', '-i', this.lbandFile,
       // Input 5: Looping ashton.png (ASHTON BAND LOWER THIRD)
       '-loop', '1', '-i', this.ashtonFile,
-      // Input 6: Station Bug (animated GIF via -ignore_loop 0 or static image via -loop 1)
-      ...(this.isBugGif ? ['-ignore_loop', '0', '-i', this.bugFile] : ['-loop', '1', '-i', this.bugFile]),
+      // Input 6: Station Bug (video MOV via -stream_loop -1, animated GIF via -ignore_loop 0, or static image via -loop 1)
+      ...(this.isBugMov
+        ? ['-stream_loop', '-1', '-i', this.bugFile]
+        : (this.isBugGif ? ['-ignore_loop', '0', '-i', this.bugFile] : ['-loop', '1', '-i', this.bugFile])),
       // Filtergraph
       '-filter_complex', filtergraph,
       '-map', '[vout]',
@@ -1030,10 +1043,17 @@ export class EncoderService {
       this.bugAspectRatio = 1.0;
       try {
         if (fs.existsSync(this.bugFile)) {
-          const meta = await sharp(this.bugFile, { animated: this.isBugGif }).metadata();
-          const effectiveHeight = (this.isBugGif && meta.pageHeight) ? meta.pageHeight : meta.height;
-          if (meta && meta.width && effectiveHeight) {
-            this.bugAspectRatio = meta.width / effectiveHeight;
+          if (this.isBugMov) {
+            const meta = await probeVideo(this.bugFile);
+            if (meta && meta.width && meta.height) {
+              this.bugAspectRatio = meta.width / meta.height;
+            }
+          } else {
+            const meta = await sharp(this.bugFile, { animated: this.isBugGif }).metadata();
+            const effectiveHeight = (this.isBugGif && meta.pageHeight) ? meta.pageHeight : meta.height;
+            if (meta && meta.width && effectiveHeight) {
+              this.bugAspectRatio = meta.width / effectiveHeight;
+            }
           }
         }
       } catch { }

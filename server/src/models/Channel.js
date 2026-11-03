@@ -82,7 +82,8 @@ const channelSchema = new mongoose.Schema(
         sizePercent: { type: Number, default: 8, min: 2, max: 60 },
         marginX: { type: Number, default: 2 },
         marginY: { type: Number, default: 2 },
-        isGif: { type: Boolean, default: false }
+        isGif: { type: Boolean, default: false },
+        isMov: { type: Boolean, default: false }
       },
       ticker: {
         enabled: { type: Boolean, default: false },

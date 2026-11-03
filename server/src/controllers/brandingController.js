@@ -11,6 +11,7 @@ import {
   analyzeAndNormalizeLBand,
   analyzeAndNormalizeAshton
 } from '../services/streaming/brandingAssets.js';
+import { probeVideo } from '../utils/media.js';
 
 // PUT /api/channels/:channelId/logo
 export const updateLogoBranding = async (req, res, next) => {
@@ -421,7 +422,7 @@ export const uploadBugFile = async (req, res, next) => {
   try {
     const { channelId } = req.params;
     if (!req.file) {
-      return res.status(400).json({ message: 'No bug image or GIF file provided' });
+      return res.status(400).json({ message: 'No bug file provided' });
     }
 
     const channel = await Channel.findById(channelId);
@@ -429,10 +430,14 @@ export const uploadBugFile = async (req, res, next) => {
       return res.status(404).json({ message: 'Channel not found' });
     }
 
-    const isGif =
-      req.file.mimetype === 'image/gif' ||
-      path.extname(req.file.originalname).toLowerCase() === '.gif';
+    const ext = path.extname(req.file.originalname).toLowerCase();
+    if (ext !== '.png' && ext !== '.mov') {
+      return res.status(400).json({
+        message: 'Invalid file format. Station Bug supports PNG (.png) and QuickTime MOV (.mov) files only.'
+      });
+    }
 
+    const isMov = ext === '.mov';
     const relativePath = path.relative(SERVER_ROOT, req.file.path).replace(/\\/g, '/');
 
     const channelStreamDir = path.join(STREAMS_DIR, String(channelId));
@@ -448,19 +453,20 @@ export const uploadBugFile = async (req, res, next) => {
     let scaledWidth = 80;
     let scaledHeight = 60;
 
-    if (isGif) {
-      // Animated GIF: preserve all frames and copy directly to stream folder
-      targetBugFile = path.join(channelStreamDir, 'bug.gif');
+    if (isMov) {
+      // QuickTime MOV: copy directly to stream folder
+      targetBugFile = path.join(channelStreamDir, 'bug.mov');
       fs.copyFileSync(req.file.path, targetBugFile);
 
       try {
-        const meta = await sharp(req.file.path, { animated: true }).metadata();
-        const effectiveHeight = meta.pageHeight || meta.height || 60;
+        const meta = await probeVideo(req.file.path);
         scaledWidth = meta.width || 80;
-        scaledHeight = effectiveHeight;
-      } catch {}
+        scaledHeight = meta.height || 60;
+      } catch (pErr) {
+        console.warn('[Branding] Warning probing MOV bug dimensions:', pErr.message);
+      }
     } else {
-      // Static image: trim transparent borders and pre-scale
+      // Static PNG image: trim transparent borders and pre-scale
       await normalizeAndTrimLogo(req.file.path);
       targetBugFile = path.join(channelStreamDir, 'bug.png');
       const scaled = await scaleAndSaveLogo(req.file.path, targetBugFile, {
@@ -479,7 +485,8 @@ export const uploadBugFile = async (req, res, next) => {
           'branding.bug.assetPath': relativePath,
           'branding.bug.enabled': true,
           'branding.bug.sizePercent': defaultSizePercent,
-          'branding.bug.isGif': isGif
+          'branding.bug.isMov': isMov,
+          'branding.bug.isGif': false
         }
       },
       { new: true }
@@ -490,7 +497,7 @@ export const uploadBugFile = async (req, res, next) => {
     // LIVE STREAM CONTROL: hot-swap stream to mount new bug file descriptor cleanly
     const isLive = streamManager.isChannelLive(channelId);
     if (isLive) {
-      console.log(`[Branding] Channel ${channelId} is live on air. Seamlessly reloading stream to display new bug (${isGif ? 'animated GIF' : 'image'})...`);
+      console.log(`[Branding] Channel ${channelId} is live on air. Seamlessly reloading stream to display new bug (${isMov ? 'QuickTime MOV' : 'PNG'})...`);
       await streamManager.restartStream(channelId);
     }
 
@@ -502,14 +509,14 @@ export const uploadBugFile = async (req, res, next) => {
     }
 
     return res.status(200).json({
-      message: isGif
-        ? 'Station Bug animated GIF uploaded & pushed live on air'
-        : 'Station Bug image uploaded & pushed live on air',
+      message: isMov
+        ? 'Station Bug QuickTime MOV uploaded & pushed live on air'
+        : 'Station Bug PNG image uploaded & pushed live on air',
       bug: currentBug,
       dimensions: {
         width: scaledWidth,
         height: scaledHeight,
-        isGif
+        isMov
       }
     });
   } catch (error) {

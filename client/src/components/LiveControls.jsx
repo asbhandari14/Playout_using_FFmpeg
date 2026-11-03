@@ -70,6 +70,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
   const [bugMarginX, setBugMarginX] = useState(2);
   const [bugMarginY, setBugMarginY] = useState(2);
   const [bugIsGif, setBugIsGif] = useState(false);
+  const [bugIsMov, setBugIsMov] = useState(false);
 
   // Ticker state
   const [tickerEnabled, setTickerEnabled] = useState(false);
@@ -143,6 +144,8 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
       setBugSizePercent(bBug.sizePercent !== undefined ? bBug.sizePercent : 8);
       setBugMarginX(bBug.marginX !== undefined ? bBug.marginX : 2);
       setBugMarginY(bBug.marginY !== undefined ? bBug.marginY : 2);
+      const isMov = Boolean(bBug.isMov || (bBug.assetPath && String(bBug.assetPath).toLowerCase().endsWith('.mov')));
+      setBugIsMov(isMov);
       setBugIsGif(Boolean(bBug.isGif || (bBug.assetPath && String(bBug.assetPath).toLowerCase().endsWith('.gif'))));
 
       const bTicker = channel.branding.ticker || {};
@@ -248,10 +251,17 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
     }
   };
 
-  // Upload custom bug image or animated GIF
+  // Upload custom bug image (PNG) or QuickTime animation (MOV)
   const handleBugUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file || !channel?._id) return;
+
+    const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+    if (ext !== '.png' && ext !== '.mov') {
+      showAlert('error', 'Only PNG (.png) and QuickTime MOV (.mov) files are supported for Station Bug');
+      if (e.target) e.target.value = '';
+      return;
+    }
 
     const formData = new FormData();
     formData.append('bug', file);
@@ -262,11 +272,14 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
       });
       setBugAssetPath(res.data.bug.assetPath);
       setBugEnabled(true);
-      setBugIsGif(!!res.data.bug.isGif);
+      setBugIsMov(!!res.data.bug.isMov || ext === '.mov');
+      setBugIsGif(false);
       showAlert('success', res.data.message || 'Bug uploaded & pushed to stream overlay');
       if (onBrandingUpdated) onBrandingUpdated({ type: 'bug', data: res.data.bug });
     } catch (err) {
       showAlert('error', err.response?.data?.message || 'Failed to upload station bug');
+    } finally {
+      if (e.target) e.target.value = '';
     }
   };
 
@@ -829,22 +842,37 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                   <Sparkles size={14} className="text-amber-400" />
                   <span>Station Bug Graphic</span>
                 </div>
-                {bugIsGif && (
-                  <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40 animate-pulse">
-                    GIF ANIMATED
+                {bugIsMov ? (
+                  <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 animate-pulse">
+                    MOV ANIMATED
                   </span>
-                )}
+                ) : bugAssetPath ? (
+                  <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                    PNG STATIC
+                  </span>
+                ) : null}
               </div>
 
               {/* Bug preview + Browse button */}
               <div className="flex items-center gap-3">
                 <div className="w-14 h-14 rounded-xl bg-[#090c12] border border-[#222938] overflow-hidden flex items-center justify-center p-1.5 shrink-0 relative">
                   {bugAssetPath ? (
-                    <img
-                      src={`/${bugAssetPath}`}
-                      alt="Bug"
-                      className="w-full h-full object-contain"
-                    />
+                    bugIsMov || bugAssetPath.toLowerCase().endsWith('.mov') ? (
+                      <video
+                        src={`/${bugAssetPath}`}
+                        autoPlay
+                        loop
+                        muted
+                        playsInline
+                        className="w-full h-full object-contain pointer-events-none"
+                      />
+                    ) : (
+                      <img
+                        src={`/${bugAssetPath}`}
+                        alt="Bug"
+                        className="w-full h-full object-contain"
+                      />
+                    )
                   ) : (
                     <Sparkles size={22} className="text-slate-600" />
                   )}
@@ -854,7 +882,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                   <input
                     ref={bugInputRef}
                     type="file"
-                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    accept=".png,image/png,.mov,video/quicktime"
                     className="hidden"
                     onChange={handleBugUpload}
                   />
@@ -877,7 +905,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                     )}
                   </div>
                   <p className="text-[10px] text-slate-500 mt-1">
-                    Supports png and mov files only
+                    Supports PNG and MOV files only
                   </p>
                 </div>
               </div>
@@ -943,14 +971,25 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                     width: `${Math.max(16, Math.min(64, Math.round(16 + (bugSizePercent * 0.9))))}px`,
                     height: `${Math.max(16, Math.min(64, Math.round(16 + (bugSizePercent * 0.9))))}px`
                   }}
-                  className="absolute border-2 border-amber-400 bg-amber-500/30 rounded shadow-[0_0_12px_rgba(245,158,11,0.6)] flex items-center justify-center pointer-events-none transition-all duration-75"
+                  className="absolute border-2 border-amber-400 bg-amber-500/30 rounded shadow-[0_0_12px_rgba(245,158,11,0.6)] flex items-center justify-center pointer-events-none transition-all duration-75 overflow-hidden"
                 >
                   {bugAssetPath ? (
-                    <img
-                      src={`/${bugAssetPath}`}
-                      alt="Bug target"
-                      className="w-full h-full object-contain pointer-events-none"
-                    />
+                    bugIsMov || bugAssetPath.toLowerCase().endsWith('.mov') ? (
+                      <video
+                        src={`/${bugAssetPath}`}
+                        autoPlay
+                        loop
+                        muted
+                        playsInline
+                        className="w-full h-full object-contain pointer-events-none"
+                      />
+                    ) : (
+                      <img
+                        src={`/${bugAssetPath}`}
+                        alt="Bug target"
+                        className="w-full h-full object-contain pointer-events-none"
+                      />
+                    )
                   ) : (
                     <Sparkles size={12} className="text-amber-300" />
                   )}

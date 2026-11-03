@@ -672,11 +672,22 @@ export default function MoreSettingsModal({
                         className="border border-amber-400/80 rounded bg-black/40 p-0.5 shadow-md flex items-center justify-center"
                         title="Station Bug"
                       >
-                        <img
-                          src={`/${channel.branding.bug.assetPath}`}
-                          alt="Station Bug"
-                          className="w-full h-full object-contain pointer-events-none"
-                        />
+                        {channel.branding.bug.assetPath?.toLowerCase().endsWith('.mov') ? (
+                          <video
+                            src={`/${channel.branding.bug.assetPath}`}
+                            autoPlay
+                            loop
+                            muted
+                            playsInline
+                            className="w-full h-full object-contain pointer-events-none"
+                          />
+                        ) : (
+                          <img
+                            src={`/${channel.branding.bug.assetPath}`}
+                            alt="Station Bug"
+                            className="w-full h-full object-contain pointer-events-none"
+                          />
+                        )}
                       </div>
                     )}
 
@@ -1163,11 +1174,22 @@ export default function MoreSettingsModal({
                         className="border border-amber-400/80 rounded bg-black/40 p-0.5 shadow-md flex items-center justify-center"
                         title="Station Bug"
                       >
-                        <img
-                          src={`/${channel.branding.bug.assetPath}`}
-                          alt="Station Bug"
-                          className="w-full h-full object-contain pointer-events-none"
-                        />
+                        {channel.branding.bug.assetPath?.toLowerCase().endsWith('.mov') ? (
+                          <video
+                            src={`/${channel.branding.bug.assetPath}`}
+                            autoPlay
+                            loop
+                            muted
+                            playsInline
+                            className="w-full h-full object-contain pointer-events-none"
+                          />
+                        ) : (
+                          <img
+                            src={`/${channel.branding.bug.assetPath}`}
+                            alt="Station Bug"
+                            className="w-full h-full object-contain pointer-events-none"
+                          />
+                        )}
                       </div>
                     )}
 

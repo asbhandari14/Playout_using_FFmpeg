@@ -11,7 +11,7 @@ const TRANSPARENT_PNG_BASE64 =
  */
 export const ensureBrandingFiles = (
   channelDir,
-  { logoSourcePath = null, lbandSourcePath = null, ashtonSourcePath = null, bugSourcePath = null, isBugGif = false } = {}
+  { logoSourcePath = null, lbandSourcePath = null, ashtonSourcePath = null, bugSourcePath = null, isBugGif = false, isBugMov = false } = {}
 ) => {
   if (!fs.existsSync(channelDir)) {
     fs.mkdirSync(channelDir, { recursive: true });
@@ -23,8 +23,16 @@ export const ensureBrandingFiles = (
   const lbandFile = path.join(channelDir, 'lband.png');
   const ashtonFile = path.join(channelDir, 'ashton.png');
 
-  const bugIsActuallyGif = isBugGif || (bugSourcePath && bugSourcePath.toLowerCase().endsWith('.gif'));
-  const bugFile = path.join(channelDir, bugIsActuallyGif ? 'bug.gif' : 'bug.png');
+  const bugIsActuallyMov = isBugMov || (bugSourcePath && bugSourcePath.toLowerCase().endsWith('.mov'));
+  const bugIsActuallyGif = !bugIsActuallyMov && (isBugGif || (bugSourcePath && bugSourcePath.toLowerCase().endsWith('.gif')));
+  
+  let bugFileName = 'bug.png';
+  if (bugIsActuallyMov) {
+    bugFileName = 'bug.mov';
+  } else if (bugIsActuallyGif) {
+    bugFileName = 'bug.gif';
+  }
+  const bugFile = path.join(channelDir, bugFileName);
 
   // Logo file: preserve existing scaled logo.png, or initialize if missing
   if (!fs.existsSync(logoFile)) {
@@ -35,7 +43,7 @@ export const ensureBrandingFiles = (
     }
   }
 
-  // Bug file: supports transparent PNG, WebP, JPG, or animated GIF
+  // Bug file: supports transparent PNG, or QuickTime MOV
   if (bugSourcePath && fs.existsSync(bugSourcePath)) {
     fs.copyFileSync(bugSourcePath, bugFile);
   } else if (!fs.existsSync(bugFile)) {
@@ -68,7 +76,16 @@ export const ensureBrandingFiles = (
     generateDefaultAshtonImageSync(ashtonFile);
   }
 
-  return { logoFile, tickerBgFile, tickerFile, lbandFile, ashtonFile, bugFile, isBugGif: !!bugIsActuallyGif };
+  return {
+    logoFile,
+    tickerBgFile,
+    tickerFile,
+    lbandFile,
+    ashtonFile,
+    bugFile,
+    isBugGif: !!bugIsActuallyGif,
+    isBugMov: !!bugIsActuallyMov
+  };
 };
 
 export const safeWriteFileSync = (filePath, buffer, retries = 5, delayMs = 50) => {
