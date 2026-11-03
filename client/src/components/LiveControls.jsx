@@ -877,7 +877,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                     )}
                   </div>
                   <p className="text-[10px] text-slate-500 mt-1">
-                    Supports PNG, JPG, WebP & Animated GIF
+                    Supports png and mov files only
                   </p>
                 </div>
               </div>
@@ -1020,10 +1020,10 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                   onTouchEnd={() => handleUpdateBug({ sizePercent: bugSizePercent })}
                   className="w-full accent-amber-500 cursor-pointer h-1.5 bg-[#090c12] rounded-lg"
                 />
-                <p className="text-[10px] text-slate-400 mt-1">
+                {/* <p className="text-[10px] text-slate-400 mt-1">
                   {bugIsGif ? '⚡ Animated GIF: ' : '🖼️ Static Image: '}
                   Scales both width and height proportionally, maintaining original aspect ratio.
-                </p>
+                </p> */}
               </div>
 
               {/* HORIZONTAL POSITION X */}

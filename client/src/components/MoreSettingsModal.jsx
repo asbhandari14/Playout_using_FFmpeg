@@ -679,6 +679,31 @@ export default function MoreSettingsModal({
                         />
                       </div>
                     )}
+
+                    {/* Ticker: Moves smoothly along bottom of video area */}
+                    {channel?.branding?.ticker?.enabled && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          height: '18px',
+                          backgroundColor: channel.branding.ticker.bgColor || 'rgba(0, 0, 0, 0.85)',
+                          color: channel.branding.ticker.textColor || '#ffffff',
+                          fontSize: '9px',
+                          fontWeight: 'bold',
+                          display: 'flex',
+                          alignItems: 'center',
+                          padding: '0 8px',
+                          overflow: 'hidden',
+                          whiteSpace: 'nowrap',
+                          zIndex: 15
+                        }}
+                      >
+                        <span className="truncate">{channel.branding.ticker.text || 'Live Broadcast Ticker'}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -1121,6 +1146,55 @@ export default function MoreSettingsModal({
                         Squeezed Upward
                       </div>
                     )}
+
+                    {/* Station Bug: Moves smoothly in lockstep with video area while keeping constant pixel size */}
+                    {channel?.branding?.bug?.enabled && channel?.branding?.bug?.assetPath && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          left: `${channel.branding.bug.positionX !== undefined ? channel.branding.bug.positionX : 95}%`,
+                          top: `${channel.branding.bug.positionY !== undefined ? channel.branding.bug.positionY : 95}%`,
+                          transform: `translate(-${channel.branding.bug.positionX !== undefined ? channel.branding.bug.positionX : 95}%, -${channel.branding.bug.positionY !== undefined ? channel.branding.bug.positionY : 95}%)`,
+                          width: `${Math.max(16, Math.min(48, Math.round(16 + ((channel.branding.bug.sizePercent || 8) * 0.6))))}px`,
+                          height: `${Math.max(16, Math.min(48, Math.round(16 + ((channel.branding.bug.sizePercent || 8) * 0.6))))}px`,
+                          pointerEvents: 'none',
+                          zIndex: 20
+                        }}
+                        className="border border-amber-400/80 rounded bg-black/40 p-0.5 shadow-md flex items-center justify-center"
+                        title="Station Bug"
+                      >
+                        <img
+                          src={`/${channel.branding.bug.assetPath}`}
+                          alt="Station Bug"
+                          className="w-full h-full object-contain pointer-events-none"
+                        />
+                      </div>
+                    )}
+
+                    {/* Ticker: Moves smoothly along bottom of video area above Ashton Band */}
+                    {channel?.branding?.ticker?.enabled && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          height: '18px',
+                          backgroundColor: channel.branding.ticker.bgColor || 'rgba(0, 0, 0, 0.85)',
+                          color: channel.branding.ticker.textColor || '#ffffff',
+                          fontSize: '9px',
+                          fontWeight: 'bold',
+                          display: 'flex',
+                          alignItems: 'center',
+                          padding: '0 8px',
+                          overflow: 'hidden',
+                          whiteSpace: 'nowrap',
+                          zIndex: 15
+                        }}
+                      >
+                        <span className="truncate">{channel.branding.ticker.text || 'Live Broadcast Ticker'}</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Ashton Band Banner Layer (Positioned at bottom with smooth appear / disappear animation) */}
@@ -1151,7 +1225,7 @@ export default function MoreSettingsModal({
                   >
                     {ashtonAssetPath ? (
                       <img
-                        src={`http://localhost:5000/${ashtonAssetPath}`}
+                        src={`/${ashtonAssetPath.replace(/^\/+/, '')}`}
                         alt="Ashton Band Graphic"
                         className="w-full h-full object-fill pointer-events-none"
                       />

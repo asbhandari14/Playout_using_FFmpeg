@@ -88,12 +88,15 @@ const bugStorage = multer.diskStorage({
 });
 
 const bugFilter = (req, file, cb) => {
-  const allowed = ['.png', '.jpg', '.jpeg', '.webp', '.gif'];
+  const allowed = ['.png', '.mov'];
   const ext = path.extname(file.originalname).toLowerCase();
+
+  console.log("allowed extensions:", allowed);
+  console.log("file extension:", ext);
   if (allowed.includes(ext) || file.mimetype === 'image/gif' || file.mimetype.startsWith('image/')) {
     cb(null, true);
   } else {
-    cb(new Error('Invalid image type. Please upload transparent PNG, JPG, WebP, or animated GIF.'), false);
+    cb(new Error('Invalid image type. Please upload transparent PNG or MOV files.'), false);
   }
 };
 
