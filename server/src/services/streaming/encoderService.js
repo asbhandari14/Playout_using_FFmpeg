@@ -98,19 +98,63 @@ export class EncoderService {
 
     const cleanPos = String(pos || 'custom').toLowerCase().trim();
 
+    const bLband = this.channel?.branding?.lband;
+    const isLbandActive = !!bLband?.enabled;
+    const canvasW = this.canvasWidth || 1280;
+    const canvasH = this.canvasHeight || 720;
+
+    let targetW = Number(bLband?.windowWidth) || 960;
+    let targetH = Number(bLband?.windowHeight) || 540;
+    let targetX = bLband?.windowX !== undefined ? Number(bLband.windowX) : 300;
+    let targetY = bLband?.windowY !== undefined ? Number(bLband.windowY) : 20;
+
+    if (targetW % 2 !== 0) targetW -= 1;
+    if (targetH % 2 !== 0) targetH -= 1;
+    if (targetX % 2 !== 0) targetX -= 1;
+    if (targetY % 2 !== 0) targetY -= 1;
+
     // If explicit positionX and positionY (0-100%) are provided, position ANYWHERE freely on screen!
     if (customX !== null && customY !== null && !isNaN(customX) && !isNaN(customY)) {
       const clampedX = Math.max(0, Math.min(100, Number(customX)));
       const clampedY = Math.max(0, Math.min(100, Number(customY)));
+      if (isLbandActive) {
+        return {
+          x: `${targetX}+(${targetW}-w)*${(clampedX / 100).toFixed(4)}`,
+          y: `${targetY}+(${targetH}-h)*${(clampedY / 100).toFixed(4)}`
+        };
+      }
       return {
         x: `(W-w)*${(clampedX / 100).toFixed(4)}`,
         y: `(H-h)*${(clampedY / 100).toFixed(4)}`
       };
     }
 
-    // Preset positions for backward compatibility
-    const mx = Math.max(0, Math.round((1280 * Number(mxVal)) / 100));
-    const my = Math.max(0, Math.round((720 * Number(myVal)) / 100));
+    // Preset positions
+    if (isLbandActive) {
+      const mx = Math.max(0, Math.round((targetW * Number(mxVal)) / 100));
+      const my = Math.max(0, Math.round((targetH * Number(myVal)) / 100));
+      switch (cleanPos) {
+        case 'top-left':
+          return { x: `${targetX + mx}`, y: `${targetY + my}` };
+        case 'center':
+          return { x: `${targetX}+(${targetW}-w)/2`, y: `${targetY}+(${targetH}-h)/2` };
+        case 'bottom-left':
+          return { x: `${targetX + mx}`, y: `${targetY + targetH}-h-${my}` };
+        case 'top-right':
+          return { x: `${targetX + targetW}-w-${mx}`, y: `${targetY + my}` };
+        case 'bottom-right':
+          return { x: `${targetX + targetW}-w-${mx}`, y: `${targetY + targetH}-h-${my}` };
+        case 'custom':
+        default:
+          return {
+            x: `${targetX}+(${targetW}-w)*0.9500`,
+            y: `${targetY}+(${targetH}-h)*0.9500`
+          };
+      }
+    }
+
+    const mx = Math.max(0, Math.round((canvasW * Number(mxVal)) / 100));
+    const my = Math.max(0, Math.round((canvasH * Number(myVal)) / 100));
 
     switch (cleanPos) {
       case 'top-left':
@@ -125,9 +169,72 @@ export class EncoderService {
         return { x: `W-w-${mx}`, y: `H-h-${my}` };
       case 'custom':
       default:
-        // Default flexible position (bottom-right 95%, 95%)
         return { x: '(W-w)*0.9500', y: '(H-h)*0.9500' };
     }
+  }
+
+  // Calculate smooth smootherstep expressions for Bug during L-Band transition
+  getBugLBandExpressions(E) {
+    const bBug = this.channel?.branding?.bug;
+    if (!bBug || !bBug.enabled) return null;
+
+    const bLband = this.channel?.branding?.lband || {};
+    const canvasW = this.canvasWidth || 1280;
+    const canvasH = this.canvasHeight || 720;
+
+    let targetW = Number(bLband.windowWidth) || 960;
+    let targetH = Number(bLband.windowHeight) || 540;
+    let targetX = bLband.windowX !== undefined ? Number(bLband.windowX) : 300;
+    let targetY = bLband.windowY !== undefined ? Number(bLband.windowY) : 20;
+
+    if (targetW % 2 !== 0) targetW -= 1;
+    if (targetH % 2 !== 0) targetH -= 1;
+    if (targetX % 2 !== 0) targetX -= 1;
+    if (targetY % 2 !== 0) targetY -= 1;
+
+    // Resolve bug dimensions (bug size stays constant as requested)
+    const baseHeight = canvasH >= 1080 ? 100 : 70;
+    const bugSizePct = Math.max(2, Math.min(60, Number(bBug.sizePercent) || 8));
+    let bugH = Math.round(baseHeight * (bugSizePct / 10));
+    bugH = Math.max(20, bugH - (bugH % 2));
+    let bugW = Math.round(bugH * (this.bugAspectRatio || 1.0));
+    if (bugW % 2 !== 0) bugW += 1;
+    bugW = Math.max(20, bugW);
+
+    // Resolve bug percentages (0-100)
+    let posX = 95;
+    let posY = 95;
+    if (bBug.positionX !== undefined && bBug.positionY !== undefined) {
+      posX = Math.max(0, Math.min(100, Number(bBug.positionX)));
+      posY = Math.max(0, Math.min(100, Number(bBug.positionY)));
+    } else {
+      const pos = String(bBug.position || 'bottom-right').toLowerCase();
+      if (pos === 'top-left') { posX = 3; posY = 3; }
+      else if (pos === 'top-right') { posX = 97; posY = 3; }
+      else if (pos === 'center') { posX = 50; posY = 50; }
+      else if (pos === 'bottom-left') { posX = 3; posY = 97; }
+      else { posX = 97; posY = 97; }
+    }
+
+    const normX = posX / 100;
+    const normY = posY / 100;
+
+    // Full screen position (E = 0)
+    const x0 = Math.round((canvasW - bugW) * normX);
+    const y0 = Math.round((canvasH - bugH) * normY);
+
+    // Squeezed video position (E = 1)
+    const x1 = Math.round(targetX + (targetW - bugW) * normX);
+    const y1 = Math.round(targetY + (targetH - bugH) * normY);
+
+    return {
+      x0,
+      y0,
+      x1,
+      y1,
+      xExpr: `trunc(((1-${E})*${x0}+${E}*${x1})/2)*2`,
+      yExpr: `trunc(((1-${E})*${y0}+${E}*${y1})/2)*2`
+    };
   }
 
   // Calculate logo overlay expressions based on position and margins
@@ -406,6 +513,10 @@ export class EncoderService {
     const tickBarX = tickEnabled ? tickPos.bar.x : '-5000';
     const tickBarY = tickEnabled ? tickPos.bar.y : '-5000';
 
+    const tickBaseHeight = Math.round(Number(bTick.fontSize || 26) + Number(bTick.paddingY || 12) * 2);
+    const squeezedTickH = Math.max(16, Math.round(tickBaseHeight * (targetH / canvasH)));
+    const initTickH = lbandEnabled ? squeezedTickH : tickBaseHeight;
+
     // Complex filter with ZMQ broker and dynamic DVE squeeze + overlay filters:
     // 1. Moving ticker text over static background bar
     // 2. Incoming video with ZMQ broker & 3-way split: full, lband_in, ashton_in
@@ -422,7 +533,7 @@ export class EncoderService {
       `color=c=black:s=${canvasW}x${canvasH}:r=25[lband_bg]`,
       `color=c=black:s=${canvasW}x${canvasH}:r=25[ashton_bg]`,
       `[2:v][3:v]overlay@ticktext=x='${tickPos.text.x}':y='${tickPos.text.y}':format=auto[tickbar_raw]`,
-      `[tickbar_raw]crop@tick_crop=w=${tickPos.bar.width || canvasW}:h=ih:x=0:y=0[tickbar]`,
+      `[tickbar_raw]crop@tick_crop=w=${tickPos.bar.width || canvasW}:h=ih:x=0:y=0,scale@tick_scale=w=iw:h='${initTickH}':eval=frame[tickbar]`,
       `[0:v]zmq=bind_address=tcp\\\\://127.0.0.1\\\\:${this.zmqPort},split=3[v_full][v_lband_in][v_ashton_in]`,
       `[v_lband_in]scale@lband_sq=w='${initW}':h='${initH}':eval=frame[v_lband_scaled]`,
       `[4:v]format=rgba[lband_g]`,
@@ -889,6 +1000,16 @@ export class EncoderService {
     }
     await this.sendZmqCommand(`overlay@tick x ${expr.bar.x}`);
     await this.sendZmqCommand(`overlay@tick y ${expr.bar.y}`);
+
+    const bLband = this.channel?.branding?.lband;
+    const isLbandActive = !!bLband?.enabled;
+    const canvasH = this.canvasHeight || 720;
+    const targetH = Number(bLband?.windowHeight) || 540;
+    const tickBaseHeight = Math.round(Number(bTick.fontSize || 26) + Number(bTick.paddingY || 12) * 2);
+    const squeezedTickH = Math.max(16, Math.round(tickBaseHeight * (targetH / canvasH)));
+    const activeTickH = isLbandActive ? squeezedTickH : tickBaseHeight;
+    await this.sendZmqCommand(`scale@tick_scale h ${activeTickH}`).catch(() => { });
+
     return this.sendZmqCommand(`overlay@ticktext x ${expr.text.x}`);
   }
 
@@ -920,6 +1041,7 @@ export class EncoderService {
 
     const animId = ++this.lbandAnimId;
     const bLband = this.channel.branding.lband;
+    const bTick = this.channel.branding?.ticker;
     const canvasW = this.canvasWidth || 1280;
     const canvasH = this.canvasHeight || 720;
 
@@ -937,13 +1059,13 @@ export class EncoderService {
     const deltaW = canvasW - targetW;
     const deltaH = canvasH - targetH;
 
-    // const currentPts = this.getCurrentStreamTime();
-    // const T = Math.max(0, currentPts);
-    // const D = 1.8; // 1.8s smootherstep duration as requested
-
     const LEAD = 0.8;   // start in the future so all ZMQ commands land before motion begins
     const T = Math.max(0, this.getCurrentStreamTime()) + LEAD;
     const D = 1.8;
+
+    const tickBaseHeight = Math.round(Number(bTick?.fontSize || 26) + Number(bTick?.paddingY || 12) * 2);
+    const squeezedTickH = Math.max(16, Math.round(tickBaseHeight * (targetH / canvasH)));
+    const tickHDiff = tickBaseHeight - squeezedTickH;
 
     console.log(`[Encoder] L-Band smootherstep transition starting: enabled=${enabled}, T=${T.toFixed(3)}s, D=${D}s`);
 
@@ -965,24 +1087,42 @@ export class EncoderService {
         await this.sendZmqCommand(`overlay@lband_vid_pos x ${X_expr}`);
         await this.sendZmqCommand(`overlay@lband_vid_pos y ${Y_expr}`);
 
-        // 2. Ticker follows the squeeze
+        // 2. Bug follows video squeeze in smooth lockstep while preserving its pixel size
+        const bugMove = this.getBugLBandExpressions(E);
+        if (bugMove) {
+          await this.sendZmqCommand(`overlay@bug x ${bugMove.xExpr}`);
+          await this.sendZmqCommand(`overlay@bug y ${bugMove.yExpr}`);
+        }
+
+        // 3. Ticker follows the squeeze position & scales height proportionally so font stays constant relative to video
         const tk = this.getTickerMoveExpressions(E);
         if (tk) {
           await this.sendZmqCommand(`overlay@tick x ${tk.x}`);
           await this.sendZmqCommand(`overlay@tick y ${tk.y}`);
         }
+        if (bTick && bTick.enabled) {
+          const tickHExpr = `trunc((${tickBaseHeight}-${tickHDiff}*${E})/2)*2`;
+          await this.sendZmqCommand(`scale@tick_scale h ${tickHExpr}`);
+        }
 
-        // 3. Switch the master composite on (video is currently full-screen above the L-band, zero pop)
+        // 4. Switch the master composite on (video is currently full-screen above the L-band, zero pop)
         await this.sendZmqCommand('overlay@lband_master y 0');
         await this.sendZmqCommand('overlay@lband_master x 0');
 
-        // 4. When the squeeze finishes, pin final window position and update ticker
+        // 5. When the squeeze finishes, pin final window position, bug position, and ticker
         setTimeout(async () => {
           if (this.lbandAnimId !== animId) return;
           await this.sendZmqCommand(`scale@lband_sq w ${targetW}`);
           await this.sendZmqCommand(`scale@lband_sq h ${targetH}`);
           await this.sendZmqCommand(`overlay@lband_vid_pos x ${targetX}`);
           await this.sendZmqCommand(`overlay@lband_vid_pos y ${targetY}`);
+          if (bugMove) {
+            await this.sendZmqCommand(`overlay@bug x ${bugMove.x1}`);
+            await this.sendZmqCommand(`overlay@bug y ${bugMove.y1}`);
+          }
+          if (bTick && bTick.enabled) {
+            await this.sendZmqCommand(`scale@tick_scale h ${squeezedTickH}`);
+          }
           this.updateLiveTickerPosition().catch(() => { });
         }, Math.round((LEAD + D + 0.2) * 1000));
 
@@ -997,20 +1137,32 @@ export class EncoderService {
         const X_expr = isLeftPillar ? `trunc((${targetX}*${E})/2)*2` : '0';
         const Y_expr = `trunc((${targetY}*${E})/2)*2`;
 
-        // NO layer swapping! Video is already above the L-band graphic, expands smoothly over it:
+        // 1. Video expands smoothly back over L-Band graphic
         await this.sendZmqCommand(`scale@lband_sq w ${W_expr}`);
         await this.sendZmqCommand(`scale@lband_sq h ${H_expr}`);
         await this.sendZmqCommand(`overlay@lband_vid_pos x ${X_expr}`);
         await this.sendZmqCommand(`overlay@lband_vid_pos y ${Y_expr}`);
 
+        // 2. Bug expands/moves back to full-screen coordinates in lockstep
+        const bugMove = this.getBugLBandExpressions(E);
+        if (bugMove) {
+          await this.sendZmqCommand(`overlay@bug x ${bugMove.xExpr}`);
+          await this.sendZmqCommand(`overlay@bug y ${bugMove.yExpr}`);
+        }
+
+        // 3. Ticker expands back to full screen position and normal height
         const tk = this.getTickerMoveExpressions(E);
         if (tk) {
           await this.sendZmqCommand(`crop@tick_crop w ${tk.offWidth}`);
           await this.sendZmqCommand(`overlay@tick x ${tk.x}`);
           await this.sendZmqCommand(`overlay@tick y ${tk.y}`);
         }
+        if (bTick && bTick.enabled) {
+          const tickHExpr = `trunc((${tickBaseHeight}-${tickHDiff}*${E})/2)*2`;
+          await this.sendZmqCommand(`scale@tick_scale h ${tickHExpr}`);
+        }
 
-        // After transition duration (1.8s + lead + buffer), video is completely full-screen covering graphic.
+        // 4. After transition duration (1.8s + lead + buffer), video is completely full-screen covering graphic.
         // Park master overlay off-screen seamlessly with zero blink:
         setTimeout(async () => {
           if (this.lbandAnimId !== animId) return;
@@ -1018,6 +1170,13 @@ export class EncoderService {
           await this.sendZmqCommand(`scale@lband_sq h ${canvasH}`);
           await this.sendZmqCommand('overlay@lband_vid_pos x 0');
           await this.sendZmqCommand('overlay@lband_vid_pos y 0');
+          if (bugMove) {
+            await this.sendZmqCommand(`overlay@bug x ${bugMove.x0}`);
+            await this.sendZmqCommand(`overlay@bug y ${bugMove.y0}`);
+          }
+          if (bTick && bTick.enabled) {
+            await this.sendZmqCommand(`scale@tick_scale h ${tickBaseHeight}`);
+          }
           await this.sendZmqCommand('overlay@lband_master x -5000');
           await this.sendZmqCommand('overlay@lband_master y -5000');
           await this.updateLiveTickerPosition();
@@ -1027,7 +1186,7 @@ export class EncoderService {
       }
     } catch (e) {
       console.warn('[Encoder ZMQ] L-Band smootherstep animation fallback:', e.message);
-      const offGfxX = isLeftPillar ? -targetX : deltaW;
+      const bugMove = this.getBugLBandExpressions('1');
       if (enabled) {
         await this.sendZmqCommand('overlay@lband_master x 0', 250);
         await this.sendZmqCommand('overlay@lband_master y 0', 250);
@@ -1035,6 +1194,13 @@ export class EncoderService {
         await this.sendZmqCommand(`scale@lband_sq h ${targetH}`, 250);
         await this.sendZmqCommand(`overlay@lband_vid_pos x ${targetX}`, 250);
         await this.sendZmqCommand(`overlay@lband_vid_pos y ${targetY}`, 250);
+        if (bugMove) {
+          await this.sendZmqCommand(`overlay@bug x ${bugMove.x1}`, 250);
+          await this.sendZmqCommand(`overlay@bug y ${bugMove.y1}`, 250);
+        }
+        if (bTick && bTick.enabled) {
+          await this.sendZmqCommand(`scale@tick_scale h ${squeezedTickH}`, 250);
+        }
       } else {
         await this.sendZmqCommand('overlay@lband_master x -5000', 250);
         await this.sendZmqCommand('overlay@lband_master y -5000', 250);
@@ -1042,6 +1208,13 @@ export class EncoderService {
         await this.sendZmqCommand(`scale@lband_sq h ${canvasH}`, 250);
         await this.sendZmqCommand('overlay@lband_vid_pos x 0', 250);
         await this.sendZmqCommand('overlay@lband_vid_pos y 0', 250);
+        if (bugMove) {
+          await this.sendZmqCommand(`overlay@bug x ${bugMove.x0}`, 250);
+          await this.sendZmqCommand(`overlay@bug y ${bugMove.y0}`, 250);
+        }
+        if (bTick && bTick.enabled) {
+          await this.sendZmqCommand(`scale@tick_scale h ${tickBaseHeight}`, 250);
+        }
       }
       await this.updateLiveTickerPosition();
       return { success: true, fallback: true, enabled };

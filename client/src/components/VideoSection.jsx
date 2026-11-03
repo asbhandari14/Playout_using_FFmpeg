@@ -85,9 +85,9 @@ export default function VideoSection({ channel, selectedAsset, isLive = false })
         try {
           hlsInstanceRef.current.loadSource(hlsUrl);
           hlsInstanceRef.current.startLoad();
-        } catch {}
+        } catch { }
         if (liveVideoRef.current && liveVideoRef.current.paused) {
-          liveVideoRef.current.play().catch(() => {});
+          liveVideoRef.current.play().catch(() => { });
         }
         return;
       }
@@ -138,7 +138,7 @@ export default function VideoSection({ channel, selectedAsset, isLive = false })
                     try {
                       hlsInstanceRef.current.loadSource(hlsUrl);
                       hlsInstanceRef.current.startLoad();
-                    } catch {}
+                    } catch { }
                   }
                 }, 2000);
                 break;
@@ -214,7 +214,7 @@ export default function VideoSection({ channel, selectedAsset, isLive = false })
           ></span>
           <span>
             {isLive && isChannelOnline
-              ? 'Live HLS on air'
+              ? 'Live'
               : isLive
                 ? (checkingOnline ? 'Polling HLS feed...' : 'Connecting to HLS stream...')
                 : 'Playout Deck Standby'}
