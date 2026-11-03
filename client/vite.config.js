@@ -12,20 +12,37 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://localhost:5000',
-        changeOrigin: true
+        target: 'http://127.0.0.1:5000',
+        changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on('error', (err, _req, _res) => {
+            // Suppress unhandled proxy drop logs during backend restart or network reconnection
+          });
+        }
       },
       '/uploads': {
-        target: 'http://localhost:5000',
-        changeOrigin: true
+        target: 'http://127.0.0.1:5000',
+        changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on('error', () => {});
+        }
       },
       '/streams': {
-        target: 'http://localhost:5000',
-        changeOrigin: true
+        target: 'http://127.0.0.1:5000',
+        changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on('error', () => {});
+        }
       },
       '/socket.io': {
-        target: 'http://localhost:5000',
-        ws: true
+        target: 'http://127.0.0.1:5000',
+        ws: true,
+        changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on('error', (err, _req, _res) => {
+            // Suppress websocket proxy drop logs during network toggling
+          });
+        }
       }
     }
   }

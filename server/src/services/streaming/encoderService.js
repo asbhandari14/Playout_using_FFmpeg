@@ -478,8 +478,8 @@ export class EncoderService {
       rtmpTarget = `${rtmpBase}/${streamKey}`;
     }
 
-    // Low-latency local HLS for live monitoring + remote RTMP
-    const teeOutput = `[f=hls:hls_time=1:hls_list_size=3:hls_flags=delete_segments+split_by_time]${hlsManifest}|[f=flv:flvflags=no_duration_filesize:onfail=ignore]${rtmpTarget}`;
+    // Low-latency local HLS for live monitoring + remote RTMP (onfail=ignore preserves local HLS if remote RTMP drops)
+    const teeOutput = `[f=hls:hls_time=1:hls_list_size=3:hls_flags=delete_segments+split_by_time]${hlsManifest}|[onfail=ignore:f=flv:flvflags=no_duration_filesize]${rtmpTarget}`;
 
     const ffmpegArgs = [
       '-y',
@@ -532,13 +532,22 @@ export class EncoderService {
     this.lastReportedPts = 0;
     this.lastReportedAt = Date.now();
 
-    // Catch broken pipe (EPIPE) when feeder or encoder restarts/stops
+    // Catch broken pipe (EPIPE / ECONNRESET) when feeder or encoder restarts/stops
     this.process.stdin?.on('error', (err) => {
-      if (err.code === 'EPIPE' || err.code === 'EOF') return;
-      console.error('[Encoder stdin error]', err.message);
+      if (err.code === 'EPIPE' || err.code === 'EOF' || err.code === 'ECONNRESET') return;
+      console.warn('[Encoder stdin error]', err.message);
+    });
+
+    this.process.stdout?.on('error', (err) => {
+      if (err.code === 'EPIPE' || err.code === 'EOF' || err.code === 'ECONNRESET') return;
+    });
+
+    this.process.stderr?.on('error', (err) => {
+      if (err.code === 'EPIPE' || err.code === 'EOF' || err.code === 'ECONNRESET') return;
     });
 
     this.process.on('error', (err) => {
+      if (err.code === 'EPIPE' || err.code === 'ECONNRESET') return;
       console.error('[Encoder process error]', err.message);
     });
 
@@ -564,12 +573,16 @@ export class EncoderService {
 
     this.process.on('close', (code) => {
       console.log(`[Encoder] FFmpeg encoder exited with code ${code}`);
+      const wasRunning = this.isRunning;
       this.isRunning = false;
       if (this.zmqSocket) {
         try {
           this.zmqSocket.close();
         } catch { }
         this.zmqSocket = null;
+      }
+      if (wasRunning && !this.isStopping && typeof this.onUnexpectedExit === 'function') {
+        this.onUnexpectedExit(code);
       }
     });
 

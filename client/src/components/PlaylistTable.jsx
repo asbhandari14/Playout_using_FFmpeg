@@ -238,7 +238,7 @@ export default function PlaylistTable({ channelId, onPlayFromIndex }) {
                             <Film size={14} className="text-slate-600" />
                           )}
                         </div>
-                        <span className="font-semibold text-slate-200 group-hover:text-blue-400 transition truncate max-w-[280px]">
+                        <span title={asset.originalName || 'Video Asset'} className="font-semibold text-slate-200 group-hover:text-blue-400 transition truncate max-w-[280px]">
                           {asset.originalName || 'Video Asset'}
                         </span>
                       </div>

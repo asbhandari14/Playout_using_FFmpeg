@@ -99,8 +99,8 @@ export default function App() {
       />
 
       {/* Default route redirect */}
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/" element={<Navigate to="/channels" replace />} />
+      <Route path="*" element={<Navigate to="/channels" replace />} />
     </Routes>
   );
 }

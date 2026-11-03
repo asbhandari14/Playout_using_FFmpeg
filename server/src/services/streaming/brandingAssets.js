@@ -259,7 +259,7 @@ export const renderTickerImage = async ({
     // Reasonable length text: INFINITE seamless scrolling with NO empty section at any time
     // Measure star separator width
     const starMeasureSvg = `<svg width="200" height="${tickerHeight}" xmlns="http://www.w3.org/2000/svg">
-      <text x="0" y="${yPos}" font-family='${fontDef}' font-size="${fontSize}px" font-weight="bold">★</text>
+      <text x="0" y="${yPos}" font-family='${fontDef}' font-size="${fontSize}px" font-weight="bold"> </text>
     </svg>`;
     const starTrimmed = await sharp(Buffer.from(starMeasureSvg))
       .trim({ background: 'rgba(0,0,0,0)' })
@@ -299,7 +299,7 @@ export const renderTickerImage = async ({
           font-size="${fontSize}px"
           font-weight="bold"
           text-anchor="start"
-        >★</text>
+        > </text>
       `;
     }
 
@@ -812,19 +812,19 @@ export const getSystemFontFile = (customFont = null) => {
   if (customFont && fs.existsSync(customFont)) return customFont;
   const candidates = process.platform === 'win32'
     ? [
-        'C:\\Windows\\Fonts\\arialbd.ttf',
-        'C:\\Windows\\Fonts\\arial.ttf',
-        'C:\\Windows\\Fonts\\segoeuib.ttf',
-        'C:\\Windows\\Fonts\\segoeui.ttf',
-        'C:\\Windows\\Fonts\\tahoma.ttf'
-      ]
+      'C:\\Windows\\Fonts\\arialbd.ttf',
+      'C:\\Windows\\Fonts\\arial.ttf',
+      'C:\\Windows\\Fonts\\segoeuib.ttf',
+      'C:\\Windows\\Fonts\\segoeui.ttf',
+      'C:\\Windows\\Fonts\\tahoma.ttf'
+    ]
     : [
-        '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
-        '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
-        '/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf',
-        '/usr/share/fonts/truetype/freefont/FreeSansBold.ttf',
-        '/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf'
-      ];
+      '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+      '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+      '/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf',
+      '/usr/share/fonts/truetype/freefont/FreeSansBold.ttf',
+      '/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf'
+    ];
   for (const p of candidates) {
     if (fs.existsSync(p)) return p;
   }

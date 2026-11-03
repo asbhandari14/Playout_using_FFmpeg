@@ -80,8 +80,15 @@ export default function VideoSection({ channel, selectedAsset, isLive = false })
     if (!liveVideoRef.current) return;
 
     if (isLive && isChannelOnline && hlsUrl) {
-      // If an HLS instance is already active and playing this exact URL, do not recreate or tear it down!
+      // If an HLS instance is already active and playing this exact URL, refresh source & resume playback!
       if (hlsInstanceRef.current && currentLoadedHlsUrlRef.current === hlsUrl) {
+        try {
+          hlsInstanceRef.current.loadSource(hlsUrl);
+          hlsInstanceRef.current.startLoad();
+        } catch {}
+        if (liveVideoRef.current && liveVideoRef.current.paused) {
+          liveVideoRef.current.play().catch(() => {});
+        }
         return;
       }
 
@@ -92,16 +99,6 @@ export default function VideoSection({ channel, selectedAsset, isLive = false })
         if (hlsInstanceRef.current) {
           hlsInstanceRef.current.destroy();
         }
-
-        // const hls = new Hls({
-        //   enableWorker: true,
-        //   lowLatencyMode: true,
-        //   liveSyncDurationCount: 2,
-        //   liveMaxLatencyDurationCount: 4,
-        //   maxBufferLength: 4,
-        //   maxMaxBufferLength: 8,
-        //   backBufferLength: 10
-        // });
 
         const hls = new Hls({
           enableWorker: true,
@@ -134,14 +131,26 @@ export default function VideoSection({ channel, selectedAsset, isLive = false })
           if (data.fatal) {
             switch (data.type) {
               case Hls.ErrorTypes.NETWORK_ERROR:
-                // Gentle retry on transient network glitch without tearing down player
-                hls.startLoad();
+                // Auto-retry when network disconnects without destroying player
+                console.warn('[HLS PGM] Network error encountered, retrying startLoad in 2s...');
+                setTimeout(() => {
+                  if (hlsInstanceRef.current) {
+                    try {
+                      hlsInstanceRef.current.loadSource(hlsUrl);
+                      hlsInstanceRef.current.startLoad();
+                    } catch {}
+                  }
+                }, 2000);
                 break;
               case Hls.ErrorTypes.MEDIA_ERROR:
                 hls.recoverMediaError();
                 break;
               default:
-                hls.startLoad();
+                if (hlsInstanceRef.current) {
+                  hlsInstanceRef.current.destroy();
+                  hlsInstanceRef.current = null;
+                }
+                currentLoadedHlsUrlRef.current = null;
                 break;
             }
           }

@@ -39,7 +39,8 @@ import {
   createSchedule,
   updateSchedule,
   toggleSchedule,
-  deleteSchedule
+  deleteSchedule,
+  playScheduleNow
 } from '../controllers/scheduleController.js';
 import {
   startStreamHandler,
@@ -113,6 +114,7 @@ router.get('/:channelId/schedules', getSchedules);
 router.post('/:channelId/schedules', createSchedule);
 router.put('/:channelId/schedules/:scheduleId', updateSchedule);
 router.patch('/:channelId/schedules/:scheduleId/toggle', toggleSchedule);
+router.post('/:channelId/schedules/:scheduleId/play-now', playScheduleNow);
 router.delete('/:channelId/schedules/:scheduleId', deleteSchedule);
 
 export default router;

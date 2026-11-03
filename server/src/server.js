@@ -32,17 +32,69 @@ const streamsDir = path.resolve(__dirname, '../../streams');
 
 const server = http.createServer(app);
 
+// Handle client TCP stream reset errors (e.g. network disconnect, aborted requests)
+server.on('clientError', (err, socket) => {
+  const isNetworkDrop =
+    err.code === 'ECONNRESET' ||
+    err.code === 'ECONNABORTED' ||
+    err.code === 'EPIPE' ||
+    err.code === 'ERR_STREAM_PREMATURE_CLOSE' ||
+    (err.message && err.message.includes('ECONNRESET'));
+
+  if (isNetworkDrop || !socket.writable) {
+    try {
+      socket.destroy();
+    } catch {}
+    return;
+  }
+  try {
+    socket.end('HTTP/1.1 400 Bad Request\r\n\r\n');
+  } catch {
+    try {
+      socket.destroy();
+    } catch {}
+  }
+});
+
+server.on('error', (err) => {
+  console.error('[HTTP Server Error]', err);
+});
+
 // Setup Socket.IO
 export const io = new SocketIOServer(server, {
   cors: {
     origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
     methods: ['GET', 'POST'],
     credentials: true
+  },
+  pingTimeout: 20000,
+  pingInterval: 10000
+});
+
+app.set('io', io);
+
+// Suppress Engine.IO connection reset errors during network drops
+io.engine.on('connection_error', (err) => {
+  const isNetworkDrop =
+    err.code === 'ECONNRESET' ||
+    err.code === 'ECONNABORTED' ||
+    (err.message && err.message.includes('ECONNRESET'));
+
+  if (!isNetworkDrop) {
+    console.warn(`[Socket.IO Engine Error] ${err.message}`);
   }
 });
 
 io.on('connection', (socket) => {
   console.log(`[Socket.IO] Client connected: ${socket.id}`);
+
+  // Catch socket errors so network disconnects do not become unhandled exceptions
+  socket.on('error', (err) => {
+    if (err.code === 'ECONNRESET' || (err.message && err.message.includes('ECONNRESET'))) {
+      return;
+    }
+    console.warn(`[Socket.IO Socket Error ${socket.id}]:`, err.message);
+  });
 
   // Channel room join
   socket.on('join_channel', (channelId) => {
@@ -55,8 +107,8 @@ io.on('connection', (socket) => {
     console.log(`[Socket.IO] Socket ${socket.id} left channel:${channelId}`);
   });
 
-  socket.on('disconnect', () => {
-    console.log(`[Socket.IO] Client disconnected: ${socket.id}`);
+  socket.on('disconnect', (reason) => {
+    console.log(`[Socket.IO] Client disconnected (${reason}): ${socket.id}`);
   });
 });
 
@@ -67,7 +119,7 @@ import { schedulerService } from './services/streaming/schedulerService.js';
 const startServer = async () => {
   try {
     await connectDB();
-    server.listen(PORT, async () => {
+    server.listen(PORT, '0.0.0.0', async () => {
       console.log(`Server is running at the PORT : ${PORT}`);
 
       // PM2 Crash Recovery: Resumes all channels that were live before restart/crash
@@ -111,12 +163,42 @@ process.once('SIGUSR2', async () => {
   process.kill(process.pid, 'SIGUSR2');
 });
 
-// Suppress unhandled EPIPE / ECONNRESET on dead child process pipes
+// Suppress unhandled network disconnects (ECONNRESET, EPIPE, etc.) so process never crashes
 process.on('uncaughtException', (err) => {
-  if (err.code === 'EPIPE' || err.code === 'ECONNRESET') {
+  const isNetworkDrop =
+    err.code === 'EPIPE' ||
+    err.code === 'ECONNRESET' ||
+    err.code === 'ECONNABORTED' ||
+    err.code === 'ECONNREFUSED' ||
+    err.code === 'ETIMEDOUT' ||
+    err.code === 'ENOTFOUND' ||
+    err.code === 'ERR_STREAM_PREMATURE_CLOSE' ||
+    (err.message && (err.message.includes('ECONNRESET') || err.message.includes('ECONNREFUSED')));
+
+  if (isNetworkDrop) {
+    console.warn(`[Process Handled Network Disconnect Exception]: ${err.message}`);
     return;
   }
   console.error('[Process Uncaught Exception]', err);
+});
+
+process.on('unhandledRejection', (reason) => {
+  const err = reason instanceof Error ? reason : new Error(String(reason));
+  const isNetworkDrop =
+    err.code === 'ECONNRESET' ||
+    err.code === 'ECONNABORTED' ||
+    err.code === 'ECONNREFUSED' ||
+    err.code === 'ETIMEDOUT' ||
+    err.code === 'ENOTFOUND' ||
+    err.code === 'EPIPE' ||
+    err.code === 'ERR_STREAM_PREMATURE_CLOSE' ||
+    (err.message && (err.message.includes('ECONNRESET') || err.message.includes('ECONNREFUSED')));
+
+  if (isNetworkDrop) {
+    console.warn(`[Process Handled Network Disconnect Rejection]: ${err.message}`);
+    return;
+  }
+  console.error('[Process Unhandled Rejection]:', reason);
 });
 
 startServer();

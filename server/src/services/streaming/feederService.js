@@ -3,6 +3,8 @@ import path from 'path';
 import fs from 'fs';
 import { Playlist } from '../../models/Playlist.js';
 import { Channel } from '../../models/Channel.js';
+import { Schedule } from '../../models/Schedule.js';
+import { Asset } from '../../models/Asset.js';
 import { io } from '../../server.js';
 import { SERVER_ROOT } from '../../config/paths.js';
 import { PLAYLIST_ITEM_STATUS } from '../../config/constants.js';
@@ -47,19 +49,19 @@ export class FeederService {
       const encoder = this.getEncoder();
       if (encoder && encoder.isRunning) {
         if (snap.logo?.suppressed && snap.logo?.enabled) {
-          await encoder.setLogoEnabled(true).catch(() => {});
+          await encoder.setLogoEnabled(true).catch(() => { });
         }
         if (snap.bug?.enabled) {
-          await encoder.setBugEnabled(true).catch(() => {});
+          await encoder.setBugEnabled(true).catch(() => { });
         }
         if (snap.ticker?.enabled) {
-          await encoder.setTickerEnabled(true).catch(() => {});
+          await encoder.setTickerEnabled(true).catch(() => { });
         }
         if (snap.ashton?.enabled) {
-          await encoder.setAshtonLive(true, snap.ashton.squeeze !== false).catch(() => {});
+          await encoder.setAshtonLive(true, snap.ashton.squeeze !== false).catch(() => { });
         }
         if (snap.lband?.enabled) {
-          await encoder.setLBandEnabled(true).catch(() => {});
+          await encoder.setLBandEnabled(true).catch(() => { });
         }
       }
 
@@ -114,6 +116,37 @@ export class FeederService {
   }
 
   async playLoop() {
+    // -------------------------------------------------------------------------
+    // STARTUP / RECOVERY GATE:
+    // When coming online from offline, FIRST check if a schedule exists right now!
+    // If a schedule exists covering the current time slot, play the schedule
+    // DIRECTLY (with timeline sync / remaining time) BEFORE touching normal playlist!
+    // If NO schedule exists, proceed straight to the normal playlist feed.
+    // -------------------------------------------------------------------------
+    try {
+      const { schedulerService } = await import('./schedulerService.js');
+      const activeSchedule = await schedulerService.getActiveScheduleForChannel(this.channelId);
+
+      if (activeSchedule && activeSchedule.type === 'video' && !this.isScheduleActive && this.isRunning) {
+        console.log(
+          `[Feeder:${this.channelId}] [Startup Gate] Active schedule "${activeSchedule.title}" found for current time slot. ` +
+          `Streaming scheduled video DIRECTLY as per slot and remaining time. (Normal playlist deferred until schedule ends).`
+        );
+        await this.interruptWithSchedule(activeSchedule);
+      } else if (activeSchedule && (activeSchedule.type === 'lband' || activeSchedule.type === 'ashton')) {
+        const { streamManager } = await import('./streamManager.js');
+        const dur = Number(activeSchedule.duration) || 60;
+        const channelIdStr = String(this.channelId);
+        if (activeSchedule.type === 'lband') {
+          streamManager.fireLBand(channelIdStr, dur).catch(() => { });
+        } else {
+          streamManager.fireAshton(channelIdStr, dur, activeSchedule.ashtonSqueeze !== false).catch(() => { });
+        }
+      }
+    } catch (startupSchedErr) {
+      console.warn(`[Feeder:${this.channelId}] Warning checking initial schedule on startup:`, startupSchedErr.message);
+    }
+
     while (this.isRunning) {
       try {
         const playlist = await Playlist.findOne({ channel: this.channelId }).populate({
@@ -225,13 +258,13 @@ export class FeederService {
    * Spawns decoder ffmpeg to normalize asset and stream MPEG-TS directly to encoder stdin.
    * If timerFilter is provided (during schedule ads), burns in the exact frame-accurate countdown overlay.
    */
-  streamAsset(videoPath, _duration, maxDuration = 0, timerFilter = null) {
+  streamAsset(videoPath, _duration, maxDuration = 0, timerFilter = null, seekOffset = 0) {
     return new Promise((resolve) => {
       if (!this.isRunning || !this.encoderProcess?.stdin?.writable) {
         return resolve();
       }
 
-      const startOffset = Math.max(0, this.startOffsetSeconds || 0);
+      const startOffset = seekOffset > 0 ? seekOffset : Math.max(0, this.startOffsetSeconds || 0);
       this.startOffsetSeconds = 0; // reset after initial resume
       this.currentAssetStartTime = Date.now();
       this.currentAssetDuration = _duration;
@@ -260,100 +293,100 @@ export class FeederService {
         'pipe:1'
       ];
 
-        const decoder = spawn('ffmpeg', decoderArgs, {
-          stdio: ['ignore', 'pipe', 'ignore']
-        });
+      const decoder = spawn('ffmpeg', decoderArgs, {
+        stdio: ['ignore', 'pipe', 'ignore']
+      });
 
-        this.currentDecoder = decoder;
+      this.currentDecoder = decoder;
 
-        decoder.stdout.on('error', (err) => {
-          if (err.code === 'EPIPE' || err.code === 'EOF') return;
-          console.warn(`[Decoder stdout error]`, err.message);
-        });
+      decoder.stdout.on('error', (err) => {
+        if (err.code === 'EPIPE' || err.code === 'EOF' || err.code === 'ECONNRESET') return;
+        console.warn(`[Decoder stdout error]`, err.message);
+      });
 
-        // Pipe decoder stdout into encoder stdin WITHOUT closing encoder stdin when decoder finishes!
-        if (this.encoderProcess?.stdin?.writable) {
-          decoder.stdout.pipe(this.encoderProcess.stdin, { end: false });
-        }
-
-          decoder.on('close', () => {
-            try {
-              decoder.stdout.unpipe();
-            } catch { }
-            this.currentDecoder = null;
-            resolve();
-          });
-
-          decoder.on('error', (err) => {
-            console.error(`[Decoder error]`, err.message);
-            try {
-              decoder.stdout.unpipe();
-            } catch { }
-            this.currentDecoder = null;
-            resolve();
-          });
-        });
+      // Pipe decoder stdout into encoder stdin WITHOUT closing encoder stdin when decoder finishes!
+      if (this.encoderProcess?.stdin?.writable) {
+        decoder.stdout.pipe(this.encoderProcess.stdin, { end: false });
       }
+
+      decoder.on('close', () => {
+        try {
+          decoder.stdout.unpipe();
+        } catch { }
+        this.currentDecoder = null;
+        resolve();
+      });
+
+      decoder.on('error', (err) => {
+        console.error(`[Decoder error]`, err.message);
+        try {
+          decoder.stdout.unpipe();
+        } catch { }
+        this.currentDecoder = null;
+        resolve();
+      });
+    });
+  }
 
   /**
    * Generates a real-time 1280x720 video slate with silent audio
    * Keeps encoder active and connected to Flussonic RTMP even if playlist is empty or waiting
    */
   streamStandbySlate(duration = 3) {
-        return new Promise((resolve) => {
-          if (!this.isRunning || !this.encoderProcess?.stdin?.writable) {
-            return resolve();
-          }
-
-          const slateArgs = [
-            '-re',
-            '-f', 'lavfi', '-i', `color=c=0x0c0e12:s=1280x720:r=25:d=${duration}`,
-            '-f', 'lavfi', '-i', `anullsrc=channel_layout=stereo:sample_rate=44100`,
-            '-t', `${duration}`,
-            '-c:v', 'libx264',
-            '-preset', 'ultrafast',
-            '-tune', 'zerolatency',
-            '-pix_fmt', 'yuv420p',
-            '-c:a', 'aac',
-            '-b:a', '128k',
-            '-ar', '44100',
-            '-ac', '2',
-            '-f', 'mpegts',
-            'pipe:1'
-          ];
-
-          const decoder = spawn('ffmpeg', slateArgs, {
-            stdio: ['ignore', 'pipe', 'ignore']
-          });
-
-          this.currentDecoder = decoder;
-
-          decoder.stdout.on('error', (err) => {
-            if (err.code === 'EPIPE' || err.code === 'EOF') return;
-            console.warn(`[Slate decoder stdout error]`, err.message);
-          });
-
-          if (this.encoderProcess?.stdin?.writable) {
-            decoder.stdout.pipe(this.encoderProcess.stdin, { end: false });
-          }
-
-          decoder.on('close', () => {
-            try {
-              decoder.stdout.unpipe();
-            } catch { }
-            this.currentDecoder = null;
-            resolve();
-          });
-
-          decoder.on('error', () => {
-            try {
-              decoder.stdout.unpipe();
-            } catch { }
-            this.currentDecoder = null;
-            resolve();
-          });
-        });
+    return new Promise((resolve) => {
+      if (!this.isRunning || !this.encoderProcess?.stdin?.writable) {
+        return resolve();
       }
+
+      const slateArgs = [
+        '-re',
+        '-f', 'lavfi', '-i', `color=c=0x0c0e12:s=1280x720:r=25:d=${duration}`,
+        '-f', 'lavfi', '-i', `anullsrc=channel_layout=stereo:sample_rate=44100`,
+        '-t', `${duration}`,
+        '-c:v', 'libx264',
+        '-preset', 'ultrafast',
+        '-tune', 'zerolatency',
+        '-pix_fmt', 'yuv420p',
+        '-c:a', 'aac',
+        '-b:a', '128k',
+        '-ar', '44100',
+        '-ac', '2',
+        '-f', 'mpegts',
+        'pipe:1'
+      ];
+
+      const decoder = spawn('ffmpeg', slateArgs, {
+        stdio: ['ignore', 'pipe', 'ignore']
+      });
+
+      this.currentDecoder = decoder;
+
+      decoder.stdout.on('error', (err) => {
+        if (err.code === 'EPIPE' || err.code === 'EOF' || err.code === 'ECONNRESET') return;
+        console.warn(`[Slate decoder stdout error]`, err.message);
+      });
+
+      if (this.encoderProcess?.stdin?.writable) {
+        decoder.stdout.pipe(this.encoderProcess.stdin, { end: false });
+      }
+
+      decoder.on('close', () => {
+        try {
+          decoder.stdout.unpipe();
+        } catch { }
+        this.currentDecoder = null;
+        resolve();
+      });
+
+      decoder.on('error', () => {
+        try {
+          decoder.stdout.unpipe();
+        } catch { }
+        this.currentDecoder = null;
+        resolve();
+      });
+    });
+  }
 
   /**
    * Seamlessly pauses current playing video, streams the scheduled video,
@@ -372,26 +405,38 @@ export class FeederService {
       scheduledAssets = [schedule.asset];
     }
 
+    // Auto-resolve media assets from database if not pre-populated
+    if (scheduledAssets.length === 0) {
+      const rawIds = (Array.isArray(schedule.assets) && schedule.assets.length > 0)
+        ? schedule.assets.map((a) => a?._id || a)
+        : (schedule.asset ? [schedule.asset?._id || schedule.asset] : []);
+      if (rawIds.length > 0) {
+        const found = await Asset.find({ _id: { $in: rawIds } });
+        scheduledAssets = found.filter((a) => a && a.filePath);
+      }
+    }
+
     if (scheduledAssets.length === 0) {
       console.warn(`[Feeder:${this.channelId}] Scheduled event '${schedule.title}' has no valid media assets.`);
       return false;
     }
 
+    const hadRegularVideoPlaying = Boolean(this.currentVideoPath && this.currentDecoder);
     this.isScheduleActive = true;
-    this.wasInterruptedBySchedule = true;
+    this.wasInterruptedBySchedule = hadRegularVideoPlaying;
 
-    // 1. Capture exact paused position of currently playing video
+    // 1. Capture exact paused position of currently playing video (or start at beginning if startup gate)
     const pos = this.getCurrentPlaybackPosition();
     this.interruptedState = {
       index: this.currentIndex,
-      offsetSeconds: pos.offsetSeconds,
+      offsetSeconds: hadRegularVideoPlaying ? pos.offsetSeconds : (this.startOffsetSeconds || 0),
       videoPath: this.currentVideoPath,
       duration: this.currentAssetDuration,
       asset: this.currentAsset
     };
 
     console.log(
-      `[Feeder:${this.channelId}] >>> PAUSING PLAYLIST ITEM #${this.interruptedState.index + 1} AT ${this.interruptedState.offsetSeconds.toFixed(1)}s FOR SCHEDULE: "${schedule.title}" (${scheduledAssets.length} video(s)) <<<`
+        `[Feeder:${this.channelId}] >>> ${hadRegularVideoPlaying ? 'PAUSING PLAYLIST ITEM #' + (this.interruptedState.index + 1) + ' AT ' + this.interruptedState.offsetSeconds.toFixed(1) + 's' : 'DIRECT STARTUP PLAYOUT'} FOR SCHEDULE: "${schedule.title}" (${scheduledAssets.length} video(s)) <<<`
     );
 
     // 2. Snapshot current branding state (ticker, bug, ashton, lband, logo) and suppress secondary overlays (and logo if showDuringSchedule is false)
@@ -423,19 +468,19 @@ export class FeederService {
       const encoder = this.getEncoder();
       if (encoder && encoder.isRunning) {
         if (!shouldShowLogo && logoWasEnabled) {
-          await encoder.setLogoEnabled(false).catch(() => {});
+          await encoder.setLogoEnabled(false).catch(() => { });
         }
         if (this.scheduleBrandingSnapshot.ticker.enabled) {
-          await encoder.setTickerEnabled(false).catch(() => {});
+          await encoder.setTickerEnabled(false).catch(() => { });
         }
         if (this.scheduleBrandingSnapshot.bug.enabled) {
-          await encoder.setBugEnabled(false).catch(() => {});
+          await encoder.setBugEnabled(false).catch(() => { });
         }
         if (this.scheduleBrandingSnapshot.ashton.enabled) {
-          await encoder.setAshtonLive(false).catch(() => {});
+          await encoder.setAshtonLive(false).catch(() => { });
         }
         if (this.scheduleBrandingSnapshot.lband.enabled) {
-          await encoder.setLBandEnabled(false).catch(() => {});
+          await encoder.setLBandEnabled(false).catch(() => { });
         }
       }
 
@@ -473,10 +518,10 @@ export class FeederService {
     if (this.currentDecoder) {
       try {
         this.currentDecoder.stdout.unpipe();
-      } catch {}
+      } catch { }
       try {
         this.currentDecoder.kill('SIGINT');
-      } catch {}
+      } catch { }
       this.currentDecoder = null;
     }
 
@@ -519,16 +564,82 @@ export class FeederService {
       targetEndTime = Date.now() + totalDur * 1000;
     }
 
+    // ------------------------------------------------------------------------
+    // TIMELINE SYNCHRONIZATION: Calculate which video should be playing now
+    // and at what exact second offset if the server restarted mid-schedule.
+    // E.g., Schedule 10:00-10:30 with 3x10min videos; server boots at 10:15:
+    // Video 1 (10:00-10:10) is skipped, Video 2 starts at 05:00 (300s) until 10:20,
+    // Video 3 plays 10:20-10:30.
+    // ------------------------------------------------------------------------
+    let startAssetIdx = 0;
+    let initialSeekOffsetSec = 0;
+
+    // Timeline synchronization applies when an explicit dailyEndTime is set (fixed programming block)
+    if (schedule.dailyStartTime && schedule.dailyEndTime) {
+      const [sh, sm, ss] = schedule.dailyStartTime.split(':').map(Number);
+      const startD = new Date(now);
+      startD.setHours(sh || 0, sm || 0, ss || 0, 0);
+
+      // Handle midnight-crossing schedules (e.g. 23:30 to 00:30)
+      const [eh, em, es] = schedule.dailyEndTime.split(':').map(Number);
+      const endD = new Date(now);
+      endD.setHours(eh || 0, em || 0, es || 0, 0);
+      if (endD.getTime() <= startD.getTime() && now.getTime() < endD.getTime()) {
+        startD.setDate(startD.getDate() - 1);
+      }
+
+      const elapsedSecSinceScheduleStart = Math.max(0, (now.getTime() - startD.getTime()) / 1000);
+
+      if (elapsedSecSinceScheduleStart > 0 && scheduledAssets.length > 0) {
+        // Collect duration of each scheduled video in seconds
+        const assetDurations = scheduledAssets.map((a) => Math.max(1, Number(a.duration) || 600));
+        const totalPlaylistSec = assetDurations.reduce((sum, d) => sum + d, 0);
+
+        // If schedule window is longer than the playlist, playlist loops
+        const effectiveElapsedSec = totalPlaylistSec > 0
+          ? elapsedSecSinceScheduleStart % totalPlaylistSec
+          : 0;
+
+        let accumulated = 0;
+        for (let i = 0; i < scheduledAssets.length; i++) {
+          const dur = assetDurations[i];
+          if (effectiveElapsedSec < accumulated + dur) {
+            startAssetIdx = i;
+            initialSeekOffsetSec = Math.max(0, effectiveElapsedSec - accumulated);
+            break;
+          }
+          accumulated += dur;
+        }
+
+        console.log(
+          `[Feeder:${this.channelId}] Timeline Sync: Schedule started ${Math.round(elapsedSecSinceScheduleStart)}s ago. ` +
+          `Jumping directly to scheduled item #${startAssetIdx + 1}/${scheduledAssets.length} ("${scheduledAssets[startAssetIdx]?.originalName}") ` +
+          `at seek offset ${initialSeekOffsetSec.toFixed(1)}s (skipping ${startAssetIdx} earlier completed video(s)).`
+        );
+      }
+    }
+
     try {
-      let assetIdx = 0;
+      let assetIdx = startAssetIdx;
+      let isFirstItem = true;
+
       while (this.isRunning && this.isScheduleActive && Date.now() < targetEndTime) {
         const currentSchedAsset = scheduledAssets[assetIdx % scheduledAssets.length];
         const scheduleAssetPath = path.resolve(SERVER_ROOT, currentSchedAsset.filePath);
 
         if (fs.existsSync(scheduleAssetPath)) {
-          const remainingSeconds = Math.max(0.5, (targetEndTime - Date.now()) / 1000);
+          const remainingWindowSeconds = Math.max(0.5, (targetEndTime - Date.now()) / 1000);
+          const assetDuration = Math.max(1, Number(currentSchedAsset.duration) || 600);
+
+          // For the first item upon mid-schedule recovery, seek to initialSeekOffsetSec and play only its remaining duration
+          const seekOffset = isFirstItem ? initialSeekOffsetSec : 0;
+          const assetRemainingDuration = Math.max(0.5, assetDuration - seekOffset);
+          const maxPlayDuration = Math.min(assetRemainingDuration, remainingWindowSeconds);
+
           console.log(
-            `[Feeder:${this.channelId}] [Schedule Playlist Item ${assetIdx + 1}/${scheduledAssets.length}] Streaming: "${currentSchedAsset.originalName}" (${remainingSeconds.toFixed(1)}s window remaining)`
+            `[Feeder:${this.channelId}] [Schedule Item ${assetIdx + 1}/${scheduledAssets.length}] ` +
+            `Streaming: "${currentSchedAsset.originalName}" from ${seekOffset.toFixed(1)}s for ${maxPlayDuration.toFixed(1)}s ` +
+            `(${remainingWindowSeconds.toFixed(1)}s window remaining)`
           );
 
           // Build Back In Countdown Timer overlay if enabled for this channel and permitted during ad
@@ -537,9 +648,9 @@ export class FeederService {
             const freshCh = await Channel.findById(this.channelId).select('branding.backInTimer');
             const timerCfg = freshCh?.branding?.backInTimer;
             if (timerCfg?.enabled) {
-              timerFilter = buildBackInTimerFilter(timerCfg, remainingSeconds);
+              timerFilter = buildBackInTimerFilter(timerCfg, remainingWindowSeconds);
               console.log(
-                `[Feeder:${this.channelId}] Applied frame-accurate Back In timer (${Math.ceil(remainingSeconds)}s countdown) to scheduled ad`
+                `[Feeder:${this.channelId}] Applied frame-accurate Back In timer (${Math.ceil(remainingWindowSeconds)}s countdown) to scheduled ad`
               );
             }
           } catch (tErr) {
@@ -553,13 +664,15 @@ export class FeederService {
               assetIndex: assetIdx % scheduledAssets.length,
               assetName: currentSchedAsset.originalName,
               assetDuration: currentSchedAsset.duration,
+              seekOffset: Math.round(seekOffset),
               totalAssets: scheduledAssets.length,
-              remainingSeconds: Math.ceil(remainingSeconds),
+              remainingSeconds: Math.ceil(remainingWindowSeconds),
               hasTimer: Boolean(timerFilter)
             });
           }
 
-          await this.streamAsset(scheduleAssetPath, currentSchedAsset.duration, remainingSeconds, timerFilter);
+          await this.streamAsset(scheduleAssetPath, assetDuration, maxPlayDuration, timerFilter, seekOffset);
+          isFirstItem = false;
         }
 
         assetIdx++;
@@ -588,6 +701,15 @@ export class FeederService {
     // Restore pre-schedule branding on air and in DB (ticker, bug, ashton, lband)
     await this.restorePreScheduleBranding();
 
+    // Mark schedule as completed today
+    try {
+      const now = new Date();
+      const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      await Schedule.findByIdAndUpdate(schedule._id, { lastAiredDate: todayStr });
+    } catch (sErr) {
+      console.warn(`[Feeder:${this.channelId}] Warning marking schedule lastAiredDate:`, sErr.message);
+    }
+
     if (io) {
       io.to(`channel:${this.channelId}`).emit('schedule_ended', {
         channelId: this.channelId,
@@ -609,7 +731,7 @@ export class FeederService {
   stop() {
     this.isRunning = false;
     if (this.isScheduleActive && this.scheduleBrandingSnapshot) {
-      this.restorePreScheduleBranding().catch(() => {});
+      this.restorePreScheduleBranding().catch(() => { });
     }
     this.isScheduleActive = false;
     this.wasInterruptedBySchedule = false;
@@ -621,7 +743,7 @@ export class FeederService {
           this.currentDecoder.stdout.destroy();
         }
         this.currentDecoder.kill('SIGINT');
-      } catch {}
+      } catch { }
       this.currentDecoder = null;
     }
   }

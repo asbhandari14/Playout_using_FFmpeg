@@ -88,6 +88,25 @@ class StreamManager {
 
     // 1. Launch long-running Encoder process
     const encoder = new EncoderService(channel, zmqPort);
+    encoder.onUnexpectedExit = (code) => {
+      const activeStream = this.activeStreams.get(channelId);
+      if (activeStream && !activeStream.isStopping) {
+        console.warn(
+          `[StreamManager] Live encoder for channel '${channel.name}' (${channelId}) exited unexpectedly (code ${code}). ` +
+          `Network connection may have reset. Auto-recovering live stream in 3s...`
+        );
+        setTimeout(async () => {
+          const current = this.activeStreams.get(channelId);
+          if (current && !current.isStopping) {
+            try {
+              await this.restartStream(channelId);
+            } catch (rErr) {
+              console.error(`[StreamManager] Auto-recovery error for channel ${channelId}:`, rErr.message);
+            }
+          }
+        }, 3000);
+      }
+    };
     await encoder.start();
 
     // 2. Launch playlist Feeder process
@@ -118,6 +137,15 @@ class StreamManager {
     }
 
     console.log(`[StreamManager] Channel '${channel.name}' is now ON AIR!`);
+
+    // Immediately check if an active ad or schedule should begin airing on air right now
+    setTimeout(async () => {
+      try {
+        const { schedulerService } = await import('./schedulerService.js');
+        schedulerService.checkSchedules().catch(() => {});
+      } catch {}
+    }, 600);
+
     return streamInstance;
   }
 
@@ -138,6 +166,9 @@ class StreamManager {
     }
 
     console.log(`[StreamManager] ${isReloading ? 'Pausing for reload' : 'Stopping'} stream for channel ${channelId}`);
+
+    stream.isStopping = true;
+    if (stream.encoder) stream.encoder.isStopping = true;
 
     // Stop feeder first so no more MPEG-TS packets are pushed
     if (stream.feeder) {

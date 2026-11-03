@@ -1,7 +1,18 @@
 import { Schedule } from '../models/Schedule.js';
 import { Asset } from '../models/Asset.js';
 import { Channel } from '../models/Channel.js';
-import { io } from '../server.js';
+
+// Helper to access Socket.IO without circular dependency on server.js
+const getIO = (req) => req?.app?.get('io') || null;
+
+// Dynamic import helper to avoid circular dependency with streamManager / server / channelRoutes
+const triggerSchedulerDirect = () => {
+  import('../services/streaming/schedulerService.js').then(({ schedulerService }) => {
+    schedulerService.checkSchedules().catch((err) => {
+      console.warn('[ScheduleController] Direct schedule check error:', err.message);
+    });
+  }).catch(() => {});
+};
 
 // Helper to normalize HH:mm to HH:mm:ss
 const normalizeTimeStr = (timeStr) => {
@@ -142,10 +153,14 @@ export const createSchedule = async (req, res, next) => {
 
     await schedule.save();
 
+    // Immediately evaluate scheduler so active ad/schedule begins airing directly without waiting
+    triggerSchedulerDirect();
+
     const populated = await Schedule.findById(schedule._id)
       .populate('assets', 'originalName filePath duration durationFormatted thumbnailPath category')
       .populate('asset', 'originalName filePath duration durationFormatted thumbnailPath category');
 
+    const io = getIO(req);
     if (io) {
       io.to(`channel:${channelId}`).emit('schedules_updated', {
         action: 'created',
@@ -232,12 +247,19 @@ export const updateSchedule = async (req, res, next) => {
     if (priority !== undefined) schedule.priority = Number(priority);
     if (enabled !== undefined) schedule.enabled = Boolean(enabled);
 
+    // Reset lastAiredDate so updated schedule is eligible to air immediately
+    schedule.lastAiredDate = '';
+
     await schedule.save();
+
+    // Immediately evaluate scheduler so active ad/schedule begins airing directly without waiting
+    triggerSchedulerDirect();
 
     const populated = await Schedule.findById(schedule._id)
       .populate('assets', 'originalName filePath duration durationFormatted thumbnailPath category')
       .populate('asset', 'originalName filePath duration durationFormatted thumbnailPath category');
 
+    const io = getIO(req);
     if (io) {
       io.to(`channel:${channelId}`).emit('schedules_updated', {
         action: 'updated',
@@ -266,10 +288,14 @@ export const toggleSchedule = async (req, res, next) => {
     schedule.enabled = !schedule.enabled;
     await schedule.save();
 
+    // Immediately evaluate scheduler so active ad/schedule begins airing directly without waiting
+    triggerSchedulerDirect();
+
     const populated = await Schedule.findById(schedule._id)
       .populate('assets', 'originalName filePath duration durationFormatted thumbnailPath category')
       .populate('asset', 'originalName filePath duration durationFormatted thumbnailPath category');
 
+    const io = getIO(req);
     if (io) {
       io.to(`channel:${channelId}`).emit('schedules_updated', {
         action: 'toggled',
@@ -295,6 +321,7 @@ export const deleteSchedule = async (req, res, next) => {
       return res.status(404).json({ message: 'Schedule not found' });
     }
 
+    const io = getIO(req);
     if (io) {
       io.to(`channel:${channelId}`).emit('schedules_updated', {
         action: 'deleted',
@@ -306,6 +333,64 @@ export const deleteSchedule = async (req, res, next) => {
       message: 'Schedule deleted successfully',
       scheduleId
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// POST /api/channels/:channelId/schedules/:scheduleId/play-now
+// Trigger scheduled ad or video immediately live on air on demand
+export const playScheduleNow = async (req, res, next) => {
+  try {
+    const { channelId, scheduleId } = req.params;
+    const schedule = await Schedule.findOne({ _id: scheduleId, channel: channelId })
+      .populate('assets')
+      .populate('asset');
+
+    if (!schedule) {
+      return res.status(404).json({ message: 'Schedule not found' });
+    }
+
+    const { streamManager } = await import('../services/streaming/streamManager.js');
+    const stream = streamManager.getStream(channelId);
+    if (!stream || !stream.feeder) {
+      return res.status(400).json({
+        message: 'Channel is currently offline. Please start live broadcast first.'
+      });
+    }
+
+    if (schedule.type === 'lband') {
+      const dur = Number(schedule.duration) || 60;
+      await streamManager.fireLBand(channelId, dur);
+      return res.status(200).json({
+        success: true,
+        message: `L-Band graphic "${schedule.title}" fired live on air for ${dur}s!`
+      });
+    } else if (schedule.type === 'ashton') {
+      const dur = Number(schedule.duration) || 60;
+      const squeeze = schedule.ashtonSqueeze !== false;
+      await streamManager.fireAshton(channelId, dur, squeeze);
+      return res.status(200).json({
+        success: true,
+        message: `Ashton Band "${schedule.title}" fired live on air for ${dur}s!`
+      });
+    } else {
+      // Direct video / ad playback
+      schedule.lastAiredDate = '';
+      await schedule.save();
+
+      const started = await stream.feeder.interruptWithSchedule(schedule);
+      if (!started) {
+        return res.status(400).json({
+          message: 'A schedule or ad is already actively playing on air.'
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: `Schedule "${schedule.title}" is now playing live on air!`
+      });
+    }
   } catch (error) {
     next(error);
   }

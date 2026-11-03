@@ -60,7 +60,17 @@ export default function ControlRoomPage() {
   useEffect(() => {
     if (!channelId) return;
 
-    const socket = io();
+    const socket = io({
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 4000,
+      timeout: 10000
+    });
+
+    socket.on('connect_error', () => {
+      // Quietly retry during network drops without flooding console
+    });
 
     socket.on('connect', () => {
       socket.emit('join_channel', channelId);

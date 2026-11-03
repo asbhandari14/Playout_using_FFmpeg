@@ -48,6 +48,12 @@ export default function ScheduleModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [alert, setAlert] = useState(null);
 
+  // Helper for current time string HH:mm:ss
+  const getNowTimeString = () => {
+    const d = new Date();
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
+  };
+
   // Form state
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingScheduleId, setEditingScheduleId] = useState(null);
@@ -57,9 +63,9 @@ export default function ScheduleModal({
   const [title, setTitle] = useState('');
   const [selectedAssetIds, setSelectedAssetIds] = useState([]);
   const [assetToAdd, setAssetToAdd] = useState('');
-  const [dailyStartTime, setDailyStartTime] = useState('12:00:00');
+  const [dailyStartTime, setDailyStartTime] = useState(getNowTimeString());
   const [dailyEndTime, setDailyEndTime] = useState('');
-  const [selectedDays, setSelectedDays] = useState([1, 2, 3, 4, 5]); // default Mon-Fri
+  const [selectedDays, setSelectedDays] = useState([0, 1, 2, 3, 4, 5, 6]); // Default all 7 days
   const [hasDateRange, setHasDateRange] = useState(false);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -164,9 +170,9 @@ export default function ScheduleModal({
     setAshtonSqueeze(true);
     setSelectedAssetIds([]);
     setAssetToAdd(assets.length > 0 ? assets[0]._id : '');
-    setDailyStartTime('12:00:00');
+    setDailyStartTime(getNowTimeString());
     setDailyEndTime('');
-    setSelectedDays([1, 2, 3, 4, 5]);
+    setSelectedDays([0, 1, 2, 3, 4, 5, 6]);
     setHasDateRange(false);
     setStartDate('');
     setEndDate('');
@@ -177,11 +183,26 @@ export default function ScheduleModal({
 
   const handleOpenCreateForm = () => {
     resetForm();
+    setDailyStartTime(getNowTimeString());
+    setSelectedDays([0, 1, 2, 3, 4, 5, 6]);
     if (assets.length > 0) {
       setSelectedAssetIds([assets[0]._id]);
       setAssetToAdd(assets[0]._id);
     }
     setIsFormOpen(true);
+  };
+
+  // Immediate manual trigger for scheduled ad / video directly on air
+  const handleAirNow = async (sched) => {
+    try {
+      setIsLoading(true);
+      const res = await api.post(`/channels/${channelId}/schedules/${sched._id}/play-now`);
+      showAlert('success', res.data?.message || `Schedule "${sched.title}" is now airing!`);
+    } catch (err) {
+      showAlert('error', err.response?.data?.message || 'Failed to trigger schedule live on air');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleEditSchedule = (sched) => {
@@ -686,10 +707,20 @@ export default function ScheduleModal({
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-2">
                   {/* Daily Start Time */}
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                      <Clock size={13} className="text-amber-400" />
-                      <span>Start Time (HH:MM:SS)</span>
-                    </label>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <Clock size={13} className="text-amber-400" />
+                        <span>Start Time (HH:MM:SS)</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setDailyStartTime(getNowTimeString())}
+                        className="text-[10px] text-amber-400 hover:text-amber-300 font-semibold underline"
+                        title="Set start time to current second"
+                      >
+                        Now
+                      </button>
+                    </div>
                     <input
                       type="time"
                       step="1"
@@ -699,7 +730,7 @@ export default function ScheduleModal({
                       required
                     />
                     <span className="text-[10px] text-slate-500 mt-1 block">
-                      Exact start time
+                      Exact start time (defaults to now)
                     </span>
                   </div>
 
@@ -1055,9 +1086,17 @@ export default function ScheduleModal({
                             </button>
                           </td>
 
-                          {/* Edit / Delete Actions */}
+                          {/* Edit / Delete / Air Now Actions */}
                           <td className="py-3 px-4 text-right">
                             <div className="flex items-center justify-end space-x-1.5">
+                              <button
+                                onClick={() => handleAirNow(sched)}
+                                className="px-2 py-1 rounded-lg bg-emerald-950/60 hover:bg-emerald-900/80 text-emerald-400 hover:text-emerald-300 border border-emerald-500/40 transition flex items-center gap-1 text-[11px] font-bold shadow-sm"
+                                title="Air this schedule directly on the live broadcast now"
+                              >
+                                <Play size={11} className="fill-emerald-400" />
+                                <span>Air Now</span>
+                              </button>
                               <button
                                 onClick={() => handleEditSchedule(sched)}
                                 className="p-1.5 rounded-lg bg-[#141926] hover:bg-[#1f283d] text-slate-400 hover:text-white border border-[#222a3d] transition"
