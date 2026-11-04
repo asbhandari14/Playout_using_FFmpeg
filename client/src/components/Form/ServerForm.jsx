@@ -52,7 +52,7 @@ export default function ServerForm({
       </button>
 
       <div>
-        <h1 className="text-xl font-extrabold text-white tracking-wide">
+        <h1 className="text-xl text-white tracking-wide">
           {isCreate ? 'Add Media Server' : 'Update Media Server'}
         </h1>
         <p className="text-xs text-slate-400 mt-0.5">

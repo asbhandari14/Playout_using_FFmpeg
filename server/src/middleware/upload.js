@@ -1,7 +1,8 @@
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import { TEMP_DIR, VIDEOS_DIR } from '../config/paths.js';
+import { Channel } from '../models/Channel.js';
+import { TEMP_DIR, ensureChannelUploadDirs } from '../config/paths.js';
 
 // Storage engine for chunked uploads
 const chunkStorage = multer.diskStorage({
@@ -20,15 +21,23 @@ const chunkStorage = multer.diskStorage({
   }
 });
 
-// Storage engine for direct file upload
+// Storage engine for direct file upload into channel video directory
 const directStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const channelId = req.body.channelId || req.params.channelId || 'default';
-    const channelDir = path.join(VIDEOS_DIR, channelId);
-    if (!fs.existsSync(channelDir)) {
-      fs.mkdirSync(channelDir, { recursive: true });
+  destination: async (req, file, cb) => {
+    try {
+      const channelId = req.body?.channelId || req.params?.channelId || 'default';
+      let channelName = req.body?.channelName;
+      if (!channelName && channelId !== 'default') {
+        try {
+          const ch = await Channel.findById(channelId).select('name');
+          channelName = ch?.name;
+        } catch {}
+      }
+      const { videoDir } = ensureChannelUploadDirs(channelId, channelName);
+      cb(null, videoDir);
+    } catch (err) {
+      cb(err);
     }
-    cb(null, channelDir);
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);

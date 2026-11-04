@@ -5,7 +5,13 @@ import { Channel } from '../models/Channel.js';
 import { Playlist } from '../models/Playlist.js';
 import { ASSET_STATUS, ROLES } from '../config/constants.js';
 import { checkStorageQuota, mergeChunks, processUploadedAsset } from '../services/assetService.js';
-import { SERVER_ROOT, UPLOADS_DIR, TEMP_DIR, VIDEOS_DIR, THUMBNAILS_DIR } from '../config/paths.js';
+import {
+  SERVER_ROOT,
+  UPLOADS_DIR,
+  TEMP_DIR,
+  ensureChannelUploadDirs,
+  getChannelFolderName
+} from '../config/paths.js';
 
 // POST /api/assets/upload/chunk
 export const uploadChunkHandler = async (req, res, next) => {
@@ -40,24 +46,22 @@ export const uploadChunkHandler = async (req, res, next) => {
       }
     }
 
-    // If last chunk, merge all chunks into final file
+    // If last chunk, merge all chunks into final file inside channel video directory
     if (currentIdx === total - 1) {
       const chunksDir = path.join(TEMP_DIR, uploadId);
-      const videosDir = path.join(VIDEOS_DIR, channelId);
-      if (!fs.existsSync(videosDir)) {
-        fs.mkdirSync(videosDir, { recursive: true });
-      }
+      const { videoDir } = ensureChannelUploadDirs(channelId, channel.name);
 
       const ext = path.extname(fileName) || '.mp4';
       const cleanName = path.basename(fileName, ext).replace(/[^a-zA-Z0-9_-]/g, '_');
       const uniqueSuffix = Date.now();
       const finalFileName = `${cleanName}_${uniqueSuffix}${ext}`;
-      const destinationFile = path.join(videosDir, finalFileName);
+      const destinationFile = path.join(videoDir, finalFileName);
 
       await mergeChunks(chunksDir, total, destinationFile);
 
       // Create Asset record
-      const relativePath = `uploads/videos/${channelId}/${finalFileName}`;
+      const channelFolder = getChannelFolderName(channelId, channel.name);
+      const relativePath = `uploads/${channelFolder}/video/${finalFileName}`;
       const asset = await Asset.create({
         channel: channelId,
         originalName: fileName,

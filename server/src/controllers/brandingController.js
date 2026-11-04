@@ -229,6 +229,19 @@ export const uploadLogoFile = async (req, res, next) => {
       sizePercent: defaultSizePercent
     });
 
+    // Clean up previous logo file from disk if it exists
+    const previousLogoPath = channel.branding?.logo?.assetPath;
+    if (previousLogoPath) {
+      const fullOldPath = path.resolve(SERVER_ROOT, previousLogoPath);
+      if (fs.existsSync(fullOldPath) && fullOldPath !== path.resolve(req.file.path)) {
+        try {
+          fs.unlinkSync(fullOldPath);
+        } catch (e) {
+          console.warn('[Branding] Failed to unlink old logo:', e.message);
+        }
+      }
+    }
+
     // 3. Update channel branding in database
     const updatedChannel = await Channel.findByIdAndUpdate(
       channelId,
@@ -476,6 +489,19 @@ export const uploadBugFile = async (req, res, next) => {
       });
       scaledWidth = scaled.width;
       scaledHeight = scaled.height;
+    }
+
+    // Clean up previous bug file from disk if it exists
+    const previousBugPath = channel.branding?.bug?.assetPath;
+    if (previousBugPath) {
+      const fullOldPath = path.resolve(SERVER_ROOT, previousBugPath);
+      if (fs.existsSync(fullOldPath) && fullOldPath !== path.resolve(req.file.path)) {
+        try {
+          fs.unlinkSync(fullOldPath);
+        } catch (e) {
+          console.warn('[Branding] Failed to unlink old bug:', e.message);
+        }
+      }
     }
 
     const updatedChannel = await Channel.findByIdAndUpdate(
@@ -853,6 +879,19 @@ export const uploadLBandFile = async (req, res, next) => {
 
     const relativePath = path.relative(SERVER_ROOT, req.file.path).replace(/\\/g, '/');
 
+    // Clean up previous L-Band file from disk if it exists
+    const previousLbandPath = channel.branding?.lband?.assetPath;
+    if (previousLbandPath) {
+      const fullOldPath = path.resolve(SERVER_ROOT, previousLbandPath);
+      if (fs.existsSync(fullOldPath) && fullOldPath !== path.resolve(req.file.path)) {
+        try {
+          fs.unlinkSync(fullOldPath);
+        } catch (e) {
+          console.warn('[Branding] Failed to unlink old lband:', e.message);
+        }
+      }
+    }
+
     const updatedChannel = await Channel.findByIdAndUpdate(
       channelId,
       {
@@ -1098,6 +1137,19 @@ export const uploadAshtonFile = async (req, res, next) => {
     const detected = await analyzeAndNormalizeAshton(req.file.path, targetAshtonFile);
 
     const relativePath = path.relative(SERVER_ROOT, req.file.path).replace(/\\/g, '/');
+
+    // Clean up previous Ashton Band file from disk if it exists
+    const previousAshtonPath = channel.branding?.ashton?.assetPath;
+    if (previousAshtonPath) {
+      const fullOldPath = path.resolve(SERVER_ROOT, previousAshtonPath);
+      if (fs.existsSync(fullOldPath) && fullOldPath !== path.resolve(req.file.path)) {
+        try {
+          fs.unlinkSync(fullOldPath);
+        } catch (e) {
+          console.warn('[Branding] Failed to unlink old ashton:', e.message);
+        }
+      }
+    }
 
     const updatedChannel = await Channel.findByIdAndUpdate(
       channelId,

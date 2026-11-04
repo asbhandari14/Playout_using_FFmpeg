@@ -1,21 +1,20 @@
 import multer from 'multer';
 import path from 'path';
-import fs from 'fs';
-import { BRANDING_DIR } from '../config/paths.js';
+import { Channel } from '../models/Channel.js';
+import { ensureChannelUploadDirs } from '../config/paths.js';
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    if (!fs.existsSync(BRANDING_DIR)) {
-      fs.mkdirSync(BRANDING_DIR, { recursive: true });
-    }
-    cb(null, BRANDING_DIR);
-  },
-  filename: (req, file, cb) => {
-    const channelId = req.params.channelId || 'default';
-    const ext = path.extname(file.originalname) || '.png';
-    cb(null, `logo_${channelId}_${Date.now()}${ext}`);
+const getChannelSubdir = async (req, subfolderKey) => {
+  const channelId = req.params?.channelId || req.body?.channelId || 'default';
+  let channelName = req.body?.channelName;
+  if (!channelName && channelId !== 'default') {
+    try {
+      const ch = await Channel.findById(channelId).select('name');
+      channelName = ch?.name;
+    } catch {}
   }
-});
+  const dirs = ensureChannelUploadDirs(channelId, channelName);
+  return dirs[subfolderKey] || dirs.baseDir;
+};
 
 const imageFilter = (req, file, cb) => {
   const allowed = ['.png', '.jpg', '.jpeg', '.webp'];
@@ -27,23 +26,41 @@ const imageFilter = (req, file, cb) => {
   }
 };
 
+// Logo -> logo_img
+const logoStorage = multer.diskStorage({
+  destination: async (req, file, cb) => {
+    try {
+      const dir = await getChannelSubdir(req, 'logoDir');
+      cb(null, dir);
+    } catch (err) {
+      cb(err);
+    }
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase() || '.png';
+    cb(null, `logo_${Date.now()}${ext}`);
+  }
+});
+
 export const uploadLogo = multer({
-  storage,
+  storage: logoStorage,
   fileFilter: imageFilter,
   limits: { fileSize: 20 * 1024 * 1024 } // 20MB max
 });
 
+// L-Band -> lband_img
 const lbandStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    if (!fs.existsSync(BRANDING_DIR)) {
-      fs.mkdirSync(BRANDING_DIR, { recursive: true });
+  destination: async (req, file, cb) => {
+    try {
+      const dir = await getChannelSubdir(req, 'lbandDir');
+      cb(null, dir);
+    } catch (err) {
+      cb(err);
     }
-    cb(null, BRANDING_DIR);
   },
   filename: (req, file, cb) => {
-    const channelId = req.params.channelId || 'default';
-    const ext = path.extname(file.originalname) || '.png';
-    cb(null, `lband_${channelId}_${Date.now()}${ext}`);
+    const ext = path.extname(file.originalname).toLowerCase() || '.png';
+    cb(null, `lband_${Date.now()}${ext}`);
   }
 });
 
@@ -53,17 +70,19 @@ export const uploadLBand = multer({
   limits: { fileSize: 25 * 1024 * 1024 }
 });
 
+// Ashton Band -> ashtonBand_img
 const ashtonStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    if (!fs.existsSync(BRANDING_DIR)) {
-      fs.mkdirSync(BRANDING_DIR, { recursive: true });
+  destination: async (req, file, cb) => {
+    try {
+      const dir = await getChannelSubdir(req, 'ashtonDir');
+      cb(null, dir);
+    } catch (err) {
+      cb(err);
     }
-    cb(null, BRANDING_DIR);
   },
   filename: (req, file, cb) => {
-    const channelId = req.params.channelId || 'default';
-    const ext = path.extname(file.originalname) || '.png';
-    cb(null, `ashton_${channelId}_${Date.now()}${ext}`);
+    const ext = path.extname(file.originalname).toLowerCase() || '.png';
+    cb(null, `ashton_${Date.now()}${ext}`);
   }
 });
 
@@ -73,17 +92,19 @@ export const uploadAshton = multer({
   limits: { fileSize: 25 * 1024 * 1024 }
 });
 
+// Station Bug -> logo_img
 const bugStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    if (!fs.existsSync(BRANDING_DIR)) {
-      fs.mkdirSync(BRANDING_DIR, { recursive: true });
+  destination: async (req, file, cb) => {
+    try {
+      const dir = await getChannelSubdir(req, 'logoDir');
+      cb(null, dir);
+    } catch (err) {
+      cb(err);
     }
-    cb(null, BRANDING_DIR);
   },
   filename: (req, file, cb) => {
-    const channelId = req.params.channelId || 'default';
     const ext = path.extname(file.originalname).toLowerCase() || '.png';
-    cb(null, `bug_${channelId}_${Date.now()}${ext}`);
+    cb(null, `bug_${Date.now()}${ext}`);
   }
 });
 

@@ -13,18 +13,14 @@ import { connectDB } from './config/db.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+import { UPLOADS_DIR, TEMP_DIR, STREAMS_DIR } from './config/paths.js';
+
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 const PORT = process.env.PORT || 5000;
 
-// Ensure necessary directories exist
-const uploadDir = path.resolve(__dirname, '../../uploads');
-const tempDir = path.resolve(uploadDir, 'temp');
-const thumbsDir = path.resolve(uploadDir, 'thumbnails');
-const brandingDir = path.resolve(uploadDir, 'branding');
-const streamsDir = path.resolve(__dirname, '../../streams');
-
-[uploadDir, tempDir, thumbsDir, brandingDir, streamsDir].forEach((dir) => {
+// Ensure necessary base directories exist inside server
+[UPLOADS_DIR, TEMP_DIR, STREAMS_DIR].forEach((dir) => {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
@@ -114,11 +110,13 @@ io.on('connection', (socket) => {
 
 import { streamManager } from './services/streaming/streamManager.js';
 import { schedulerService } from './services/streaming/schedulerService.js';
+import { migrateUploadsToChannelFolders } from './utils/migrateUploads.js';
 
 // Start DB and Server
 const startServer = async () => {
   try {
     await connectDB();
+    await migrateUploadsToChannelFolders();
     server.listen(PORT, '0.0.0.0', async () => {
       console.log(`Server is running at the PORT : ${PORT}`);
 

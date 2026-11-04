@@ -2,10 +2,11 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { Asset } from '../models/Asset.js';
+import { Channel } from '../models/Channel.js';
 import { ASSET_STATUS } from '../config/constants.js';
 import { probeVideo, generateThumbnail, normalizeVideo } from '../utils/media.js';
 import { io } from '../server.js';
-import { SERVER_ROOT, THUMBNAILS_DIR } from '../config/paths.js';
+import { SERVER_ROOT, ensureChannelUploadDirs, getChannelFolderName } from '../config/paths.js';
 
 const MAX_STORAGE_PER_CHANNEL = 10 * 1024 * 1024 * 1024; // 10 GB default quota
 
@@ -98,12 +99,16 @@ export const processUploadedAsset = async (assetId, channelId) => {
       });
     }
 
-    // Step 2: Generate thumbnail
+    // Step 2: Generate thumbnail inside channel thumbnails_img directory
+    const channel = await Channel.findById(channelId).select('name');
+    const channelName = channel?.name || 'channel';
+    const { thumbnailsDir } = ensureChannelUploadDirs(channelId, channelName);
     const thumbFilename = `thumb_${asset._id}.jpg`;
-    const absoluteThumbPath = path.join(THUMBNAILS_DIR, thumbFilename);
+    const absoluteThumbPath = path.join(thumbnailsDir, thumbFilename);
     await generateThumbnail(absoluteVideoPath, absoluteThumbPath, meta.duration);
 
-    asset.thumbnailPath = `uploads/thumbnails/${thumbFilename}`;
+    const channelFolder = getChannelFolderName(channelId, channelName);
+    asset.thumbnailPath = `uploads/${channelFolder}/thumbnails_img/${thumbFilename}`;
 
     // Step 3: Normalization check
     // Low CPU priority: if video is already 1280x720, 25fps, h264, keep as-is!

@@ -81,7 +81,7 @@ export default function UserForm({
       </button>
 
       <div>
-        <h1 className="text-xl font-extrabold text-white tracking-wide">
+        <h1 className="text-xl text-white tracking-wide">
           {isCreate ? 'Create User' : 'Update User'}
         </h1>
         <p className="text-xs text-slate-400 mt-0.5">

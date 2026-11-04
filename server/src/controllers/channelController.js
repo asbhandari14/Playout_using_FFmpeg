@@ -1,9 +1,19 @@
+import fs from 'fs';
+import path from 'path';
 import { Channel } from '../models/Channel.js';
 import { User } from '../models/User.js';
 import { Server } from '../models/Server.js';
 import { Playlist } from '../models/Playlist.js';
+import { Asset } from '../models/Asset.js';
 import { ROLES, CHANNEL_STATUS } from '../config/constants.js';
 import { createFlussonicStream, deleteFlussonicStream, sanitizeStreamKey } from '../services/flussonicService.js';
+import {
+  ensureChannelUploadDirs,
+  getChannelUploadsDir,
+  getChannelFolderName,
+  findChannelUploadsDirById,
+  STREAMS_DIR
+} from '../config/paths.js';
 import { z } from 'zod';
 
 export const createChannelSchema = z.object({
@@ -167,6 +177,9 @@ export const createChannel = async (req, res, next) => {
       createdBy: req.user._id
     });
 
+    // Ensure channel upload folder structure exists: uploads/${channelId}_${channelName}/
+    ensureChannelUploadDirs(channel._id, channel.name);
+
     // Automatically create empty playlist for this channel
     await Playlist.create({
       channel: channel._id,
@@ -250,6 +263,48 @@ export const updateChannel = async (req, res, next) => {
 
     await channel.save();
 
+    // If channel name changed, rename upload directory and update DB asset/branding paths
+    if (channel.name !== oldName) {
+      const oldUploadDir = getChannelUploadsDir(id, oldName);
+      const newUploadDir = getChannelUploadsDir(id, channel.name);
+      const oldFolder = getChannelFolderName(id, oldName);
+      const newFolder = getChannelFolderName(id, channel.name);
+
+      if (fs.existsSync(oldUploadDir) && oldUploadDir !== newUploadDir) {
+        try {
+          fs.renameSync(oldUploadDir, newUploadDir);
+
+          const assets = await Asset.find({ channel: id });
+          for (const a of assets) {
+            let changed = false;
+            if (a.filePath && a.filePath.includes(`uploads/${oldFolder}/`)) {
+              a.filePath = a.filePath.replace(`uploads/${oldFolder}/`, `uploads/${newFolder}/`);
+              changed = true;
+            }
+            if (a.thumbnailPath && a.thumbnailPath.includes(`uploads/${oldFolder}/`)) {
+              a.thumbnailPath = a.thumbnailPath.replace(`uploads/${oldFolder}/`, `uploads/${newFolder}/`);
+              changed = true;
+            }
+            if (changed) await a.save();
+          }
+
+          if (channel.branding) {
+            ['logo', 'bug', 'lband', 'ashton'].forEach((key) => {
+              if (channel.branding[key]?.assetPath?.includes(`uploads/${oldFolder}/`)) {
+                channel.branding[key].assetPath = channel.branding[key].assetPath.replace(
+                  `uploads/${oldFolder}/`,
+                  `uploads/${newFolder}/`
+                );
+              }
+            });
+            await channel.save();
+          }
+        } catch (renameErr) {
+          console.warn('[Channel] Error renaming uploads directory on channel update:', renameErr.message);
+        }
+      }
+    }
+
     // If channel name, streamKey or server changed, sync with Flussonic
     let flussonicSync = null;
     if (targetServer && (channel.name !== oldName || String(channel.server) !== oldServerId || channel.streamKey !== oldStreamKey)) {
@@ -307,7 +362,36 @@ export const deleteChannel = async (req, res, next) => {
       console.warn('[Channel] Flussonic stream deletion notice:', fErr.message);
     }
 
+    // Delete channel assets from database
+    await Asset.deleteMany({ channel: id });
+
+    // Delete playlist
     await Playlist.deleteMany({ channel: id });
+
+    // Delete channel uploads folder on disk: uploads/${channelId}_${channelName}/
+    try {
+      const channelUploadDir = getChannelUploadsDir(id, channel.name);
+      if (fs.existsSync(channelUploadDir)) {
+        fs.rmSync(channelUploadDir, { recursive: true, force: true });
+      }
+      const fallbackDir = findChannelUploadsDirById(id);
+      if (fallbackDir && fs.existsSync(fallbackDir)) {
+        fs.rmSync(fallbackDir, { recursive: true, force: true });
+      }
+    } catch (fsErr) {
+      console.warn('[Channel] Error removing channel uploads dir on deletion:', fsErr.message);
+    }
+
+    // Delete channel runtime stream folder on disk: streams/${channelId}/
+    try {
+      const streamFolder = path.join(STREAMS_DIR, String(id));
+      if (fs.existsSync(streamFolder)) {
+        fs.rmSync(streamFolder, { recursive: true, force: true });
+      }
+    } catch (stErr) {
+      console.warn('[Channel] Error removing channel stream runtime dir:', stErr.message);
+    }
+
     await Channel.findByIdAndDelete(id);
 
     return res.status(200).json({ message: 'Channel deleted successfully from system and Flussonic' });
