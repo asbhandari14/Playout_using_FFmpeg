@@ -54,6 +54,7 @@ export default function Channel({
                 <th className="py-3.5 px-5">URL</th>
                 <th className="py-3.5 px-5">Created By</th>
                 <th className="py-3.5 px-5">Assigned To</th>
+                <th className="py-3.5 px-5 text-center">Storage</th>
                 <th className="py-3.5 px-5 text-center">Restreams</th>
                 <th className="py-3.5 px-5 text-right">Actions</th>
               </tr>
@@ -61,7 +62,7 @@ export default function Channel({
             <tbody className="divide-y divide-[#131b2e]">
               {channels.length === 0 ? (
                 <tr>
-                  <td colSpan="6" className="py-12 text-center text-slate-500 text-xs">
+                  <td colSpan="7" className="py-12 text-center text-slate-500 text-xs">
                     No channels available. Click "+ Add Channel" to provision a stream.
                   </td>
                 </tr>
@@ -107,6 +108,12 @@ export default function Channel({
 
                       <td className="py-3.5 px-5 text-slate-300 font-medium">
                         {ch.assignedUser?.name || 'Unassigned'}
+                      </td>
+
+                      <td className="py-3.5 px-5 text-center">
+                        <span className="inline-block px-2.5 py-0.5 rounded-lg border border-[#27354f] bg-[#101625] text-cyan-300 font-mono text-[11px] font-semibold">
+                          {ch.storageDisplay || '0.00 GB / Unlimited'}
+                        </span>
                       </td>
 
                       <td className="py-3.5 px-5 text-center">

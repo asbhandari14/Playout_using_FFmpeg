@@ -5,6 +5,7 @@ import { Channel } from '../models/Channel.js';
 import { Playlist } from '../models/Playlist.js';
 import { ASSET_STATUS, ROLES } from '../config/constants.js';
 import { checkStorageQuota, mergeChunks, processUploadedAsset } from '../services/assetService.js';
+import { calculateChannelStorage, validateStorageAvailability } from '../services/channel.service.js';
 import {
   SERVER_ROOT,
   UPLOADS_DIR,
@@ -38,10 +39,10 @@ export const uploadChunkHandler = async (req, res, next) => {
 
     // On first chunk, check storage quota
     if (currentIdx === 0) {
-      const quota = await checkStorageQuota(channelId, parseInt(fileSize || 0, 10));
-      if (!quota.allowed) {
+      const storageValidation = await validateStorageAvailability(channelId, parseInt(fileSize || 0, 10));
+      if (!storageValidation.allowed) {
         return res.status(400).json({
-          message: `Storage quota exceeded. Channel is using ${quota.totalUsedGB} GB of ${quota.quotaGB} GB limit.`
+          message: storageValidation.message
         });
       }
     }
@@ -71,6 +72,9 @@ export const uploadChunkHandler = async (req, res, next) => {
         status: ASSET_STATUS.PROCESSING,
         createdBy: req.user._id
       });
+
+      // Update channel storage calculation immediately
+      calculateChannelStorage(channelId);
 
       // Trigger background processing asynchronously
       setImmediate(() => {
@@ -111,11 +115,11 @@ export const uploadDirectHandler = async (req, res, next) => {
     }
 
     // Check quota
-    const quota = await checkStorageQuota(channelId, req.file.size);
-    if (!quota.allowed) {
-      fs.unlinkSync(req.file.path);
+    const storageValidation = await validateStorageAvailability(channelId, req.file.size);
+    if (!storageValidation.allowed) {
+      if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
       return res.status(400).json({
-        message: `Storage quota exceeded. Channel is using ${quota.totalUsedGB} GB of ${quota.quotaGB} GB limit.`
+        message: storageValidation.message
       });
     }
 
@@ -130,6 +134,9 @@ export const uploadDirectHandler = async (req, res, next) => {
       status: ASSET_STATUS.PROCESSING,
       createdBy: req.user._id
     });
+
+    // Update channel storage calculation immediately
+    calculateChannelStorage(channelId);
 
     // Start background processing
     setImmediate(() => {
@@ -238,6 +245,9 @@ export const deleteAsset = async (req, res, next) => {
     );
 
     await Asset.findByIdAndDelete(req.params.id);
+
+    // Recalculate channel storage after file deletion
+    await calculateChannelStorage(asset.channel);
 
     return res.status(200).json({ message: 'Asset deleted successfully', assetId: req.params.id });
   } catch (error) {

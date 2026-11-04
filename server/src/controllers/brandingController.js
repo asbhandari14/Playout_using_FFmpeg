@@ -12,6 +12,7 @@ import {
   analyzeAndNormalizeAshton
 } from '../services/streaming/brandingAssets.js';
 import { probeVideo } from '../utils/media.js';
+import { calculateChannelStorage, validateStorageAvailability } from '../services/channel.service.js';
 
 // PUT /api/channels/:channelId/logo
 export const updateLogoBranding = async (req, res, next) => {
@@ -141,6 +142,8 @@ export const updateLogoBranding = async (req, res, next) => {
       });
     }
 
+    await calculateChannelStorage(channelId);
+
     return res.status(200).json({
       message: sizeActuallyChanged
         ? `Logo resized to ${currentLogo.sizePercent}% (${scaledInfo ? scaledInfo.height + 'px' : ''})`
@@ -183,6 +186,8 @@ export const removeLogo = async (req, res, next) => {
       });
     }
 
+    await calculateChannelStorage(channelId);
+
     return res.status(200).json({
       message: 'Logo disabled from live air via ZMQ',
       logo: currentLogo
@@ -203,6 +208,13 @@ export const uploadLogoFile = async (req, res, next) => {
     const channel = await Channel.findById(channelId);
     if (!channel) {
       return res.status(404).json({ message: 'Channel not found' });
+    }
+
+    // Validate storage quota
+    const storageValidation = await validateStorageAvailability(channelId, req.file.size);
+    if (!storageValidation.allowed) {
+      if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+      return res.status(400).json({ message: storageValidation.message });
     }
 
     // 1. Automatically inspect uploaded logo, crop outer transparent padding to keep only actual visible logo content
@@ -276,6 +288,8 @@ export const uploadLogoFile = async (req, res, next) => {
     const message = trimResult.trimmed
       ? `Logo trimmed & scaled to ${scaled.width}x${scaled.height}px for ${resLabel} (${scaled.height}px height, transparent padding removed)`
       : `Logo uploaded & scaled to ${scaled.width}x${scaled.height}px for ${resLabel}`;
+
+    await calculateChannelStorage(channelId);
 
     return res.status(200).json({
       message,
@@ -380,6 +394,8 @@ export const updateBugBranding = async (req, res, next) => {
       });
     }
 
+    await calculateChannelStorage(channelId);
+
     return res.status(200).json({
       message: sizeActuallyChanged
         ? `Bug resized to ${currentBug.sizePercent}%`
@@ -421,6 +437,8 @@ export const removeBug = async (req, res, next) => {
       });
     }
 
+    await calculateChannelStorage(channelId);
+
     return res.status(200).json({
       message: 'Bug disabled from live air via ZMQ',
       bug: currentBug
@@ -441,6 +459,13 @@ export const uploadBugFile = async (req, res, next) => {
     const channel = await Channel.findById(channelId);
     if (!channel) {
       return res.status(404).json({ message: 'Channel not found' });
+    }
+
+    // Validate storage quota
+    const storageValidation = await validateStorageAvailability(channelId, req.file.size);
+    if (!storageValidation.allowed) {
+      if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+      return res.status(400).json({ message: storageValidation.message });
     }
 
     const ext = path.extname(req.file.originalname).toLowerCase();
@@ -533,6 +558,8 @@ export const uploadBugFile = async (req, res, next) => {
         bug: currentBug
       });
     }
+
+    await calculateChannelStorage(channelId);
 
     return res.status(200).json({
       message: isMov
@@ -831,6 +858,8 @@ export const updateLBandBranding = async (req, res, next) => {
       });
     }
 
+    await calculateChannelStorage(channelId);
+
     return res.status(200).json({
       message: channel.branding.lband.enabled
         ? 'L-Band ad applied live to broadcast stream'
@@ -854,6 +883,13 @@ export const uploadLBandFile = async (req, res, next) => {
     const channel = await Channel.findById(channelId);
     if (!channel) {
       return res.status(404).json({ message: 'Channel not found' });
+    }
+
+    // Validate storage quota
+    const storageValidation = await validateStorageAvailability(channelId, req.file.size);
+    if (!storageValidation.allowed) {
+      if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+      return res.status(400).json({ message: storageValidation.message });
     }
 
     const channelStreamDir = path.join(STREAMS_DIR, String(channelId));
@@ -921,6 +957,8 @@ export const uploadLBandFile = async (req, res, next) => {
       });
     }
 
+    await calculateChannelStorage(channelId);
+
     return res.status(200).json({
       message: `L-Band analyzed: transparent cutout detected (${detected.windowWidth}x${detected.windowHeight} at X:${detected.windowX}, Y:${detected.windowY}). Ready to apply.`,
       lband: updatedChannel?.branding?.lband,
@@ -968,6 +1006,8 @@ export const removeLBand = async (req, res, next) => {
         lband: updatedChannel.branding?.lband
       });
     }
+
+    await calculateChannelStorage(channelId);
 
     return res.status(200).json({
       message: 'L-Band ad disabled from live stream',
@@ -1090,6 +1130,8 @@ export const updateAshtonBranding = async (req, res, next) => {
       });
     }
 
+    await calculateChannelStorage(channelId);
+
     return res.status(200).json({
       message: channel.branding.ashton.enabled
         ? `Ashton band applied live (${channel.branding.ashton.squeeze ? 'Video Squeezed' : 'Overlay Mode'})`
@@ -1113,6 +1155,13 @@ export const uploadAshtonFile = async (req, res, next) => {
     const channel = await Channel.findById(channelId);
     if (!channel) {
       return res.status(404).json({ message: 'Channel not found' });
+    }
+
+    // Validate storage quota
+    const storageValidation = await validateStorageAvailability(channelId, req.file.size);
+    if (!storageValidation.allowed) {
+      if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+      return res.status(400).json({ message: storageValidation.message });
     }
 
     const channelStreamDir = path.join(STREAMS_DIR, String(channelId));
@@ -1176,6 +1225,8 @@ export const uploadAshtonFile = async (req, res, next) => {
       });
     }
 
+    await calculateChannelStorage(channelId);
+
     return res.status(200).json({
       message: `Ashton Band analyzed: banner height detected as ${detected.height}px. Ready to apply.`,
       ashton: updatedChannel?.branding?.ashton,
@@ -1223,6 +1274,8 @@ export const removeAshton = async (req, res, next) => {
         ashton: updatedChannel.branding?.ashton
       });
     }
+
+    await calculateChannelStorage(channelId);
 
     return res.status(200).json({
       message: 'Ashton Band removed from live stream',

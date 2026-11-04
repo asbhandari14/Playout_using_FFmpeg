@@ -27,6 +27,20 @@ export const deleteAsset = createAsyncThunk(
   }
 );
 
+export const fetchStorageSummary = createAsyncThunk(
+  'assets/fetchStorageSummary',
+  async (channelId, { rejectWithValue }) => {
+    try {
+      const res = await api.get('/assets/storage/summary', {
+        params: { channelId }
+      });
+      return res.data.storage;
+    } catch (err) {
+      return rejectWithValue(err.response?.data?.message || 'Failed to fetch storage summary');
+    }
+  }
+);
+
 export const uploadAssetChunked = createAsyncThunk(
   'assets/uploadAssetChunked',
   async ({ channelId, category, file, onProgress }, { rejectWithValue, dispatch }) => {
@@ -164,6 +178,15 @@ const assetSlice = createSlice({
         state.storage.totalCount = Math.max(0, state.storage.totalCount - 1);
         if (state.selectedAsset?._id === action.payload) {
           state.selectedAsset = state.list[0] || null;
+        }
+      })
+      // Fetch storage summary (polling & real-time)
+      .addCase(fetchStorageSummary.fulfilled, (state, action) => {
+        if (action.payload) {
+          state.storage = {
+            ...state.storage,
+            ...action.payload
+          };
         }
       });
   }

@@ -68,6 +68,13 @@ export default function ChannelCard({ channel, onEnter }) {
             <span className="text-slate-400 font-mono text-[10px]">{channel.streamFormat}</span>
           </div>
 
+          <div className="flex items-center justify-between">
+            <span className="text-slate-500 font-medium">Storage Quota</span>
+            <span className="font-mono text-cyan-300 font-semibold text-[10px]">
+              {channel.storageDisplay || '0.00 GB / Unlimited'}
+            </span>
+          </div>
+
           {/* Endpoints */}
           <div className="pt-2 space-y-1.5 border-t border-[#181e2b]">
             <div>

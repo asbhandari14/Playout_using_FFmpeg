@@ -1,12 +1,4 @@
-import React, { useState, useRef } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-import {
-  uploadAssetChunked,
-  deleteAsset,
-  setSelectedAsset,
-  setCategoryFilter,
-  setSearchQuery
-} from '../store/slices/assetSlice.js';
+import React from 'react';
 import {
   Film,
   Upload,
@@ -14,113 +6,42 @@ import {
   Plus,
   Trash2,
   CheckCircle2,
-  Clock,
   AlertTriangle,
-  HardDrive,
   GripVertical,
   ChevronDown,
-  X,
   FileVideo
 } from 'lucide-react';
+import useAssetLibrary from '../hooks/useAssetLibrary.js';
 import ConfirmDeleteModal from './ConfirmDeleteModal.jsx';
+import AssetUploadModal from './Asset/AssetUploadModal.jsx';
+import AssetStorageFooter from './Asset/AssetStorageFooter.jsx';
 
 export default function AssetLibrary({ channelId, onAddToPlaylist }) {
-  const dispatch = useDispatch();
-  const fileInputRef = useRef(null);
-
   const {
-    list: assets,
-    storage,
+    assets,
     selectedAsset,
     categoryFilter,
     searchQuery,
-    loading
-  } = useSelector((state) => state.assets);
-
-  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
-  const [uploadFiles, setUploadFiles] = useState([]);
-  const [assetToDelete, setAssetToDelete] = useState(null);
-  const [uploadCategory, setUploadCategory] = useState('Promos');
-  const [isUploading, setIsUploading] = useState(false);
-
-  // File selection
-  const handleFilesSelected = (e) => {
-    const files = Array.from(e.target.files || []);
-    if (files.length === 0) return;
-
-    const newUploads = files.map((file) => ({
-      file,
-      id: Math.random().toString(36).substring(2),
-      name: file.name,
-      size: (file.size / (1024 * 1024)).toFixed(1) + ' MB',
-      progress: 0,
-      status: 'queued'
-    }));
-
-    setUploadFiles((prev) => [...prev, ...newUploads]);
-    setIsUploadModalOpen(true);
-  };
-
-  const handleStartUpload = async () => {
-    if (uploadFiles.length === 0 || isUploading) return;
-    setIsUploading(true);
-
-    for (let i = 0; i < uploadFiles.length; i++) {
-      const item = uploadFiles[i];
-      if (item.status === 'completed') continue;
-
-      setUploadFiles((prev) =>
-        prev.map((f, idx) => (idx === i ? { ...f, status: 'uploading' } : f))
-      );
-
-      try {
-        await dispatch(
-          uploadAssetChunked({
-            channelId,
-            category: uploadCategory,
-            file: item.file,
-            onProgress: (percent) => {
-              setUploadFiles((prev) =>
-                prev.map((f, idx) => (idx === i ? { ...f, progress: percent } : f))
-              );
-            }
-          })
-        ).unwrap();
-
-        setUploadFiles((prev) =>
-          prev.map((f, idx) => (idx === i ? { ...f, progress: 100, status: 'completed' } : f))
-        );
-      } catch (err) {
-        setUploadFiles((prev) =>
-          prev.map((f, idx) =>
-            idx === i ? { ...f, status: 'failed', error: err || 'Upload failed' } : f
-          )
-        );
-      }
-    }
-
-    setIsUploading(false);
-  };
-
-  const handleDelete = (e, asset) => {
-    e.stopPropagation();
-    setAssetToDelete(asset);
-  };
-
-  const handleConfirmDelete = async () => {
-    if (assetToDelete?._id) {
-      await dispatch(deleteAsset(assetToDelete._id));
-    }
-    setAssetToDelete(null);
-  };
-
-  const handleDragStart = (e, asset) => {
-    e.dataTransfer.setData('application/json', JSON.stringify(asset));
-    e.dataTransfer.effectAllowed = 'copy';
-  };
-
-  // Categories list
-  const categories = ['All categories', 'Promos', 'General', 'Episodes', 'Songs', 'Ads'];
+    storageDisplay,
+    fileInputRef,
+    isUploadModalOpen,
+    uploadFiles,
+    uploadCategory,
+    setUploadCategory,
+    isUploading,
+    assetToDelete,
+    categories,
+    handleFilesSelected,
+    handleStartUpload,
+    handleDelete,
+    handleConfirmDelete,
+    handleCancelDelete,
+    handleDragStart,
+    handleSearchChange,
+    handleCategoryChange,
+    handleSelectAsset,
+    handleCloseUploadModal
+  } = useAssetLibrary(channelId);
 
   return (
     <div className="h-full flex flex-col bg-[#12151b] border-r border-[#202634] select-none text-slate-200">
@@ -143,7 +64,7 @@ export default function AssetLibrary({ channelId, onAddToPlaylist }) {
             type="text"
             placeholder="Search (1280×720)..."
             value={searchQuery}
-            onChange={(e) => dispatch(setSearchQuery(e.target.value))}
+            onChange={(e) => handleSearchChange(e.target.value)}
             className="w-full pl-8 pr-3 py-1.5 bg-[#0b0e14] border border-[#232a39] rounded-lg text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
           />
         </div>
@@ -152,7 +73,7 @@ export default function AssetLibrary({ channelId, onAddToPlaylist }) {
         <div className="flex items-center gap-2">
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="flex-1 py-1.5 px-3 rounded-lg bg-[#2563eb] hover:bg-blue-600 text-white font-medium text-xs flex items-center justify-center gap-1.5 transition shadow-sm"
+            className="flex-1 py-1.5 px-3 rounded-lg bg-[#2563eb] hover:bg-blue-600 text-white font-medium text-xs flex items-center justify-center gap-1.5 transition shadow-sm cursor-pointer"
           >
             <Upload size={14} />
             <span>Upload</span>
@@ -170,11 +91,11 @@ export default function AssetLibrary({ channelId, onAddToPlaylist }) {
           <div className="relative flex-1">
             <select
               value={categoryFilter}
-              onChange={(e) => dispatch(setCategoryFilter(e.target.value))}
-              className="w-full appearance-none bg-[#0b0e14] border border-[#232a39] text-xs text-slate-300 rounded-lg pl-3 pr-7 py-1.5 focus:outline-none focus:border-blue-500"
+              onChange={(e) => handleCategoryChange(e.target.value)}
+              className="w-full appearance-none bg-[#0b0e14] border border-[#232a39] text-xs text-slate-300 rounded-lg pl-3 pr-7 py-1.5 focus:outline-none focus:border-blue-500 cursor-pointer"
             >
               {categories.map((c) => (
-                <option key={c} value={c}>
+                <option key={c} value={c} className="bg-[#0b0e14]">
                   {c}
                 </option>
               ))}
@@ -207,7 +128,7 @@ export default function AssetLibrary({ channelId, onAddToPlaylist }) {
                 key={asset._id}
                 draggable={isReady}
                 onDragStart={(e) => handleDragStart(e, asset)}
-                onClick={() => dispatch(setSelectedAsset(asset))}
+                onClick={() => handleSelectAsset(asset)}
                 className={`p-2 rounded-xl border transition cursor-pointer group flex items-center gap-2.5 ${
                   isSelected
                     ? 'bg-[#182030] border-blue-500/80 shadow-md shadow-blue-500/10'
@@ -254,7 +175,7 @@ export default function AssetLibrary({ channelId, onAddToPlaylist }) {
                   <div className="flex items-center gap-2 mt-0.5 text-[10px] text-slate-400">
                     <span>{asset.durationFormatted || '00:00'}</span>
                     <span>•</span>
-                    <span>{(asset.size / (1024 * 1024)).toFixed(1)} MB</span>
+                    <span>{asset.sizeFormatted}</span>
                   </div>
 
                   {/* Status Badge */}
@@ -266,7 +187,7 @@ export default function AssetLibrary({ channelId, onAddToPlaylist }) {
                     )}
                     {isProcessing && (
                       <span className="inline-flex items-center gap-1 text-[9px] font-bold text-blue-400 uppercase tracking-wider animate-pulse">
-                        <div className="w-2 h-2 rounded-full border border-blue-400 border-t-transparent animate-spin"></div>
+                        <div className="w-2 h-2 rounded-full border border-blue-400 border-t-transparent animate-spin" />
                         PROCESSING
                       </span>
                     )}
@@ -286,7 +207,7 @@ export default function AssetLibrary({ channelId, onAddToPlaylist }) {
                         e.stopPropagation();
                         onAddToPlaylist(asset);
                       }}
-                      className="w-7 h-7 rounded-lg bg-blue-600/20 hover:bg-blue-600 border border-blue-500/30 hover:border-blue-500 text-blue-400 hover:text-white flex items-center justify-center transition shadow-sm"
+                      className="w-7 h-7 rounded-lg bg-blue-600/20 hover:bg-blue-600 border border-blue-500/30 hover:border-blue-500 text-blue-400 hover:text-white flex items-center justify-center transition shadow-sm cursor-pointer"
                       title="Add to Playlist"
                     >
                       <Plus size={14} />
@@ -295,7 +216,7 @@ export default function AssetLibrary({ channelId, onAddToPlaylist }) {
 
                   <button
                     onClick={(e) => handleDelete(e, asset)}
-                    className="w-7 h-7 rounded-lg text-slate-500 hover:text-red-400 hover:bg-[#1f2636] flex items-center justify-center transition"
+                    className="w-7 h-7 rounded-lg text-slate-500 hover:text-red-400 hover:bg-[#1f2636] flex items-center justify-center transition cursor-pointer"
                     title="Delete Asset"
                   >
                     <Trash2 size={13} />
@@ -308,126 +229,26 @@ export default function AssetLibrary({ channelId, onAddToPlaylist }) {
       </div>
 
       {/* Footer Storage Counter */}
-      <div className="p-3 border-t border-[#1c222e] bg-[#10131a] flex items-center justify-between text-[11px]">
-        <div>
-          <span className="text-[9px] font-semibold text-slate-500 uppercase tracking-wider block">
-            Storage Usage
-          </span>
-          <span className="font-semibold text-slate-200">{storage.totalUsedGB || '0.00'} GB</span>
-        </div>
-
-        <div className="px-2 py-0.5 rounded-full bg-[#1b2230] border border-[#263146] text-slate-300 text-[10px] font-medium flex items-center gap-1">
-          <span className="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
-          <span>{storage.totalCount || assets.length} FILES</span>
-        </div>
-      </div>
+      <AssetStorageFooter storageDisplay={storageDisplay} />
 
       {/* Upload Progress Modal */}
-      {isUploadModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="w-full max-w-lg bg-[#131720] border border-[#252c3c] rounded-2xl shadow-2xl overflow-hidden flex flex-col">
-            <div className="px-5 py-4 border-b border-[#222938] flex items-center justify-between bg-[#161b26]">
-              <div className="flex items-center gap-2">
-                <Upload size={18} className="text-blue-500" />
-                <h3 className="text-sm font-bold text-white m-0">Upload Video Assets</h3>
-              </div>
-              <button
-                disabled={isUploading}
-                onClick={() => setIsUploadModalOpen(false)}
-                className="text-slate-400 hover:text-white"
-              >
-                <X size={18} />
-              </button>
-            </div>
+      <AssetUploadModal
+        isOpen={isUploadModalOpen}
+        isUploading={isUploading}
+        uploadFiles={uploadFiles}
+        uploadCategory={uploadCategory}
+        onCategoryChange={setUploadCategory}
+        onStartUpload={handleStartUpload}
+        onClose={handleCloseUploadModal}
+      />
 
-            <div className="p-5 space-y-4 max-h-[60vh] overflow-y-auto">
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">
-                  Assign Category
-                </label>
-                <input
-                  type="text"
-                  value={uploadCategory}
-                  onChange={(e) => setUploadCategory(e.target.value)}
-                  placeholder="e.g. Promos / Commercials"
-                  className="w-full px-3 py-1.5 bg-[#0a0d13] border border-[#232a39] rounded-lg text-xs text-slate-200 focus:outline-none focus:border-blue-500"
-                />
-              </div>
-
-              {/* Upload items list */}
-              <div className="space-y-2">
-                {uploadFiles.map((item, idx) => (
-                  <div
-                    key={item.id}
-                    className="p-3 bg-[#0c0f16] border border-[#1f2636] rounded-xl text-xs space-y-1.5"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium text-slate-200 truncate max-w-[260px]">
-                        {item.name}
-                      </span>
-                      <span className="text-slate-500 text-[10px]">{item.size}</span>
-                    </div>
-
-                    {/* Progress bar */}
-                    <div className="w-full h-1.5 bg-[#1b2230] rounded-full overflow-hidden">
-                      <div
-                        className={`h-full transition-all duration-300 ${
-                          item.status === 'failed'
-                            ? 'bg-red-500'
-                            : item.status === 'completed'
-                            ? 'bg-emerald-500'
-                            : 'bg-blue-500'
-                        }`}
-                        style={{ width: `${item.progress}%` }}
-                      ></div>
-                    </div>
-
-                    <div className="flex items-center justify-between text-[10px] text-slate-400">
-                      <span>
-                        {item.status === 'queued' && 'Ready in queue'}
-                        {item.status === 'uploading' && `Uploading chunks... ${item.progress}%`}
-                        {item.status === 'completed' && 'Upload completed (Processing in background)'}
-                        {item.status === 'failed' && (
-                          <span className="text-red-400">Failed: {item.error}</span>
-                        )}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="px-5 py-3 border-t border-[#202736] flex items-center justify-end gap-2 bg-[#121620]">
-              <button
-                type="button"
-                disabled={isUploading}
-                onClick={() => setIsUploadModalOpen(false)}
-                className="px-3 py-1.5 rounded-lg bg-[#1a202c] hover:bg-[#222b3b] text-slate-300 text-xs font-medium transition"
-              >
-                Close
-              </button>
-              <button
-                type="button"
-                disabled={isUploading || uploadFiles.length === 0}
-                onClick={handleStartUpload}
-                className="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium transition shadow-md shadow-blue-600/20 disabled:opacity-50"
-              >
-                {isUploading ? 'Uploading...' : 'Start Upload'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Delete Confirmation Modal */}
+      {/* Confirm Delete Modal */}
       <ConfirmDeleteModal
-        isOpen={!!assetToDelete}
-        onClose={() => setAssetToDelete(null)}
-        onConfirm={handleConfirmDelete}
-        title="Delete Media Asset"
-        itemName={assetToDelete?.originalName}
+        isOpen={Boolean(assetToDelete)}
+        title="Delete Video Asset"
         message="Are you sure you want to permanently delete this media file from local disk storage? Any playlist referencing this asset might fail to play."
-        confirmText="Delete Asset"
+        onConfirm={handleConfirmDelete}
+        onCancel={handleCancelDelete}
       />
     </div>
   );

@@ -2,6 +2,7 @@ import React from 'react';
 import {
   ArrowLeft,
   Globe,
+  HardDrive,
   Lock,
   Radio,
   Server as ServerIcon,
@@ -12,17 +13,24 @@ import { DEFAULT_SERVER_URL } from '../../constants/dashboard.js';
 
 const shellClass =
   'flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-[#090d16] border border-[#1a2337] focus-within:border-[#00bcd4] transition';
+const amountShellClass =
+  'flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#090d16] border border-[#1a2337] focus-within:border-[#00bcd4] transition';
 const inputClass =
   'w-full bg-transparent text-slate-100 placeholder-slate-500 focus:outline-none text-xs';
 const selectClass =
   'px-3 py-2.5 rounded-xl bg-[#090d16] border border-[#1a2337] text-slate-200 focus:outline-none text-xs';
 const textInputClass =
   'px-3 py-2 rounded-xl bg-[#090d16] border border-[#1a2337] text-slate-200 focus:outline-none text-xs';
+const unitSelectClass =
+  'bg-transparent text-slate-300 font-semibold focus:outline-none border-l border-slate-700 pl-2 text-xs cursor-pointer';
 
-function Field({ label, className = '', children }) {
+function Field({ label, hint, className = '', children }) {
   return (
     <div className={className}>
-      <label className="block text-slate-300 font-semibold mb-1.5">{label}</label>
+      <div className="flex items-center justify-between mb-1.5">
+        <label className="text-slate-300 font-semibold">{label}</label>
+        {hint && <span className="text-[10px] text-slate-500">{hint}</span>}
+      </div>
       {children}
     </div>
   );
@@ -155,6 +163,30 @@ export default function ChannelForm({
                     {u.name} ({u.email})
                   </option>
                 ))}
+              </select>
+            </div>
+          </Field>
+
+          <Field label="Storage Quota" hint="0 or blank = Unlimited" className="md:col-span-2">
+            <div className={amountShellClass}>
+              <HardDrive size={15} className="text-slate-500 shrink-0" />
+              <input
+                type="number"
+                min="0"
+                step="any"
+                value={formData.allocatedStorageAmount ?? ''}
+                onChange={set('allocatedStorageAmount')}
+                placeholder="e.g. 10"
+                className={inputClass}
+              />
+              <select
+                value={formData.allocatedStorageUnit || 'GB'}
+                onChange={set('allocatedStorageUnit')}
+                className={unitSelectClass}
+              >
+                <option value="MB" className="bg-[#0b0e18] text-slate-200">MB</option>
+                <option value="GB" className="bg-[#0b0e18] text-slate-200">GB</option>
+                <option value="TB" className="bg-[#0b0e18] text-slate-200">TB</option>
               </select>
             </div>
           </Field>

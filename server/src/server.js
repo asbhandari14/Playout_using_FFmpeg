@@ -111,6 +111,7 @@ io.on('connection', (socket) => {
 import { streamManager } from './services/streaming/streamManager.js';
 import { schedulerService } from './services/streaming/schedulerService.js';
 import { migrateUploadsToChannelFolders } from './utils/migrateUploads.js';
+import { channelStorageCron } from './services/channel.service.js';
 
 // Start DB and Server
 const startServer = async () => {
@@ -125,6 +126,9 @@ const startServer = async () => {
 
       // Playout Scheduler Clock Service
       schedulerService.start();
+
+      // Channel Storage Calculator Cron Job (1-minute interval)
+      channelStorageCron.start();
     });
   } catch (err) {
     console.error('Failed to start server:', err);
@@ -137,6 +141,7 @@ const handleGracefulShutdown = async (signal) => {
   console.log(`\n[Process] Received ${signal}. Starting graceful shutdown...`);
   try {
     schedulerService.stop();
+    channelStorageCron.stop();
     await streamManager.stopAllStreams();
     server.close(() => {
       console.log('[Process] HTTP server closed cleanly. Exiting.');
@@ -156,6 +161,7 @@ process.once('SIGUSR2', async () => {
   console.log('\n[Process] Nodemon restarting. Stopping active streams cleanly...');
   try {
     schedulerService.stop();
+    channelStorageCron.stop();
     await streamManager.stopAllStreams();
   } catch {}
   process.kill(process.pid, 'SIGUSR2');

@@ -32,6 +32,11 @@ import {
   getEmptyChannelForm,
   getEmptyServerForm
 } from '../constants/dashboard.js';
+import {
+  storageToBytes,
+  bytesToStorage,
+  formatStorageComparison
+} from './useStorageCalc.js';
 
 export default function useDashboard(initialSection = 'channels') {
   const dispatch = useDispatch();
@@ -97,6 +102,10 @@ export default function useDashboard(initialSection = 'channels') {
       dispatch(fetchChannels());
     });
 
+    socket.on('channel_storage_updated', () => {
+      dispatch(fetchChannels());
+    });
+
     return () => {
       window.removeEventListener('online', handleOnline);
       socket.disconnect();
@@ -137,9 +146,23 @@ export default function useDashboard(initialSection = 'channels') {
   }, [users, searchQuery]);
 
   const filteredChannels = useMemo(() => {
-    if (!searchQuery) return channels;
+    const list = Array.isArray(channels) ? channels : [];
     const q = searchQuery.toLowerCase();
-    return channels.filter((ch) => ch.name && ch.name.toLowerCase().includes(q));
+    const matched = !q
+      ? list
+      : list.filter((ch) => ch.name && ch.name.toLowerCase().includes(q));
+
+    return matched.map((ch) => {
+      const usedBytes = ch.usedStorage || 0;
+      const allocatedBytes = ch.allocatedStorage || 0;
+      const storageDisplay = formatStorageComparison(usedBytes, allocatedBytes);
+      return {
+        ...ch,
+        usedBytes,
+        allocatedBytes,
+        storageDisplay
+      };
+    });
   }, [channels, searchQuery]);
 
   const filteredServers = useMemo(() => {
@@ -276,6 +299,7 @@ export default function useDashboard(initialSection = 'channels') {
     setEditingChannelId(ch._id);
     const assignedId = ch.assignedUser?._id || ch.assignedUser || '';
     const serverObj = servers.find((s) => s._id === (ch.server?._id || ch.server)) || ch.server;
+    const parsedStorage = bytesToStorage(ch.allocatedStorage);
 
     setChannelFormData({
       name: ch.name || '',
@@ -285,6 +309,8 @@ export default function useDashboard(initialSection = 'channels') {
       serverPassword: '',
       assignedUser: assignedId,
       streamKey: ch.streamKey || '',
+      allocatedStorageAmount: parsedStorage.amount,
+      allocatedStorageUnit: parsedStorage.unit,
       resolution: ch.outputSettings?.resolution || '1280x720',
       fps: ch.outputSettings?.fps || 25,
       videoBitrate: ch.outputSettings?.videoBitrate || '2500k',
@@ -303,11 +329,14 @@ export default function useDashboard(initialSection = 'channels') {
       return;
     }
 
+    const calculatedBytes = storageToBytes(f.allocatedStorageAmount, f.allocatedStorageUnit);
+
     const payload = {
       name: f.name,
       server: f.server || servers[0]?._id,
       assignedUser: f.assignedUser || users[0]?._id || currentUser?._id,
       streamKey: f.streamKey || f.name.toLowerCase().replace(/\s+/g, '_'),
+      allocatedStorage: calculatedBytes,
       outputSettings: {
         resolution: f.resolution,
         fps: Number(f.fps) || 25,

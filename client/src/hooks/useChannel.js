@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import { fetchChannels } from '../store/slices/channelSlice.js';
 import { logoutUser } from '../store/slices/authSlice.js';
+import { formatStorageComparison } from './useStorageCalc.js';
 
 export default function useChannel() {
   const dispatch = useDispatch();
@@ -38,6 +39,10 @@ export default function useChannel() {
       dispatch(fetchChannels());
     });
 
+    socket.on('channel_storage_updated', () => {
+      dispatch(fetchChannels());
+    });
+
     return () => {
       window.removeEventListener('online', handleOnline);
       socket.disconnect();
@@ -69,6 +74,10 @@ export default function useChannel() {
       const assignedOperator = ch.assignedUser?.name || 'Unassigned';
       const mediaServer = ch.server?.name || 'Default Media Server';
 
+      const usedBytes = ch.usedStorage || 0;
+      const allocatedBytes = ch.allocatedStorage || 0;
+      const storageDisplay = formatStorageComparison(usedBytes, allocatedBytes);
+
       return {
         ...ch,
         isLive,
@@ -76,7 +85,10 @@ export default function useChannel() {
         rtmpUrl,
         streamFormat,
         assignedOperator,
-        mediaServer
+        mediaServer,
+        usedBytes,
+        allocatedBytes,
+        storageDisplay
       };
     });
   }, [channels, searchQuery]);

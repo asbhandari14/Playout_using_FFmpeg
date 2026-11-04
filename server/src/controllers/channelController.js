@@ -16,11 +16,23 @@ import {
 } from '../config/paths.js';
 import { z } from 'zod';
 
+export const parseStorageToBytes = (amount, unit = 'GB') => {
+  const val = Number(amount);
+  if (!val || val <= 0 || isNaN(val)) return 0;
+  const u = String(unit).trim().toUpperCase();
+  if (u === 'TB') return Math.round(val * 1024 * 1024 * 1024 * 1024);
+  if (u === 'MB') return Math.round(val * 1024 * 1024);
+  return Math.round(val * 1024 * 1024 * 1024);
+};
+
 export const createChannelSchema = z.object({
   name: z.string().min(2, 'Channel name must be at least 2 characters'),
   server: z.string().min(1, 'Server ID is required'),
   assignedUser: z.string().min(1, 'Assigned user ID is required'),
   streamKey: z.string().optional(),
+  allocatedStorage: z.number().nonnegative().optional().default(0),
+  allocatedStorageAmount: z.union([z.number(), z.string()]).optional(),
+  allocatedStorageUnit: z.enum(['MB', 'GB', 'TB', 'mb', 'gb', 'tb']).optional(),
   outputSettings: z.object({
     resolution: z.string().optional().default('1280x720'),
     fps: z.number().optional().default(25),
@@ -34,6 +46,9 @@ export const updateChannelSchema = z.object({
   server: z.string().optional(),
   assignedUser: z.string().optional(),
   streamKey: z.string().optional(),
+  allocatedStorage: z.number().nonnegative().optional(),
+  allocatedStorageAmount: z.union([z.number(), z.string()]).optional(),
+  allocatedStorageUnit: z.enum(['MB', 'GB', 'TB', 'mb', 'gb', 'tb']).optional(),
   outputSettings: z.object({
     resolution: z.string().optional(),
     fps: z.number().optional(),
@@ -117,7 +132,7 @@ export const getChannelById = async (req, res, next) => {
 // POST /api/channels
 export const createChannel = async (req, res, next) => {
   try {
-    const { name, server, assignedUser, streamKey, outputSettings } = req.body;
+    const { name, server, assignedUser, streamKey, outputSettings, allocatedStorage } = req.body;
 
     // Verify server exists (select +serverPasswordEncrypted for Flussonic authentication)
     const serverExists = await Server.findById(server).select('+serverPasswordEncrypted');
@@ -159,11 +174,17 @@ export const createChannel = async (req, res, next) => {
     const hlsUrl = `${cleanUrl}/${actualStreamKey}/index.m3u8`;
     const rtmpUrl = `rtmp://${hostname}/static/${actualStreamKey}`;
 
+    let finalAllocatedStorage = Number(allocatedStorage) || 0;
+    if (req.body.allocatedStorageAmount !== undefined && req.body.allocatedStorageAmount !== '') {
+      finalAllocatedStorage = parseStorageToBytes(req.body.allocatedStorageAmount, req.body.allocatedStorageUnit);
+    }
+
     const channel = await Channel.create({
       name: channelNameClean,
       server,
       assignedUser,
       streamKey: actualStreamKey,
+      allocatedStorage: finalAllocatedStorage,
       hlsUrl,
       rtmpUrl,
       outputSettings: {
@@ -219,7 +240,7 @@ export const createChannel = async (req, res, next) => {
 export const updateChannel = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { name, server, assignedUser, streamKey, outputSettings } = req.body || {};
+    const { name, server, assignedUser, streamKey, outputSettings, allocatedStorage } = req.body || {};
     const channel = await Channel.findById(id);
     if (!channel) {
       return res.status(404).json({ message: 'Channel not found' });
@@ -238,6 +259,11 @@ export const updateChannel = async (req, res, next) => {
     if (server) channel.server = server;
     if (assignedUser) channel.assignedUser = assignedUser;
     if (streamKey) channel.streamKey = sanitizeStreamKey(streamKey);
+    if (allocatedStorage !== undefined) {
+      channel.allocatedStorage = Math.max(0, Number(allocatedStorage));
+    } else if (req.body.allocatedStorageAmount !== undefined) {
+      channel.allocatedStorage = parseStorageToBytes(req.body.allocatedStorageAmount, req.body.allocatedStorageUnit);
+    }
     if (outputSettings) {
       channel.outputSettings = { ...channel.outputSettings.toObject(), ...outputSettings };
     }

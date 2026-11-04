@@ -39,6 +39,16 @@ const channelSchema = new mongoose.Schema(
       enum: Object.values(CHANNEL_STATUS),
       default: CHANNEL_STATUS.IDLE
     },
+    // Storage quota allocated by Super Admin (in Bytes, 0 = unlimited or unassigned)
+    allocatedStorage: {
+      type: Number,
+      default: 0
+    },
+    // Dynamically calculated storage on disk (in Bytes)
+    usedStorage: {
+      type: Number,
+      default: 0
+    },
     currentPlayingIndex: {
       type: Number,
       default: -1

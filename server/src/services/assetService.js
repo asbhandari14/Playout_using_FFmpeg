@@ -7,6 +7,7 @@ import { ASSET_STATUS } from '../config/constants.js';
 import { probeVideo, generateThumbnail, normalizeVideo } from '../utils/media.js';
 import { io } from '../server.js';
 import { SERVER_ROOT, ensureChannelUploadDirs, getChannelFolderName } from '../config/paths.js';
+import { calculateChannelStorage } from './channel.service.js';
 
 const MAX_STORAGE_PER_CHANNEL = 10 * 1024 * 1024 * 1024; // 10 GB default quota
 
@@ -14,16 +15,35 @@ const MAX_STORAGE_PER_CHANNEL = 10 * 1024 * 1024 * 1024; // 10 GB default quota
  * Check if channel has enough storage quota
  */
 export const checkStorageQuota = async (channelId, incomingBytes = 0) => {
+  const channel = await Channel.findById(channelId).select('allocatedStorage usedStorage');
   const assets = await Asset.find({ channel: channelId });
-  const totalUsed = assets.reduce((acc, curr) => acc + (curr.size || 0), 0);
+  const assetSizeSum = assets.reduce((acc, curr) => acc + (curr.size || 0), 0);
+  const totalUsed = Math.max(channel?.usedStorage || 0, assetSizeSum);
   const totalCount = assets.length;
 
+  const allocated = Number(channel?.allocatedStorage) || 0;
+  // If allocatedStorage is 0, it means unlimited or unassigned (fallback to 10GB default limit for safety)
+  const quotaBytes = allocated > 0 ? allocated : MAX_STORAGE_PER_CHANNEL;
+  const isUnlimited = allocated === 0;
+
   return {
-    allowed: totalUsed + incomingBytes <= MAX_STORAGE_PER_CHANNEL,
+    allowed: isUnlimited || totalUsed + incomingBytes <= quotaBytes,
     totalUsed,
     totalUsedMB: (totalUsed / (1024 * 1024)).toFixed(2),
     totalUsedGB: (totalUsed / (1024 * 1024 * 1024)).toFixed(2),
-    quotaGB: (MAX_STORAGE_PER_CHANNEL / (1024 * 1024 * 1024)).toFixed(1),
+    totalUsedFormatted:
+      totalUsed >= 1024 * 1024 * 1024
+        ? `${(totalUsed / (1024 * 1024 * 1024)).toFixed(2)} GB`
+        : `${(totalUsed / (1024 * 1024)).toFixed(1)} MB`,
+    allocatedStorage: allocated,
+    quotaBytes,
+    quotaGB: isUnlimited ? 'Unlimited' : (quotaBytes / (1024 * 1024 * 1024)).toFixed(1),
+    quotaFormatted: isUnlimited
+      ? 'Unlimited'
+      : allocated >= 1024 * 1024 * 1024 * 1024
+        ? `${(allocated / (1024 * 1024 * 1024 * 1024)).toFixed(2)} TB`
+        : `${(allocated / (1024 * 1024 * 1024)).toFixed(1)} GB`,
+    isUnlimited,
     totalCount
   };
 };
@@ -109,6 +129,10 @@ export const processUploadedAsset = async (assetId, channelId) => {
 
     const channelFolder = getChannelFolderName(channelId, channelName);
     asset.thumbnailPath = `uploads/${channelFolder}/thumbnails_img/${thumbFilename}`;
+    await asset.save();
+
+    // Recalculate channel storage after thumbnail generation
+    await calculateChannelStorage(channelId);
 
     // Step 3: Normalization check
     // Low CPU priority: if video is already 1280x720, 25fps, h264, keep as-is!
@@ -129,6 +153,15 @@ export const processUploadedAsset = async (assetId, channelId) => {
 
       await normalizeVideo(absoluteVideoPath, normPath);
 
+      // Remove raw upload file if normalized video was created
+      if (fs.existsSync(absoluteVideoPath) && path.resolve(absoluteVideoPath) !== path.resolve(normPath)) {
+        try {
+          fs.unlinkSync(absoluteVideoPath);
+        } catch (e) {
+          console.warn('[AssetService] Could not unlink pre-normalized video:', e.message);
+        }
+      }
+
       // Replace filePath with normalized video
       asset.filePath = path.relative(SERVER_ROOT, normPath).replace(/\\/g, '/');
       const normStats = fs.statSync(normPath);
@@ -140,6 +173,9 @@ export const processUploadedAsset = async (assetId, channelId) => {
     // Mark READY
     asset.status = ASSET_STATUS.READY;
     await asset.save();
+
+    // Recalculate channel storage after video processing
+    await calculateChannelStorage(channelId);
 
     if (io) {
       io.to(`channel:${channelId}`).emit('asset_ready', {

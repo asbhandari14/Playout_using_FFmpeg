@@ -38,6 +38,8 @@ export const getEmptyChannelForm = () => ({
   serverPassword: '',
   assignedUser: '',
   streamKey: '',
+  allocatedStorageAmount: '',
+  allocatedStorageUnit: 'GB',
   resolution: '1280x720',
   fps: 25,
   videoBitrate: '2500k',
