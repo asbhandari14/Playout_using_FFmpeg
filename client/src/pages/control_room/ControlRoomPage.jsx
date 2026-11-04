@@ -3,28 +3,28 @@ import { useParams } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { io } from 'socket.io-client';
 
-import { fetchChannelById, updateChannelStatus, updateCurrentChannelBranding } from '../store/slices/channelSlice.js';
+import { fetchChannelById, updateChannelStatus, updateCurrentChannelBranding } from '../../store/slices/channelSlice.js';
 import {
   fetchAssets,
   updateAssetProgress,
   updateAssetReady,
   updateAssetFailed
-} from '../store/slices/assetSlice.js';
+} from '../../store/slices/assetSlice.js';
 import {
   fetchPlaylist,
   setPlaylistState,
   addItem
-} from '../store/slices/playlistSlice.js';
-import api from '../api/axios.js';
+} from '../../store/slices/playlistSlice.js';
+import api from '../../api/axios.js';
 
-import BroadcastHeader from '../components/BroadcastHeader.jsx';
-import AssetLibrary from '../components/AssetLibrary.jsx';
-import VideoSection from '../components/VideoSection.jsx';
-import PlaylistTable from '../components/PlaylistTable.jsx';
-import LiveControls from '../components/LiveControls.jsx';
-import Modal from '../components/Modal.jsx';
-import MoreSettingsModal from '../components/MoreSettingsModal.jsx';
-import ScheduleModal from '../components/ScheduleModal.jsx';
+import BroadcastHeader from '../../components/BroadcastHeader.jsx';
+import AssetLibrary from '../../components/AssetLibrary.jsx';
+import VideoSection from '../../components/VideoSection.jsx';
+import PlaylistTable from '../../components/PlaylistTable.jsx';
+import LiveControls from '../../components/LiveControls.jsx';
+import Modal from '../../components/Modal.jsx';
+import MoreSettingsModal from '../../components/MoreSettingsModal.jsx';
+import ScheduleModal from '../../components/ScheduleModal.jsx';
 
 export default function ControlRoomPage() {
   const { channelId } = useParams();
@@ -190,7 +190,7 @@ export default function ControlRoomPage() {
       {/* Main 3-Column Studio Layout */}
       <div className="flex-1 flex overflow-hidden">
         {/* LEFT PANEL: Assets Library (approx 22% width / 300px min) */}
-        <div className="w-[300px] xl:w-[340px] shrink-0 h-full flex flex-col">
+        <div className="w-75 xl:w-85 shrink-0 h-full flex flex-col">
           <AssetLibrary
             channelId={channelId}
             onAddToPlaylist={handleAddToPlaylist}
@@ -198,7 +198,7 @@ export default function ControlRoomPage() {
         </div>
 
         {/* CENTER PANEL: Playout Production Deck (Video Section + Broadcast Window Table) */}
-        <div className="flex-1 h-full flex flex-col overflow-hidden min-w-[500px]">
+        <div className="flex-1 h-full flex flex-col overflow-hidden min-w-125">
           {/* Top of center: Local Preview + Live PGM Players */}
           <VideoSection
             channel={currentChannel}
@@ -217,7 +217,7 @@ export default function ControlRoomPage() {
         </div>
 
         {/* RIGHT PANEL: Live Controls (Logo & Ticker Tabs, approx 24% width / 320px min) */}
-        <div className="w-[310px] xl:w-[350px] shrink-0 h-full flex flex-col">
+        <div className="w-77.5 xl:w-87.5 shrink-0 h-full flex flex-col">
           <LiveControls
             channel={currentChannel}
             currentOnAirSchedule={currentOnAirSchedule}

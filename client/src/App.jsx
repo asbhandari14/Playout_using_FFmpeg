@@ -1,14 +1,12 @@
 import React, { useEffect } from 'react';
-import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { checkAuth } from './store/slices/authSlice.js';
 
-import LoginPage from './pages/LoginPage.jsx';
+import Login from './pages/auth/Login.jsx';
 import Dashboard from './pages/dashboard/Dashboard.jsx';
-import ChannelsPage from './pages/ChannelsPage.jsx';
-import ServersPage from './pages/ServersPage.jsx';
-import UsersPage from './pages/UsersPage.jsx';
-import ControlRoomPage from './pages/ControlRoomPage.jsx';
+import ControlRoomPage from './pages/control_room/ControlRoomPage.jsx';
+import AllChannels from './pages/channel/AllChannels.jsx';
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated, loading } = useSelector((state) => state.auth);
@@ -51,7 +49,7 @@ export default function App() {
 
   return (
     <Routes>
-      <Route path="/login" element={<LoginPage />} />
+      <Route path="/login" element={<Login />} />
 
       <Route
         path="/dashboard"
@@ -66,7 +64,7 @@ export default function App() {
         path="/channels"
         element={
           <ProtectedRoute>
-            <ChannelsPage />
+            <AllChannels />
           </ProtectedRoute>
         }
       />
@@ -84,19 +82,19 @@ export default function App() {
         path="/servers"
         element={
           <AdminRoute>
-            <ServersPage />
+            <Dashboard initialSection="servers" />
           </AdminRoute>
         }
       />
 
-      <Route
+      {/* <Route
         path="/users"
         element={
           <AdminRoute>
             <UsersPage />
           </AdminRoute>
         }
-      />
+      /> */}
 
       {/* Default route redirect */}
       <Route path="/" element={<Navigate to="/channels" replace />} />

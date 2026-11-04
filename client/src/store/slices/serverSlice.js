@@ -72,7 +72,7 @@ const serverSlice = createSlice({
       })
       .addCase(fetchServers.fulfilled, (state, action) => {
         state.loading = false;
-        state.list = action.payload.servers;
+        state.list = action.payload?.servers || (Array.isArray(action.payload) ? action.payload : []);
       })
       .addCase(fetchServers.rejected, (state, action) => {
         state.loading = false;

@@ -853,13 +853,14 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                 ) : null}
               </div>
 
+              {console.log("bugAssetPath", `${import.meta.env.VITE_API_URL}/${bugAssetPath}`)}
               {/* Bug preview + Browse button */}
               <div className="flex items-center gap-3">
                 <div className="w-14 h-14 rounded-xl bg-[#090c12] border border-[#222938] overflow-hidden flex items-center justify-center p-1.5 shrink-0 relative">
                   {bugAssetPath ? (
                     bugIsMov || bugAssetPath.toLowerCase().endsWith('.mov') ? (
                       <video
-                        src={`/${bugAssetPath}`}
+                        src={`${import.meta.env.VITE_API_URL}/${bugAssetPath}`}
                         autoPlay
                         loop
                         muted
