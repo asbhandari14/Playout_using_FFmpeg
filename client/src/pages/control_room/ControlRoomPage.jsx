@@ -11,20 +11,21 @@ import {
   updateAssetFailed
 } from '../../store/slices/assetSlice.js';
 import {
-  fetchPlaylist,
+  fetchPlaylists,
+  fetchActivePlaylist,
   setPlaylistState,
   addItem
 } from '../../store/slices/playlistSlice.js';
 import api from '../../api/axios.js';
 
-import BroadcastHeader from '../../components/BroadcastHeader.jsx';
-import AssetLibrary from '../../components/AssetLibrary.jsx';
+import BroadcastHeader from '../../components/header/BroadcastHeader.jsx';
+import AssetLibrary from '../../components/asset/AssetLibrary.jsx';
 import VideoSection from '../../components/VideoSection.jsx';
-import PlaylistTable from '../../components/PlaylistTable.jsx';
+import PlaylistTable from '../../components/table/PlaylistTable.jsx';
 import LiveControls from '../../components/LiveControls.jsx';
-import Modal from '../../components/Modal.jsx';
-import MoreSettingsModal from '../../components/MoreSettingsModal.jsx';
-import ScheduleModal from '../../components/ScheduleModal.jsx';
+import Modal from '../../components/modals/Modal.jsx';
+import MoreSettingsModal from '../../components/modals/MoreSettingsModal.jsx';
+import ScheduleModal from '../../components/modals/ScheduleModal.jsx';
 
 export default function ControlRoomPage() {
   const { channelId } = useParams();
@@ -45,7 +46,8 @@ export default function ControlRoomPage() {
     if (channelId) {
       dispatch(fetchChannelById(channelId));
       dispatch(fetchAssets({ channelId, category: categoryFilter, search: searchQuery }));
-      dispatch(fetchPlaylist(channelId));
+      dispatch(fetchPlaylists(channelId));
+      dispatch(fetchActivePlaylist(channelId));
     }
   }, [dispatch, channelId, categoryFilter, searchQuery]);
 
@@ -76,13 +78,15 @@ export default function ControlRoomPage() {
       socket.emit('join_channel', channelId);
       // Re-sync channel data and playlist immediately upon socket connection or reconnection
       dispatch(fetchChannelById(channelId));
-      dispatch(fetchPlaylist(channelId));
+      dispatch(fetchPlaylists(channelId));
+      dispatch(fetchActivePlaylist(channelId));
     });
 
     const handleOnline = () => {
       console.log('[Network] Internet connectivity restored. Re-syncing channel and playlist...');
       dispatch(fetchChannelById(channelId));
-      dispatch(fetchPlaylist(channelId));
+      dispatch(fetchPlaylists(channelId));
+      dispatch(fetchActivePlaylist(channelId));
       if (!socket.connected) {
         socket.connect();
       }
@@ -103,6 +107,11 @@ export default function ControlRoomPage() {
 
     socket.on('playlist_updated', (data) => {
       dispatch(setPlaylistState(data));
+    });
+
+    socket.on('playlists_updated', () => {
+      dispatch(fetchPlaylists(channelId));
+      dispatch(fetchActivePlaylist(channelId));
     });
 
     socket.on('branding_updated', (data) => {
@@ -189,6 +198,7 @@ export default function ControlRoomPage() {
 
       {/* Main 3-Column Studio Layout */}
       <div className="flex-1 flex overflow-hidden">
+
         {/* LEFT PANEL: Assets Library (approx 22% width / 300px min) */}
         <div className="w-75 xl:w-85 shrink-0 h-full flex flex-col">
           <AssetLibrary

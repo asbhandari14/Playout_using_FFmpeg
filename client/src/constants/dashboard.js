@@ -53,3 +53,18 @@ export const getEmptyServerForm = () => ({
   serverUsername: 'admin',
   serverPassword: ''
 });
+
+export const getEmptyPlaylistForm = (type = 'default') => ({
+  name: '',
+  channel: '',
+  type: type || 'default',
+  scheduleOption: 'none',
+  startDate: '',
+  endDate: '',
+  startTime: '',
+  endTime: '',
+  daysOfWeek: [],
+  liveSourceUrl: '',
+  loop: true,
+  isActive: true
+});

@@ -11,10 +11,10 @@ import {
   ChevronDown,
   FileVideo
 } from 'lucide-react';
-import useAssetLibrary from '../hooks/useAssetLibrary.js';
-import ConfirmDeleteModal from './ConfirmDeleteModal.jsx';
-import AssetUploadModal from './Asset/AssetUploadModal.jsx';
-import AssetStorageFooter from './Asset/AssetStorageFooter.jsx';
+import useAssetLibrary from '../../hooks/useAssetLibrary.js';
+import ConfirmDeleteModal from '../modals/ConfirmDeleteModal.jsx';
+import AssetUploadModal from './AssetUploadModal.jsx';
+import AssetStorageFooter from './AssetStorageFooter.jsx';
 
 export default function AssetLibrary({ channelId, onAddToPlaylist }) {
   const {
@@ -129,11 +129,10 @@ export default function AssetLibrary({ channelId, onAddToPlaylist }) {
                 draggable={isReady}
                 onDragStart={(e) => handleDragStart(e, asset)}
                 onClick={() => handleSelectAsset(asset)}
-                className={`p-2 rounded-xl border transition cursor-pointer group flex items-center gap-2.5 ${
-                  isSelected
-                    ? 'bg-[#182030] border-blue-500/80 shadow-md shadow-blue-500/10'
-                    : 'bg-[#151922] border-[#222938] hover:border-[#2f394d] hover:bg-[#181d28]'
-                }`}
+                className={`p-2 rounded-xl border transition cursor-pointer group flex items-center gap-2.5 ${isSelected
+                  ? 'bg-[#182030] border-blue-500/80 shadow-md shadow-blue-500/10'
+                  : 'bg-[#151922] border-[#222938] hover:border-[#2f394d] hover:bg-[#181d28]'
+                  }`}
               >
                 {/* Drag Handle */}
                 <div

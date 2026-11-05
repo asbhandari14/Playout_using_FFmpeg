@@ -2,18 +2,29 @@ import React from 'react';
 import { CheckCircle2, AlertCircle } from 'lucide-react';
 
 import useDashboard from '../../hooks/useDashboard.js';
-import ConfirmDeleteModal from '../../components/ConfirmDeleteModal.jsx';
-import DashboardHeader from '../../components/Header/DashboardHeader.jsx';
-import DashboardSidebar from '../../components/Sidebar/DashboardSidebar.jsx';
+import ConfirmDeleteModal from '../../components/modals/ConfirmDeleteModal.jsx';
+import DashboardHeader from '../../components/header/DashboardHeader.jsx';
+import DashboardSidebar from '../../components/sidebar/DashboardSidebar.jsx';
+
 import User from '../auth/User.jsx';
-import UserForm from '../../components/Form/UserForm.jsx';
+import CreateUserForm from '../../components/form/CreateUserForm.jsx';
+import UpdateUserForm from '../../components/form/UpdateUserForm.jsx';
+
 import Channel from '../channel/Channel.jsx';
-import ChannelForm from '../../components/Form/ChannelForm.jsx';
+import CreateChannelForm from '../../components/form/CreateChannelForm.jsx';
+import UpdateChannelForm from '../../components/form/UpdateChannelForm.jsx';
+
 import Server from '../server/Server.jsx';
-import ServerForm from '../../components/Form/ServerForm.jsx';
+import CreateServerForm from '../../components/form/CreateServerForm.jsx';
+import UpdateServerForm from '../../components/form/UpdateServerForm.jsx';
+
+import PlaylistSection from '../playlist/PlaylistSection.jsx';
+import CreatePlaylistForm from '../../components/form/CreatePlaylistForm.jsx';
+import UpdatePlaylistForm from '../../components/form/UpdatePlaylistForm.jsx';
+
 import ModulePlaceholder from '../../components/placeholder/ModulePlaceholder.jsx';
 
-export default function Dashboard({ initialSection = 'channels' }) {
+export default function Dashboard({ initialSection = 'channels', initialSubView = 'list' }) {
   const {
     currentUser,
     users,
@@ -22,6 +33,11 @@ export default function Dashboard({ initialSection = 'channels' }) {
     filteredUsers,
     filteredChannels,
     filteredServers,
+    defaultPlaylists,
+    schedulingPlaylists,
+    liveSchedulePlaylists,
+    advertisementPlaylists,
+    emergencyPlaylists,
     nav,
     alerts,
     searchQuery,
@@ -31,9 +47,10 @@ export default function Dashboard({ initialSection = 'channels' }) {
     userForm,
     channelForm,
     serverForm,
+    playlistForm,
     deleteModal,
     actions
-  } = useDashboard(initialSection);
+  } = useDashboard(initialSection, initialSubView);
 
   const { activeSection, subView } = nav;
   const isFormView = subView === 'create' || subView === 'edit';
@@ -41,6 +58,7 @@ export default function Dashboard({ initialSection = 'channels' }) {
 
   return (
     <div className="min-h-screen bg-[#07090e] text-slate-100 flex flex-col font-sans select-none overflow-x-hidden">
+      {/* Dashboard Header */}
       <DashboardHeader
         currentUser={currentUser}
         isProfileMenuOpen={nav.isProfileMenuOpen}
@@ -51,6 +69,7 @@ export default function Dashboard({ initialSection = 'channels' }) {
       />
 
       <div className="flex-1 flex overflow-hidden">
+        {/* Dashboard Sidebar */}
         <DashboardSidebar
           currentUser={currentUser}
           isOpen={nav.isSidebarOpen}
@@ -73,18 +92,28 @@ export default function Dashboard({ initialSection = 'channels' }) {
             </div>
           )}
 
-          {/* Channels */}
+          {/* 1. Channels */}
           {(activeSection === 'channels' || activeSection === 'dashboard') &&
             (isFormView ? (
-              <ChannelForm
-                mode={subView}
-                formData={channelForm.data}
-                setFormData={channelForm.setData}
-                servers={servers}
-                users={users}
-                onSubmit={channelForm.submit}
-                onCancel={() => nav.setSubView('list')}
-              />
+              subView === 'create' ? (
+                <CreateChannelForm
+                  formData={channelForm.data}
+                  setFormData={channelForm.setData}
+                  servers={servers}
+                  users={users}
+                  onSubmit={channelForm.submit}
+                  onCancel={() => nav.setSubView('list')}
+                />
+              ) : (
+                <UpdateChannelForm
+                  formData={channelForm.data}
+                  setFormData={channelForm.setData}
+                  servers={servers}
+                  users={users}
+                  onSubmit={channelForm.submit}
+                  onCancel={() => nav.setSubView('list')}
+                />
+              )
             ) : (
               <Channel
                 channels={filteredChannels}
@@ -99,16 +128,24 @@ export default function Dashboard({ initialSection = 'channels' }) {
               />
             ))}
 
-          {/* Servers */}
+          {/* 2. Servers */}
           {activeSection === 'servers' &&
             (isFormView ? (
-              <ServerForm
-                mode={subView}
-                formData={serverForm.data}
-                setFormData={serverForm.setData}
-                onSubmit={serverForm.submit}
-                onCancel={() => nav.setSubView('list')}
-              />
+              subView === 'create' ? (
+                <CreateServerForm
+                  formData={serverForm.data}
+                  setFormData={serverForm.setData}
+                  onSubmit={serverForm.submit}
+                  onCancel={() => nav.setSubView('list')}
+                />
+              ) : (
+                <UpdateServerForm
+                  formData={serverForm.data}
+                  setFormData={serverForm.setData}
+                  onSubmit={serverForm.submit}
+                  onCancel={() => nav.setSubView('list')}
+                />
+              )
             ) : (
               <Server
                 servers={filteredServers}
@@ -122,17 +159,26 @@ export default function Dashboard({ initialSection = 'channels' }) {
               />
             ))}
 
-          {/* Users */}
+          {/* 3. Users */}
           {activeSection === 'users' &&
             (isFormView ? (
-              <UserForm
-                mode={subView}
-                formData={userForm.data}
-                setFormData={userForm.setData}
-                onTogglePermission={userForm.togglePermission}
-                onSubmit={userForm.submit}
-                onCancel={() => nav.setSubView('list')}
-              />
+              subView === 'create' ? (
+                <CreateUserForm
+                  formData={userForm.data}
+                  setFormData={userForm.setData}
+                  onTogglePermission={userForm.togglePermission}
+                  onSubmit={userForm.submit}
+                  onCancel={() => nav.setSubView('list')}
+                />
+              ) : (
+                <UpdateUserForm
+                  formData={userForm.data}
+                  setFormData={userForm.setData}
+                  onTogglePermission={userForm.togglePermission}
+                  onSubmit={userForm.submit}
+                  onCancel={() => nav.setSubView('list')}
+                />
+              )
             ) : (
               <User
                 users={filteredUsers}
@@ -144,11 +190,213 @@ export default function Dashboard({ initialSection = 'channels' }) {
               />
             ))}
 
-          {/* Other sections fallback */}
+          {/* 4. Emergency Playlist (Priority 5) */}
+          {activeSection === 'emergency_playlist' &&
+            (isFormView ? (
+              subView === 'create' ? (
+                <CreatePlaylistForm
+                  formData={playlistForm.data}
+                  setFormData={playlistForm.setData}
+                  channels={channels}
+                  forcedType="emergency"
+                  onSubmit={playlistForm.submit}
+                  onCancel={() => nav.setSubView('list')}
+                />
+              ) : (
+                <UpdatePlaylistForm
+                  formData={playlistForm.data}
+                  setFormData={playlistForm.setData}
+                  channels={channels}
+                  forcedType="emergency"
+                  onSubmit={playlistForm.submit}
+                  onCancel={() => nav.setSubView('list')}
+                />
+              )
+            ) : (
+              <PlaylistSection
+                type="emergency"
+                playlists={emergencyPlaylists}
+                searchQuery={searchQuery}
+                onSearchChange={setSearchQuery}
+                onCreate={() => playlistForm.openCreate('emergency')}
+                onEdit={playlistForm.openEdit}
+                onDelete={(item) => deleteModal.prompt('playlist', item)}
+                onOpenStudio={actions.openChannelStudio}
+              />
+            ))}
+
+          {/* 5. Advertisement Playlist (Priority 4) */}
+          {activeSection === 'advertisement_playlist' &&
+            (isFormView ? (
+              subView === 'create' ? (
+                <CreatePlaylistForm
+                  formData={playlistForm.data}
+                  setFormData={playlistForm.setData}
+                  channels={channels}
+                  forcedType="advertisement"
+                  onSubmit={playlistForm.submit}
+                  onCancel={() => nav.setSubView('list')}
+                />
+              ) : (
+                <UpdatePlaylistForm
+                  formData={playlistForm.data}
+                  setFormData={playlistForm.setData}
+                  channels={channels}
+                  forcedType="advertisement"
+                  onSubmit={playlistForm.submit}
+                  onCancel={() => nav.setSubView('list')}
+                />
+              )
+            ) : (
+              <PlaylistSection
+                type="advertisement"
+                playlists={advertisementPlaylists}
+                searchQuery={searchQuery}
+                onSearchChange={setSearchQuery}
+                onCreate={() => playlistForm.openCreate('advertisement')}
+                onEdit={playlistForm.openEdit}
+                onDelete={(item) => deleteModal.prompt('playlist', item)}
+                onOpenStudio={actions.openChannelStudio}
+              />
+            ))}
+
+          {/* 6. Live Scheduling (Priority 3) */}
+          {activeSection === 'live_schedule' &&
+            (isFormView ? (
+              subView === 'create' ? (
+                <CreatePlaylistForm
+                  formData={playlistForm.data}
+                  setFormData={playlistForm.setData}
+                  channels={channels}
+                  forcedType="live_schedule"
+                  onSubmit={playlistForm.submit}
+                  onCancel={() => nav.setSubView('list')}
+                />
+              ) : (
+                <UpdatePlaylistForm
+                  formData={playlistForm.data}
+                  setFormData={playlistForm.setData}
+                  channels={channels}
+                  forcedType="live_schedule"
+                  onSubmit={playlistForm.submit}
+                  onCancel={() => nav.setSubView('list')}
+                />
+              )
+            ) : (
+              <PlaylistSection
+                type="live_schedule"
+                playlists={liveSchedulePlaylists}
+                searchQuery={searchQuery}
+                onSearchChange={setSearchQuery}
+                onCreate={() => playlistForm.openCreate('live_schedule')}
+                onEdit={playlistForm.openEdit}
+                onDelete={(item) => deleteModal.prompt('playlist', item)}
+                onOpenStudio={actions.openChannelStudio}
+              />
+            ))}
+
+          {/* 7. Scheduling Playlist (Priority 2) */}
+          {activeSection === 'scheduling_playlist' &&
+            (isFormView ? (
+              subView === 'create' ? (
+                <CreatePlaylistForm
+                  formData={playlistForm.data}
+                  setFormData={playlistForm.setData}
+                  channels={channels}
+                  forcedType="scheduling"
+                  onSubmit={playlistForm.submit}
+                  onCancel={() => nav.setSubView('list')}
+                />
+              ) : (
+                <UpdatePlaylistForm
+                  formData={playlistForm.data}
+                  setFormData={playlistForm.setData}
+                  channels={channels}
+                  forcedType="scheduling"
+                  onSubmit={playlistForm.submit}
+                  onCancel={() => nav.setSubView('list')}
+                />
+              )
+            ) : (
+              <PlaylistSection
+                type="scheduling"
+                playlists={schedulingPlaylists}
+                searchQuery={searchQuery}
+                onSearchChange={setSearchQuery}
+                onCreate={() => playlistForm.openCreate('scheduling')}
+                onEdit={playlistForm.openEdit}
+                onDelete={(item) => deleteModal.prompt('playlist', item)}
+                onOpenStudio={actions.openChannelStudio}
+              />
+            ))}
+
+          {/* 8. Default Playlist (Priority 1) */}
+          {activeSection === 'default_playlist' &&
+            (isFormView ? (
+              subView === 'create' ? (
+                <CreatePlaylistForm
+                  formData={playlistForm.data}
+                  setFormData={playlistForm.setData}
+                  channels={channels}
+                  forcedType="default"
+                  onSubmit={playlistForm.submit}
+                  onCancel={() => nav.setSubView('list')}
+                />
+              ) : (
+                <UpdatePlaylistForm
+                  formData={playlistForm.data}
+                  setFormData={playlistForm.setData}
+                  channels={channels}
+                  forcedType="default"
+                  onSubmit={playlistForm.submit}
+                  onCancel={() => nav.setSubView('list')}
+                />
+              )
+            ) : (
+              <PlaylistSection
+                type="default"
+                playlists={defaultPlaylists}
+                searchQuery={searchQuery}
+                onSearchChange={setSearchQuery}
+                onCreate={() => playlistForm.openCreate('default')}
+                onEdit={playlistForm.openEdit}
+                onDelete={(item) => deleteModal.prompt('playlist', item)}
+                onOpenStudio={actions.openChannelStudio}
+              />
+            ))}
+
+          {/* General Playlist Form */}
+          {activeSection === 'playlists' && isFormView && (
+            subView === 'create' ? (
+              <CreatePlaylistForm
+                formData={playlistForm.data}
+                setFormData={playlistForm.setData}
+                channels={channels}
+                onSubmit={playlistForm.submit}
+                onCancel={() => nav.setSubView('list')}
+              />
+            ) : (
+              <UpdatePlaylistForm
+                formData={playlistForm.data}
+                setFormData={playlistForm.setData}
+                channels={channels}
+                onSubmit={playlistForm.submit}
+                onCancel={() => nav.setSubView('list')}
+              />
+            )
+          )}
+
+          {/* Fallback for other sections */}
           {activeSection !== 'users' &&
             activeSection !== 'channels' &&
             activeSection !== 'dashboard' &&
-            activeSection !== 'servers' && (
+            activeSection !== 'servers' &&
+            activeSection !== 'default_playlist' &&
+            activeSection !== 'scheduling_playlist' &&
+            activeSection !== 'live_schedule' &&
+            activeSection !== 'advertisement_playlist' &&
+            activeSection !== 'emergency_playlist' &&
+            activeSection !== 'playlists' && (
               <ModulePlaceholder
                 section={activeSection}
                 firstChannel={channels[0]}
@@ -167,7 +415,9 @@ export default function Dashboard({ initialSection = 'channels' }) {
             ? 'Confirm Delete User'
             : deleteType === 'server'
             ? 'Confirm Delete Server'
-            : 'Confirm Delete Channel'
+            : deleteType === 'channel'
+            ? 'Confirm Delete Channel'
+            : 'Confirm Delete Playlist'
         }
         itemName={deleteItem?.name || ''}
         message={
@@ -175,7 +425,9 @@ export default function Dashboard({ initialSection = 'channels' }) {
             ? `Are you sure you want to delete user '${deleteItem?.name}' (${deleteItem?.email})? All assigned channels and access permissions will be revoked.`
             : deleteType === 'server'
             ? `Are you sure you want to delete server '${deleteItem?.name}'? Channels configured with this media server will be affected.`
-            : `Are you sure you want to delete channel '${deleteItem?.name}'? Active live broadcast streams, playout schedules, and HLS playlists will be permanently removed.`
+            : deleteType === 'channel'
+            ? `Are you sure you want to delete channel '${deleteItem?.name}'? Active live broadcast streams, playout schedules, and HLS playlists will be permanently removed.`
+            : `Are you sure you want to delete playlist '${deleteItem?.name}'? Its schedule and associated items will be permanently removed.`
         }
         confirmText="Confirm Delete"
       />

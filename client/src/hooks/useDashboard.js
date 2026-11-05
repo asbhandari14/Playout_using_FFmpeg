@@ -1,7 +1,8 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
+import api from '../api/axios.js';
 
 import {
   fetchUsers,
@@ -30,7 +31,8 @@ import {
   DEFAULT_SERVER_URL,
   getEmptyUserForm,
   getEmptyChannelForm,
-  getEmptyServerForm
+  getEmptyServerForm,
+  getEmptyPlaylistForm
 } from '../constants/dashboard.js';
 import {
   storageToBytes,
@@ -38,7 +40,7 @@ import {
   formatStorageComparison
 } from './useStorageCalc.js';
 
-export default function useDashboard(initialSection = 'channels') {
+export default function useDashboard(initialSection = 'channels', initialSubView = 'list') {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
@@ -48,11 +50,15 @@ export default function useDashboard(initialSection = 'channels') {
   const { list: channels, error: channelError, successMessage: channelSuccess } = useSelector((state) => state.channels);
   const { list: servers, error: serverError, successMessage: serverSuccess } = useSelector((state) => state.servers);
 
+  // ---------- Playlists state ----------
+  const [playlists, setPlaylists] = useState([]);
+  const [playlistAlert, setPlaylistAlert] = useState({ success: '', error: '' });
+
   // ---------- Navigation state ----------
-  // activeSection: 'channels' | 'servers' | 'users' | 'upload' | 'analytics' | ...
+  // activeSection: 'channels' | 'servers' | 'users' | 'default_playlist' | 'scheduling_playlist' | 'live_schedule' | 'advertisement_playlist' | 'emergency_playlist'
   const [activeSection, setActiveSection] = useState(initialSection);
   // subView: 'list' | 'create' | 'edit'
-  const [subView, setSubView] = useState('list');
+  const [subView, setSubView] = useState(initialSubView);
   const [isSidebarOpen] = useState(true);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
 
@@ -61,7 +67,7 @@ export default function useDashboard(initialSection = 'channels') {
   const [copiedUrl, setCopiedUrl] = useState('');
   const [deleteModalState, setDeleteModalState] = useState({
     isOpen: false,
-    type: null, // 'user' | 'channel' | 'server'
+    type: null, // 'user' | 'channel' | 'server' | 'playlist'
     item: null
   });
 
@@ -72,18 +78,31 @@ export default function useDashboard(initialSection = 'channels') {
   const [channelFormData, setChannelFormData] = useState(getEmptyChannelForm());
   const [editingServerId, setEditingServerId] = useState(null);
   const [serverFormData, setServerFormData] = useState(getEmptyServerForm());
+  const [editingPlaylistId, setEditingPlaylistId] = useState(null);
+  const [playlistFormData, setPlaylistFormData] = useState(getEmptyPlaylistForm());
 
   // ---------- Initial fetch + reconnect recovery + socket ----------
+  const fetchDashboardPlaylists = useCallback(async () => {
+    try {
+      const res = await api.get('/playlists');
+      setPlaylists(res.data?.playlists || []);
+    } catch (err) {
+      console.warn('[Dashboard] Error fetching playlists:', err.message);
+    }
+  }, []);
+
   useEffect(() => {
     dispatch(fetchUsers());
     dispatch(fetchChannels());
     dispatch(fetchServers());
+    fetchDashboardPlaylists();
 
     const handleOnline = () => {
       console.log('[Dashboard] Internet connectivity restored. Re-fetching channels, users, and servers...');
       dispatch(fetchChannels());
       dispatch(fetchUsers());
       dispatch(fetchServers());
+      fetchDashboardPlaylists();
     };
     window.addEventListener('online', handleOnline);
 
@@ -96,6 +115,7 @@ export default function useDashboard(initialSection = 'channels') {
 
     socket.on('connect', () => {
       dispatch(fetchChannels());
+      fetchDashboardPlaylists();
     });
 
     socket.on('stream_status', () => {
@@ -106,11 +126,23 @@ export default function useDashboard(initialSection = 'channels') {
       dispatch(fetchChannels());
     });
 
+    socket.on('playlists_updated', () => {
+      fetchDashboardPlaylists();
+    });
+
     return () => {
       window.removeEventListener('online', handleOnline);
       socket.disconnect();
     };
-  }, [dispatch]);
+  }, [dispatch, fetchDashboardPlaylists]);
+
+  // ---------- Auto-clear alerts after 4s ----------
+  useEffect(() => {
+    if (playlistAlert.success || playlistAlert.error) {
+      const timer = setTimeout(() => setPlaylistAlert({ success: '', error: '' }), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [playlistAlert]);
 
   // ---------- Auto-clear alerts after 4s ----------
   useEffect(() => {
@@ -175,6 +207,37 @@ export default function useDashboard(initialSection = 'channels') {
         (s.category && s.category.toLowerCase().includes(q))
     );
   }, [servers, searchQuery]);
+
+  const filteredPlaylists = useMemo(() => {
+    if (!searchQuery) return playlists;
+    const q = searchQuery.toLowerCase();
+    return playlists.filter(
+      (p) =>
+        (p.name && p.name.toLowerCase().includes(q)) ||
+        (p.type && p.type.toLowerCase().includes(q)) ||
+        (p.channel?.name && p.channel.name.toLowerCase().includes(q))
+    );
+  }, [playlists, searchQuery]);
+
+  const defaultPlaylists = useMemo(() => {
+    return filteredPlaylists.filter((p) => p.type === 'default');
+  }, [filteredPlaylists]);
+
+  const schedulingPlaylists = useMemo(() => {
+    return filteredPlaylists.filter((p) => p.type === 'scheduling');
+  }, [filteredPlaylists]);
+
+  const liveSchedulePlaylists = useMemo(() => {
+    return filteredPlaylists.filter((p) => p.type === 'live_schedule');
+  }, [filteredPlaylists]);
+
+  const advertisementPlaylists = useMemo(() => {
+    return filteredPlaylists.filter((p) => p.type === 'advertisement');
+  }, [filteredPlaylists]);
+
+  const emergencyPlaylists = useMemo(() => {
+    return filteredPlaylists.filter((p) => p.type === 'emergency');
+  }, [filteredPlaylists]);
 
   // ---------- Navigation / header actions ----------
   const goToSection = (section) => {
@@ -400,6 +463,92 @@ export default function useDashboard(initialSection = 'channels') {
     setSubView('list');
   };
 
+  // ---------- Playlist handlers ----------
+  const openCreatePlaylist = (forcedType = 'default') => {
+    setEditingPlaylistId(null);
+    setPlaylistFormData({
+      ...getEmptyPlaylistForm(forcedType),
+      channel: channels[0]?._id || ''
+    });
+    const sectionMap = {
+      default: 'default_playlist',
+      scheduling: 'scheduling_playlist',
+      live_schedule: 'live_schedule',
+      advertisement: 'advertisement_playlist',
+      emergency: 'emergency_playlist'
+    };
+    setActiveSection(sectionMap[forcedType] || 'default_playlist');
+    setSubView('create');
+  };
+
+  const openEditPlaylist = (p) => {
+    setEditingPlaylistId(p._id);
+    const channelId = p.channel?._id || p.channel || '';
+    setPlaylistFormData({
+      name: p.name || '',
+      channel: channelId,
+      type: p.type || 'default',
+      priority: p.priority || 1,
+      scheduleOption: p.scheduleOption || 'none',
+      startDate: p.startDate ? new Date(p.startDate).toISOString().split('T')[0] : '',
+      endDate: p.endDate ? new Date(p.endDate).toISOString().split('T')[0] : '',
+      startTime: p.startTime || '',
+      endTime: p.endTime || '',
+      daysOfWeek: Array.isArray(p.daysOfWeek) ? [...p.daysOfWeek] : [],
+      liveSourceUrl: p.liveSourceUrl || '',
+      loop: p.loop !== undefined ? p.loop : true,
+      isActive: p.isActive !== undefined ? p.isActive : true
+    });
+    const sectionMap = {
+      default: 'default_playlist',
+      scheduling: 'scheduling_playlist',
+      live_schedule: 'live_schedule',
+      advertisement: 'advertisement_playlist',
+      emergency: 'emergency_playlist'
+    };
+    setActiveSection(sectionMap[p.type] || 'default_playlist');
+    setSubView('edit');
+  };
+
+  const submitPlaylist = async (e) => {
+    e.preventDefault();
+    const f = playlistFormData;
+
+    if (!f.name || !f.channel) {
+      alert('Playlist name and channel are required');
+      return;
+    }
+
+    try {
+      const payload = {
+        name: f.name,
+        channelId: f.channel,
+        type: f.type,
+        scheduleOption: f.scheduleOption,
+        startDate: f.startDate || null,
+        endDate: f.endDate || null,
+        startTime: f.startTime || '',
+        endTime: f.endTime || '',
+        daysOfWeek: f.daysOfWeek || [],
+        liveSourceUrl: f.liveSourceUrl || '',
+        loop: Boolean(f.loop),
+        isActive: Boolean(f.isActive)
+      };
+
+      if (editingPlaylistId) {
+        await api.put(`/playlists/${editingPlaylistId}`, payload);
+        setPlaylistAlert({ success: 'Playlist updated successfully', error: '' });
+      } else {
+        await api.post('/playlists', payload);
+        setPlaylistAlert({ success: 'Playlist created successfully', error: '' });
+      }
+      await fetchDashboardPlaylists();
+      setSubView('list');
+    } catch (err) {
+      setPlaylistAlert({ success: '', error: err.response?.data?.message || 'Error saving playlist' });
+    }
+  };
+
   // ---------- Delete confirmation ----------
   const promptDelete = (type, item) => {
     setDeleteModalState({ isOpen: true, type, item });
@@ -419,6 +568,14 @@ export default function useDashboard(initialSection = 'channels') {
       await dispatch(deleteChannel(item._id));
     } else if (type === 'server') {
       await dispatch(deleteServer(item._id));
+    } else if (type === 'playlist') {
+      try {
+        await api.delete(`/playlists/${item._id}`);
+        setPlaylistAlert({ success: 'Playlist deleted successfully', error: '' });
+        await fetchDashboardPlaylists();
+      } catch (err) {
+        setPlaylistAlert({ success: '', error: err.response?.data?.message || 'Failed to delete playlist' });
+      }
     }
     closeDeleteModal();
   };
@@ -429,9 +586,16 @@ export default function useDashboard(initialSection = 'channels') {
     users,
     channels,
     servers,
+    playlists,
     filteredUsers,
     filteredChannels,
     filteredServers,
+    filteredPlaylists,
+    defaultPlaylists,
+    schedulingPlaylists,
+    liveSchedulePlaylists,
+    advertisementPlaylists,
+    emergencyPlaylists,
 
     // navigation
     nav: {
@@ -446,8 +610,8 @@ export default function useDashboard(initialSection = 'channels') {
 
     // alerts
     alerts: {
-      success: userSuccess || channelSuccess || serverSuccess,
-      error: userError || channelError || serverError
+      success: userSuccess || channelSuccess || serverSuccess || playlistAlert.success,
+      error: userError || channelError || serverError || playlistAlert.error
     },
 
     // search
@@ -480,6 +644,13 @@ export default function useDashboard(initialSection = 'channels') {
       openCreate: openCreateServer,
       openEdit: openEditServer,
       submit: submitServer
+    },
+    playlistForm: {
+      data: playlistFormData,
+      setData: setPlaylistFormData,
+      openCreate: openCreatePlaylist,
+      openEdit: openEditPlaylist,
+      submit: submitPlaylist
     },
 
     // delete modal

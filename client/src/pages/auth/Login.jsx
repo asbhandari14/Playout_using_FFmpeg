@@ -1,8 +1,8 @@
 import React from 'react';
 import useAuth from '../../hooks/useAuth';
-import LoginBackground from '../../components/Background/LoginBackground';
-import LoginHeader from '../../components/Header/LoginHeader';
-import LoginForm from '../../components/Form/LoginForm';
+import LoginBackground from '../../components/background/LoginBackground';
+import LoginHeader from '../../components/header/LoginHeader';
+import LoginForm from '../../components/form/LoginForm';
 
 export default function Login() {
   const {
@@ -20,7 +20,10 @@ export default function Login() {
       <LoginBackground />
 
       <div className="w-full max-w-md z-10">
+        {/* Login Header */}
         <LoginHeader />
+
+        {/* Login Form */}
         <LoginForm
           email={email}
           password={password}

@@ -2,7 +2,7 @@ import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import api from '../../api/axios.js';
 
 // Format seconds into HH:MM:SS or MM:SS
-const formatTime = (seconds) => {
+export const formatTime = (seconds) => {
   if (!seconds || isNaN(seconds) || seconds < 0) return '00:00';
   const totalSeconds = Math.floor(seconds);
   const hours = Math.floor(totalSeconds / 3600);
@@ -15,7 +15,7 @@ const formatTime = (seconds) => {
 };
 
 // Recompute cumulative start times for a list of items
-const recalculateTimings = (items) => {
+export const recalculateTimings = (items) => {
   let cumulative = 0;
   return items.map((item, index) => {
     const duration = item.asset?.duration || 0;
@@ -30,11 +30,41 @@ const recalculateTimings = (items) => {
   });
 };
 
-export const fetchPlaylist = createAsyncThunk(
-  'playlist/fetchPlaylist',
+export const fetchPlaylists = createAsyncThunk(
+  'playlist/fetchPlaylists',
   async (channelId, { rejectWithValue }) => {
     try {
-      const res = await api.get(`/channels/${channelId}/playlist`);
+      const res = await api.get(`/channels/${channelId}/playlists`);
+      return res.data.playlists;
+    } catch (err) {
+      return rejectWithValue(err.response?.data?.message || 'Failed to fetch playlists');
+    }
+  }
+);
+
+export const fetchActivePlaylist = createAsyncThunk(
+  'playlist/fetchActivePlaylist',
+  async (channelId, { rejectWithValue }) => {
+    try {
+      const res = await api.get(`/channels/${channelId}/playlist/active`);
+      return res.data;
+    } catch (err) {
+      return rejectWithValue(err.response?.data?.message || 'Failed to fetch active playlist');
+    }
+  }
+);
+
+export const fetchPlaylist = createAsyncThunk(
+  'playlist/fetchPlaylist',
+  async (args, { rejectWithValue }) => {
+    try {
+      const channelId = typeof args === 'string' ? args : args.channelId;
+      const params = {};
+      if (typeof args === 'object') {
+        if (args.playlistId) params.playlistId = args.playlistId;
+        if (args.type) params.type = args.type;
+      }
+      const res = await api.get(`/channels/${channelId}/playlist`, { params });
       return res.data.playlist;
     } catch (err) {
       return rejectWithValue(err.response?.data?.message || 'Failed to fetch playlist');
@@ -42,11 +72,52 @@ export const fetchPlaylist = createAsyncThunk(
   }
 );
 
+export const createPlaylistThunk = createAsyncThunk(
+  'playlist/createPlaylist',
+  async ({ channelId, ...data }, { rejectWithValue }) => {
+    try {
+      const res = await api.post(`/channels/${channelId}/playlists`, data);
+      return res.data.playlist;
+    } catch (err) {
+      return rejectWithValue(err.response?.data?.message || 'Failed to create playlist');
+    }
+  }
+);
+
+export const updatePlaylistThunk = createAsyncThunk(
+  'playlist/updatePlaylist',
+  async ({ channelId, playlistId, ...data }, { rejectWithValue }) => {
+    try {
+      const res = await api.put(`/channels/${channelId}/playlists/${playlistId}`, data);
+      return res.data.playlist;
+    } catch (err) {
+      return rejectWithValue(err.response?.data?.message || 'Failed to update playlist');
+    }
+  }
+);
+
+export const deletePlaylistThunk = createAsyncThunk(
+  'playlist/deletePlaylist',
+  async ({ channelId, playlistId }, { rejectWithValue }) => {
+    try {
+      await api.delete(`/channels/${channelId}/playlists/${playlistId}`);
+      return playlistId;
+    } catch (err) {
+      return rejectWithValue(err.response?.data?.message || 'Failed to delete playlist');
+    }
+  }
+);
+
 export const savePlaylistThunk = createAsyncThunk(
   'playlist/savePlaylist',
-  async ({ channelId, items, loop }, { rejectWithValue }) => {
+  async ({ channelId, playlistId, items, loop, type }, { rejectWithValue }) => {
     try {
-      const res = await api.put(`/channels/${channelId}/playlist`, { items, loop });
+      let res;
+      if (playlistId) {
+        res = await api.put(`/channels/${channelId}/playlists/${playlistId}`, { items, loop, type });
+      } else {
+        res = await api.put(`/channels/${channelId}/playlist`, { items, loop, type });
+      }
       return res.data.playlist;
     } catch (err) {
       return rejectWithValue(err.response?.data?.message || 'Failed to save playlist');
@@ -56,8 +127,14 @@ export const savePlaylistThunk = createAsyncThunk(
 
 export const clearPlaylistThunk = createAsyncThunk(
   'playlist/clearPlaylist',
-  async (channelId, { rejectWithValue }) => {
+  async (args, { rejectWithValue }) => {
     try {
+      const channelId = typeof args === 'string' ? args : args.channelId;
+      const playlistId = typeof args === 'object' ? args.playlistId : null;
+      if (playlistId) {
+        const res = await api.put(`/channels/${channelId}/playlists/${playlistId}`, { items: [] });
+        return res.data.playlist;
+      }
       const res = await api.delete(`/channels/${channelId}/playlist`);
       return res.data.playlist;
     } catch (err) {
@@ -69,6 +146,10 @@ export const clearPlaylistThunk = createAsyncThunk(
 const playlistSlice = createSlice({
   name: 'playlist',
   initialState: {
+    playlists: [],
+    currentPlaylist: null,
+    activeOnAirPlaylist: null,
+    allActiveCandidates: [],
     items: [],
     totalDuration: 0,
     totalDurationFormatted: '00:00:00',
@@ -79,6 +160,17 @@ const playlistSlice = createSlice({
     saveSuccess: false
   },
   reducers: {
+    setCurrentPlaylist: (state, action) => {
+      const playlist = action.payload;
+      state.currentPlaylist = playlist;
+      if (playlist) {
+        state.items = playlist.items || [];
+        state.totalDuration = playlist.totalDuration || 0;
+        state.totalDurationFormatted = playlist.totalDurationFormatted || '00:00:00';
+        state.loop = playlist.loop !== undefined ? playlist.loop : true;
+        state.hasUnsavedChanges = false;
+      }
+    },
     addItem: (state, action) => {
       const asset = action.payload;
       const newItem = {
@@ -141,6 +233,7 @@ const playlistSlice = createSlice({
     },
     setPlaylistState: (state, action) => {
       if (action.payload) {
+        state.currentPlaylist = action.payload;
         state.items = action.payload.items || [];
         state.totalDuration = action.payload.totalDuration || 0;
         state.totalDurationFormatted = action.payload.totalDurationFormatted || '00:00:00';
@@ -154,30 +247,128 @@ const playlistSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
+      // fetchPlaylists
+      .addCase(fetchPlaylists.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchPlaylists.fulfilled, (state, action) => {
+        state.loading = false;
+        state.playlists = action.payload || [];
+        // If current playlist is not set or not in list, default to first or matching
+        if (!state.currentPlaylist && state.playlists.length > 0) {
+          state.currentPlaylist = state.playlists[0];
+          state.items = state.playlists[0].items || [];
+          state.totalDuration = state.playlists[0].totalDuration || 0;
+          state.totalDurationFormatted = state.playlists[0].totalDurationFormatted || '00:00:00';
+          state.loop = state.playlists[0].loop !== undefined ? state.playlists[0].loop : true;
+        } else if (state.currentPlaylist) {
+          const fresh = state.playlists.find((p) => p._id === state.currentPlaylist._id);
+          if (fresh) {
+            state.currentPlaylist = fresh;
+            if (!state.hasUnsavedChanges) {
+              state.items = fresh.items || [];
+              state.totalDuration = fresh.totalDuration || 0;
+              state.totalDurationFormatted = fresh.totalDurationFormatted || '00:00:00';
+              state.loop = fresh.loop !== undefined ? fresh.loop : true;
+            }
+          }
+        }
+      })
+      .addCase(fetchPlaylists.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      // fetchActivePlaylist
+      .addCase(fetchActivePlaylist.fulfilled, (state, action) => {
+        state.activeOnAirPlaylist = action.payload?.activePlaylist || null;
+        state.allActiveCandidates = action.payload?.allActiveCandidates || [];
+      })
+
+      // fetchPlaylist
       .addCase(fetchPlaylist.pending, (state) => {
         state.loading = true;
         state.error = null;
       })
       .addCase(fetchPlaylist.fulfilled, (state, action) => {
         state.loading = false;
-        state.items = action.payload.items || [];
-        state.totalDuration = action.payload.totalDuration || 0;
-        state.totalDurationFormatted = action.payload.totalDurationFormatted || '00:00:00';
-        state.loop = action.payload.loop !== undefined ? action.payload.loop : true;
+        state.currentPlaylist = action.payload;
+        state.items = action.payload?.items || [];
+        state.totalDuration = action.payload?.totalDuration || 0;
+        state.totalDurationFormatted = action.payload?.totalDurationFormatted || '00:00:00';
+        state.loop = action.payload?.loop !== undefined ? action.payload?.loop : true;
         state.hasUnsavedChanges = false;
       })
       .addCase(fetchPlaylist.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       })
+
+      // createPlaylistThunk
+      .addCase(createPlaylistThunk.fulfilled, (state, action) => {
+        state.playlists.push(action.payload);
+        state.currentPlaylist = action.payload;
+        state.items = action.payload?.items || [];
+        state.totalDuration = action.payload?.totalDuration || 0;
+        state.totalDurationFormatted = action.payload?.totalDurationFormatted || '00:00:00';
+        state.loop = action.payload?.loop !== undefined ? action.payload?.loop : true;
+        state.hasUnsavedChanges = false;
+        state.saveSuccess = true;
+      })
+
+      // updatePlaylistThunk
+      .addCase(updatePlaylistThunk.fulfilled, (state, action) => {
+        state.currentPlaylist = action.payload;
+        const index = state.playlists.findIndex((p) => p._id === action.payload._id);
+        if (index !== -1) {
+          state.playlists[index] = action.payload;
+        }
+        state.items = action.payload?.items || [];
+        state.totalDuration = action.payload?.totalDuration || 0;
+        state.totalDurationFormatted = action.payload?.totalDurationFormatted || '00:00:00';
+        state.loop = action.payload?.loop !== undefined ? action.payload?.loop : true;
+        state.hasUnsavedChanges = false;
+        state.saveSuccess = true;
+      })
+
+      // deletePlaylistThunk
+      .addCase(deletePlaylistThunk.fulfilled, (state, action) => {
+        const deletedId = action.payload;
+        state.playlists = state.playlists.filter((p) => p._id !== deletedId);
+        if (state.currentPlaylist?._id === deletedId) {
+          const fallback = state.playlists[0] || null;
+          state.currentPlaylist = fallback;
+          state.items = fallback?.items || [];
+          state.totalDuration = fallback?.totalDuration || 0;
+          state.totalDurationFormatted = fallback?.totalDurationFormatted || '00:00:00';
+          state.loop = fallback?.loop !== undefined ? fallback.loop : true;
+        }
+      })
+
+      // savePlaylistThunk
       .addCase(savePlaylistThunk.fulfilled, (state, action) => {
+        state.currentPlaylist = action.payload;
+        const index = state.playlists.findIndex((p) => p._id === action.payload._id);
+        if (index !== -1) {
+          state.playlists[index] = action.payload;
+        }
         state.items = action.payload.items || [];
         state.totalDuration = action.payload.totalDuration || 0;
         state.totalDurationFormatted = action.payload.totalDurationFormatted || '00:00:00';
         state.hasUnsavedChanges = false;
         state.saveSuccess = true;
       })
-      .addCase(clearPlaylistThunk.fulfilled, (state) => {
+
+      // clearPlaylistThunk
+      .addCase(clearPlaylistThunk.fulfilled, (state, action) => {
+        if (action.payload) {
+          state.currentPlaylist = action.payload;
+          const index = state.playlists.findIndex((p) => p._id === action.payload._id);
+          if (index !== -1) {
+            state.playlists[index] = action.payload;
+          }
+        }
         state.items = [];
         state.totalDuration = 0;
         state.totalDurationFormatted = '00:00:00';
@@ -187,6 +378,7 @@ const playlistSlice = createSlice({
 });
 
 export const {
+  setCurrentPlaylist,
   addItem,
   removeItem,
   moveItem,

@@ -1,7 +1,7 @@
 import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs';
-import { Playlist } from '../../models/Playlist.js';
+import { Playlist, isPlaylistCurrentlyActive, PLAYLIST_TYPE } from '../../models/Playlist.js';
 import { Channel } from '../../models/Channel.js';
 import { Schedule } from '../../models/Schedule.js';
 import { Asset } from '../../models/Asset.js';
@@ -111,6 +111,42 @@ export class FeederService {
     };
   }
 
+  /**
+   * Resolves the highest-priority active playlist matching current time/date/day.
+   * Priority: emergency (5) > advertisement (4) > live_schedule (3) > scheduling (2) > default (1)
+   */
+  async resolveActivePlaylist() {
+    try {
+      const now = new Date();
+      const candidates = await Playlist.find({ channel: this.channelId, isActive: true })
+        .sort({ priority: -1, createdAt: -1 })
+        .populate({
+          path: 'items.asset',
+          select: 'originalName filePath duration durationFormatted status'
+        });
+
+      if (!candidates || candidates.length === 0) {
+        return null;
+      }
+
+      // Pick highest priority playlist matching active schedule rules
+      const active = candidates.find((p) => isPlaylistCurrentlyActive(p, now));
+      if (active) return active;
+
+      // Fallback to default playlist
+      const defaultPlaylist = candidates.find((p) => p.type === PLAYLIST_TYPE.DEFAULT);
+      if (defaultPlaylist) return defaultPlaylist;
+
+      return candidates[0];
+    } catch (err) {
+      console.warn(`[Feeder:${this.channelId}] Error resolving active playlist:`, err.message);
+      return await Playlist.findOne({ channel: this.channelId }).populate({
+        path: 'items.asset',
+        select: 'originalName filePath duration durationFormatted status'
+      });
+    }
+  }
+
   async start() {
     this.isRunning = true;
     this.playLoop();
@@ -148,15 +184,36 @@ export class FeederService {
       console.warn(`[Feeder:${this.channelId}] Warning checking initial schedule on startup:`, startupSchedErr.message);
     }
 
+    let currentPlaylistId = null;
+
     while (this.isRunning) {
       try {
-        const playlist = await Playlist.findOne({ channel: this.channelId }).populate({
-          path: 'items.asset',
-          select: 'originalName filePath duration durationFormatted status'
-        });
+        const playlist = await this.resolveActivePlaylist();
 
-        if (!playlist || !playlist.items || playlist.items.length === 0) {
-          console.log(`[Feeder:${this.channelId}] Playlist is empty. Feeding live standby slate to maintain broadcast...`);
+        if (!playlist) {
+          console.log(`[Feeder:${this.channelId}] No playlist configured. Feeding live standby slate...`);
+          await this.streamStandbySlate(3);
+          continue;
+        }
+
+        // If active playlist changed to a different one, reset index to 0
+        if (currentPlaylistId && String(currentPlaylistId) !== String(playlist._id)) {
+          console.log(
+            `[Feeder:${this.channelId}] Active playlist changed to "${playlist.name}" (${playlist.type}, priority ${playlist.priority}). Starting from beginning.`
+          );
+          this.currentIndex = 0;
+        }
+        currentPlaylistId = String(playlist._id);
+
+        // Special handling for live_schedule with a direct liveSourceUrl
+        if (playlist.type === PLAYLIST_TYPE.LIVE_SCHEDULE && playlist.liveSourceUrl && (!playlist.items || playlist.items.length === 0)) {
+          console.log(`[Feeder:${this.channelId}] Relaying live schedule stream: ${playlist.liveSourceUrl}`);
+          await this.streamAsset(playlist.liveSourceUrl, 0);
+          continue;
+        }
+
+        if (!playlist.items || playlist.items.length === 0) {
+          console.log(`[Feeder:${this.channelId}] Playlist "${playlist.name}" is empty. Feeding live standby slate to maintain broadcast...`);
           await this.streamStandbySlate(3);
           continue;
         }
@@ -164,6 +221,17 @@ export class FeederService {
         // Loop through playlist items
         for (let i = this.currentIndex; i < playlist.items.length; i++) {
           if (!this.isRunning) break;
+
+          // Before playing next item, check if a higher-priority playlist has become active!
+          const activeCheck = await this.resolveActivePlaylist();
+          if (activeCheck && String(activeCheck._id) !== String(playlist._id)) {
+            console.log(
+              `[Feeder:${this.channelId}] Preempting for higher/different active playlist: "${activeCheck.name}" (${activeCheck.type}, priority ${activeCheck.priority}).`
+            );
+            this.currentIndex = 0;
+            currentPlaylistId = String(activeCheck._id);
+            break;
+          }
 
           this.currentIndex = i;
           const item = playlist.items[i];
@@ -182,7 +250,7 @@ export class FeederService {
 
           // Mark item PLAYING
           await Playlist.updateOne(
-            { channel: this.channelId, 'items._id': item._id },
+            { _id: playlist._id, 'items._id': item._id },
             { $set: { 'items.$.status': PLAYLIST_ITEM_STATUS.PLAYING } }
           );
 
@@ -194,6 +262,8 @@ export class FeederService {
           if (io) {
             io.to(`channel:${this.channelId}`).emit('stream_item_playing', {
               channelId: this.channelId,
+              playlistId: playlist._id,
+              playlistType: playlist.type,
               index: i,
               assetId: asset._id,
               assetName: asset.originalName,
@@ -201,7 +271,7 @@ export class FeederService {
             });
           }
 
-          console.log(`[Feeder:${this.channelId}] Playing item #${i + 1}: ${asset.originalName} (${asset.duration}s)`);
+          console.log(`[Feeder:${this.channelId}] Playing [${playlist.type.toUpperCase()}] item #${i + 1}: ${asset.originalName} (${asset.duration}s)`);
 
           // Play the asset through decoder
           this.currentAsset = asset;
@@ -222,13 +292,15 @@ export class FeederService {
 
           // Mark item PLAYED
           await Playlist.updateOne(
-            { channel: this.channelId, 'items._id': item._id },
+            { _id: playlist._id, 'items._id': item._id },
             { $set: { 'items.$.status': PLAYLIST_ITEM_STATUS.PLAYED } }
           );
 
           if (io) {
             io.to(`channel:${this.channelId}`).emit('stream_item_played', {
               channelId: this.channelId,
+              playlistId: playlist._id,
+              playlistType: playlist.type,
               index: i,
               assetId: asset._id
             });
@@ -237,7 +309,12 @@ export class FeederService {
 
         // Check if loop enabled
         if (!playlist.loop) {
-          console.log(`[Feeder:${this.channelId}] Playlist finished (loop disabled). Stopping.`);
+          console.log(`[Feeder:${this.channelId}] Playlist "${playlist.name}" finished (loop disabled).`);
+          if (playlist.type !== PLAYLIST_TYPE.DEFAULT) {
+            console.log(`[Feeder:${this.channelId}] Finished non-looping ${playlist.type} playlist. Returning to default loop.`);
+            this.currentIndex = 0;
+            continue;
+          }
           this.isRunning = false;
           break;
         }
@@ -245,7 +322,7 @@ export class FeederService {
         // Reset to beginning of playlist for seamless loop
         this.currentIndex = 0;
         await Playlist.updateOne(
-          { channel: this.channelId },
+          { _id: playlist._id },
           { $set: { 'items.$[].status': PLAYLIST_ITEM_STATUS.QUEUED } }
         );
       } catch (err) {

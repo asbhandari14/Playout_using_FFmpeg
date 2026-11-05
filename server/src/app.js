@@ -11,6 +11,7 @@ import userRoutes from './routes/userRoutes.js';
 import serverRoutes from './routes/serverRoutes.js';
 import channelRoutes from './routes/channelRoutes.js';
 import assetRoutes from './routes/assetRoutes.js';
+import playlistRoutes from './routes/playlistRoutes.js';
 
 // Import Middleware
 import { errorHandler } from './middleware/errorHandler.js';
@@ -66,6 +67,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/servers', serverRoutes);
 app.use('/api/channels', channelRoutes);
 app.use('/api/assets', assetRoutes);
+app.use('/api/playlists', playlistRoutes);
 
 // 404 handler
 app.use((req, res) => {

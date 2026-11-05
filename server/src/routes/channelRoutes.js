@@ -12,7 +12,12 @@ import {
 import {
   getPlaylist,
   savePlaylist,
-  clearPlaylist
+  clearPlaylist,
+  getPlaylists,
+  createPlaylist,
+  updatePlaylist,
+  deletePlaylist,
+  getActivePlaylist
 } from '../controllers/playlistController.js';
 import {
   updateLogoBranding,
@@ -77,6 +82,11 @@ router.post('/:channelId/stop', stopStreamHandler);
 router.get('/:channelId/stream/status', getStreamStatusHandler);
 
 // Playlist routes (accessible to assigned user, admin, super_admin)
+router.get('/:channelId/playlists', getPlaylists);
+router.post('/:channelId/playlists', createPlaylist);
+router.get('/:channelId/playlist/active', getActivePlaylist);
+router.put('/:channelId/playlists/:playlistId', updatePlaylist);
+router.delete('/:channelId/playlists/:playlistId', deletePlaylist);
 router.get('/:channelId/playlist', getPlaylist);
 router.put('/:channelId/playlist', savePlaylist);
 router.delete('/:channelId/playlist', clearPlaylist);

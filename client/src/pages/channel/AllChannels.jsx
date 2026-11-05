@@ -1,8 +1,8 @@
 import React from 'react';
 import { Tv, Search } from 'lucide-react';
 import useChannel from '../../hooks/useChannel.js';
-import DashboardHeader from '../../components/Header/DashboardHeader.jsx';
-import ChannelCard from '../../components/Card/ChannelCard.jsx';
+import DashboardHeader from '../../components/header/DashboardHeader.jsx';
+import ChannelCard from '../../components/card/ChannelCard.jsx';
 
 export default function AllChannels() {
   const {

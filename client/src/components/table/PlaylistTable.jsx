@@ -1,14 +1,6 @@
 import React, { useState } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-import {
-  savePlaylistThunk,
-  clearPlaylistThunk,
-  removeItem,
-  moveItem,
-  duplicateItem,
-  addItem
-} from '../store/slices/playlistSlice.js';
-import { setSelectedAsset } from '../store/slices/assetSlice.js';
+import { useDispatch } from 'react-redux';
+import { setSelectedAsset } from '../../store/slices/assetSlice.js';
 import {
   Save,
   Trash2,
@@ -20,28 +12,54 @@ import {
   Copy,
   Film,
   CheckCircle2,
-  Clock,
-  Layers
+  Layers,
+  Radio,
+  Calendar
 } from 'lucide-react';
-import ConfirmDeleteModal from './ConfirmDeleteModal.jsx';
+import ConfirmDeleteModal from '../modals/ConfirmDeleteModal.jsx';
+import PlaylistSettingsModal from '../modals/PlaylistSettingsModal.jsx';
+import PlaylistSelector from '../playlist/PlaylistSelector.jsx';
+import { usePlaylist, PLAYLIST_TYPE_CONFIG } from '../../hooks/usePlaylist.js';
+
+const PLAYLIST_ROW_GRID = 'grid grid-cols-[32px_36px_minmax(220px,1fr)_75px_75px_90px_120px] items-center gap-2';
 
 export default function PlaylistTable({ channelId, onPlayFromIndex }) {
   const dispatch = useDispatch();
+
   const {
+    sortedPlaylists,
+    currentPlaylist,
+    activeOnAirPlaylist,
+    activeStatusMap,
     items,
     totalDurationFormatted,
     hasUnsavedChanges,
     saveSuccess,
-    loading
-  } = useSelector((state) => state.playlist);
+    loading,
+    handleSelectPlaylist,
+    handleCreatePlaylist,
+    handleUpdatePlaylist,
+    handleDeletePlaylist,
+    handleSaveCurrent,
+    handleClearCurrent,
+    handleAddItem,
+    handleRemoveItem,
+    handleMoveItem,
+    handleDuplicateItem,
+    formatScheduleSummary
+  } = usePlaylist(channelId);
 
   const [activeMenuIndex, setActiveMenuIndex] = useState(null);
   const [dragOverIndex, setDragOverIndex] = useState(null);
   const [draggedRowIndex, setDraggedRowIndex] = useState(null);
   const [isClearModalOpen, setIsClearModalOpen] = useState(false);
   const [itemToRemove, setItemToRemove] = useState(null);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [playlistToEdit, setPlaylistToEdit] = useState(null);
+  const [isDeletePlaylistModalOpen, setIsDeletePlaylistModalOpen] = useState(false);
+  const [playlistToDeleteId, setPlaylistToDeleteId] = useState(null);
 
-  // Drag and drop from Asset Library or row reorder
+  // Drag and drop handlers
   const handleDragOver = (e, index) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'copy';
@@ -56,44 +74,63 @@ export default function PlaylistTable({ channelId, onPlayFromIndex }) {
     e.preventDefault();
     setDragOverIndex(null);
 
-    // 1. If dragging an asset from Library
+    // 1. Dragging asset from Asset Library
     const rawAsset = e.dataTransfer.getData('application/json');
     if (rawAsset) {
       try {
         const asset = JSON.parse(rawAsset);
-        dispatch(addItem(asset));
+        handleAddItem(asset);
         return;
       } catch (err) {
         // ignore
       }
     }
 
-    // 2. If reordering existing row
+    // 2. Reordering existing row
     if (draggedRowIndex !== null && targetIndex !== null) {
-      dispatch(moveItem({ fromIndex: draggedRowIndex, toIndex: targetIndex }));
+      handleMoveItem(draggedRowIndex, targetIndex);
       setDraggedRowIndex(null);
     }
   };
 
-  const handleSave = () => {
-    dispatch(savePlaylistThunk({ channelId, items, loop: true }));
+  const handleOpenEditSettings = (playlist) => {
+    setPlaylistToEdit(playlist);
+    setIsSettingsModalOpen(true);
   };
 
-  const handleClear = () => {
-    setIsClearModalOpen(true);
+  const handleOpenCreateNew = () => {
+    setPlaylistToEdit(null);
+    setIsSettingsModalOpen(true);
   };
 
-  const handleConfirmClear = () => {
-    dispatch(clearPlaylistThunk(channelId));
-    setIsClearModalOpen(false);
-  };
-
-  const handleConfirmRemoveItem = () => {
-    if (itemToRemove !== null && itemToRemove.index !== undefined) {
-      dispatch(removeItem(itemToRemove.index));
+  const handleSaveSettings = async (formData) => {
+    if (playlistToEdit && playlistToEdit._id) {
+      await handleUpdatePlaylist(playlistToEdit._id, formData);
+    } else {
+      await handleCreatePlaylist(formData);
     }
-    setItemToRemove(null);
   };
+
+  const handleRequestDeletePlaylist = (playlistId) => {
+    setPlaylistToDeleteId(playlistId);
+    setIsSettingsModalOpen(false);
+    setIsDeletePlaylistModalOpen(true);
+  };
+
+  const handleConfirmDeletePlaylist = async () => {
+    if (playlistToDeleteId) {
+      await handleDeletePlaylist(playlistToDeleteId);
+      setPlaylistToDeleteId(null);
+      setIsDeletePlaylistModalOpen(false);
+    }
+  };
+
+  const currentTypeConfig = currentPlaylist
+    ? PLAYLIST_TYPE_CONFIG[currentPlaylist.type] || PLAYLIST_TYPE_CONFIG.default
+    : PLAYLIST_TYPE_CONFIG.default;
+
+  const isOnAir = activeOnAirPlaylist && currentPlaylist && activeOnAirPlaylist._id === currentPlaylist._id;
+  const scheduleSummary = formatScheduleSummary(currentPlaylist);
 
   return (
     <div
@@ -104,14 +141,48 @@ export default function PlaylistTable({ channelId, onPlayFromIndex }) {
       }}
       onDrop={(e) => handleDrop(e, items.length)}
     >
-      {/* Header */}
-      <div className="px-4 py-2.5 bg-[#141822] border-b border-[#202736] flex items-center justify-between">
+      {/* Multi-tier Playlist Tabs Selector */}
+      <PlaylistSelector
+        playlists={sortedPlaylists}
+        currentPlaylist={currentPlaylist}
+        activeOnAirPlaylist={activeOnAirPlaylist}
+        activeStatusMap={activeStatusMap}
+        onSelectPlaylist={handleSelectPlaylist}
+        onOpenSettings={handleOpenEditSettings}
+        onCreateNew={handleOpenCreateNew}
+      />
+
+      {/* Broadcast Window Header with Priority & Schedule Info */}
+      <div className="px-4 py-2.5 bg-[#141822] border-b border-[#202736] flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2">
             <Layers size={15} className="text-blue-500" />
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-200 m-0">
-              Broadcast Window
+              {currentPlaylist?.name || 'Broadcast Window'}
             </h3>
+
+            {/* Priority Badge */}
+            <span
+              className={`font-mono text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider ${
+                currentTypeConfig.colorClass
+              }`}
+            >
+              Priority {currentPlaylist?.priority || currentTypeConfig.priority}: {currentTypeConfig.shortLabel}
+            </span>
+
+            {/* On-Air badge if currently live */}
+            {isOnAir && (
+              <span className="flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-rose-600 text-white animate-pulse">
+                <span className="w-1.5 h-1.5 rounded-full bg-white"></span>
+                ON AIR NOW
+              </span>
+            )}
+          </div>
+
+          {/* Schedule Info Text */}
+          <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-[#0c0e14] border border-[#232b3c] text-[11px] text-slate-400 font-medium">
+            <Calendar size={12} className="text-slate-500" />
+            <span>{scheduleSummary}</span>
           </div>
 
           {/* Time range indicator */}
@@ -129,7 +200,7 @@ export default function PlaylistTable({ channelId, onPlayFromIndex }) {
           )}
 
           <button
-            onClick={handleSave}
+            onClick={handleSaveCurrent}
             disabled={loading}
             className={`px-3 py-1.5 rounded-lg font-semibold text-xs flex items-center gap-1.5 transition shadow-sm ${
               hasUnsavedChanges
@@ -142,7 +213,7 @@ export default function PlaylistTable({ channelId, onPlayFromIndex }) {
           </button>
 
           <button
-            onClick={handleClear}
+            onClick={() => setIsClearModalOpen(true)}
             disabled={items.length === 0}
             className="px-3 py-1.5 rounded-lg bg-[#1b2230] hover:bg-red-950/40 hover:text-red-400 text-slate-400 text-xs font-medium flex items-center gap-1.5 transition disabled:opacity-40"
           >
@@ -152,35 +223,50 @@ export default function PlaylistTable({ channelId, onPlayFromIndex }) {
         </div>
       </div>
 
-      {/* Playlist Table */}
-      <div className="flex-1 overflow-y-auto">
-        <table className="w-full text-left text-xs border-collapse">
-          <thead className="bg-[#141822] text-slate-400 uppercase tracking-wider text-[10px] font-bold sticky top-0 z-10 border-b border-[#202736]">
-            <tr>
-              <th className="py-2.5 px-3 w-8 text-center"></th>
-              <th className="py-2.5 px-3 w-8 text-center">#</th>
-              <th className="py-2.5 px-3">Media Asset</th>
-              <th className="py-2.5 px-3 w-20 text-center">Dur</th>
-              <th className="py-2.5 px-3 w-20 text-center">Start</th>
-              <th className="py-2.5 px-3 w-24 text-center">Status</th>
-              <th className="py-2.5 px-3 w-28 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-[#1b212e]">
+      {/* Live Relay Banner (for live_schedule) */}
+      {currentPlaylist?.type === 'live_schedule' && currentPlaylist.liveSourceUrl && (
+        <div className="px-4 py-2 bg-purple-950/20 border-b border-purple-800/40 flex items-center justify-between text-xs text-purple-300">
+          <div className="flex items-center gap-2">
+            <Radio size={14} className="animate-pulse text-purple-400" />
+            <span>Live Stream Relay Source:</span>
+            <span className="font-mono text-[11px] bg-black/40 px-2 py-0.5 rounded border border-purple-800/60 text-purple-200">
+              {currentPlaylist.liveSourceUrl}
+            </span>
+          </div>
+          <span className="text-[11px] text-slate-400 hidden sm:inline">
+            Assets below will play as fallback or sequential slots
+          </span>
+        </div>
+      )}
+
+      {/* Playlist Grid Table with Horizontal Scaling & Scrolling Container */}
+      <div className="flex-1 overflow-x-auto overflow-y-auto scrollbar-thin scrollbar-thumb-[#1e2738] scrollbar-track-transparent">
+        <div className="min-w-[700px]">
+          {/* Grid Header */}
+          <div className={`px-4 py-2.5 bg-[#141822] text-slate-400 uppercase tracking-wider text-[10px] font-bold sticky top-0 z-10 border-b border-[#202736] ${PLAYLIST_ROW_GRID}`}>
+            <div className="text-center"></div>
+            <div className="text-center font-mono">#</div>
+            <div>Media Asset</div>
+            <div className="text-center">Dur</div>
+            <div className="text-center">Start</div>
+            <div className="text-center">Status</div>
+            <div className="text-right">Actions</div>
+          </div>
+
+          {/* Grid Body */}
+          <div className="divide-y divide-[#1b212e]">
             {items.length === 0 ? (
-              <tr>
-                <td colSpan="7" className="py-16 text-center text-slate-500">
-                  <div className="flex flex-col items-center justify-center">
-                    <Film size={28} className="text-slate-600 mb-2 stroke-[1.5]" />
-                    <span className="text-xs font-medium text-slate-400">
-                      Broadcast window is currently empty
-                    </span>
-                    <span className="text-[11px] text-slate-600 mt-0.5">
-                      Drag assets from the Assets Library or click "+" to build the continuous playout
-                    </span>
-                  </div>
-                </td>
-              </tr>
+              <div className="py-16 text-center text-slate-500">
+                <div className="flex flex-col items-center justify-center">
+                  <Film size={28} className="text-slate-600 mb-2 stroke-[1.5]" />
+                  <span className="text-xs font-medium text-slate-400">
+                    "{currentPlaylist?.name || 'Playlist'}" is currently empty
+                  </span>
+                  <span className="text-[11px] text-slate-600 mt-0.5">
+                    Drag assets from the Assets Library or click "+" to build the {currentTypeConfig.shortLabel} sequence
+                  </span>
+                </div>
+              </div>
             ) : (
               items.map((item, index) => {
                 const asset = item.asset || {};
@@ -189,14 +275,14 @@ export default function PlaylistTable({ channelId, onPlayFromIndex }) {
                 const isDragOver = dragOverIndex === index;
 
                 return (
-                  <tr
+                  <div
                     key={item._id || index}
                     draggable
                     onDragStart={() => setDraggedRowIndex(index)}
                     onDragOver={(e) => handleDragOver(e, index)}
                     onDragLeave={handleDragLeave}
                     onDrop={(e) => handleDrop(e, index)}
-                    className={`transition group ${
+                    className={`px-4 py-2 text-xs transition group ${PLAYLIST_ROW_GRID} ${
                       isDragOver ? 'border-t-2 border-blue-500 bg-blue-950/20' : ''
                     } ${
                       isPlaying
@@ -207,22 +293,22 @@ export default function PlaylistTable({ channelId, onPlayFromIndex }) {
                     }`}
                   >
                     {/* Drag Handle */}
-                    <td className="py-2 px-2 text-center">
+                    <div className="text-center">
                       <div className="text-slate-600 group-hover:text-slate-400 cursor-grab active:cursor-grabbing inline-block">
                         <GripVertical size={15} />
                       </div>
-                    </td>
+                    </div>
 
                     {/* Order # */}
-                    <td className="py-2 px-2 text-center font-mono text-[11px] text-slate-400">
+                    <div className="text-center font-mono text-[11px] text-slate-400">
                       {index + 1}
-                    </td>
+                    </div>
 
                     {/* Thumbnail + Title */}
-                    <td className="py-2 px-3">
+                    <div>
                       <div
                         onClick={() => dispatch(setSelectedAsset(asset))}
-                        className="flex items-center gap-2.5 cursor-pointer"
+                        className="flex items-center gap-2.5 cursor-pointer max-w-full"
                       >
                         <div className="w-12 h-8 rounded bg-black/60 border border-[#232b3c] overflow-hidden shrink-0 flex items-center justify-center">
                           {asset.thumbnailPath ? (
@@ -242,20 +328,20 @@ export default function PlaylistTable({ channelId, onPlayFromIndex }) {
                           {asset.originalName || 'Video Asset'}
                         </span>
                       </div>
-                    </td>
+                    </div>
 
                     {/* Duration */}
-                    <td className="py-2 px-3 text-center font-mono text-[11px] text-slate-300">
+                    <div className="text-center font-mono text-[11px] text-slate-300">
                       {asset.durationFormatted || '00:00'}
-                    </td>
+                    </div>
 
                     {/* Cumulative Start */}
-                    <td className="py-2 px-3 text-center font-mono text-[11px] text-sky-400 font-medium">
+                    <div className="text-center font-mono text-[11px] text-sky-400 font-medium">
                       {item.startOffsetFormatted || '00:00'}
-                    </td>
+                    </div>
 
                     {/* Status Badge */}
-                    <td className="py-2 px-3 text-center">
+                    <div className="text-center">
                       <span
                         className={`inline-block px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
                           isPlaying
@@ -267,10 +353,10 @@ export default function PlaylistTable({ channelId, onPlayFromIndex }) {
                       >
                         {item.status || 'QUEUED'}
                       </span>
-                    </td>
+                    </div>
 
                     {/* Actions */}
-                    <td className="py-2 px-3 text-right">
+                    <div className="text-right">
                       <div className="flex items-center justify-end gap-1 relative">
                         {/* Play from here button */}
                         <button
@@ -284,7 +370,7 @@ export default function PlaylistTable({ channelId, onPlayFromIndex }) {
                         {/* Move Up */}
                         <button
                           disabled={index === 0}
-                          onClick={() => dispatch(moveItem({ fromIndex: index, toIndex: index - 1 }))}
+                          onClick={() => handleMoveItem(index, index - 1)}
                           className="p-1 rounded text-slate-400 hover:text-white hover:bg-[#1e2533] disabled:opacity-30 transition"
                           title="Move Up"
                         >
@@ -294,7 +380,7 @@ export default function PlaylistTable({ channelId, onPlayFromIndex }) {
                         {/* Move Down */}
                         <button
                           disabled={index === items.length - 1}
-                          onClick={() => dispatch(moveItem({ fromIndex: index, toIndex: index + 1 }))}
+                          onClick={() => handleMoveItem(index, index + 1)}
                           className="p-1 rounded text-slate-400 hover:text-white hover:bg-[#1e2533] disabled:opacity-30 transition"
                           title="Move Down"
                         >
@@ -316,7 +402,7 @@ export default function PlaylistTable({ channelId, onPlayFromIndex }) {
                           <div className="absolute right-0 top-7 w-32 bg-[#161b24] border border-[#2b3548] rounded-xl shadow-2xl py-1 z-30 text-xs">
                             <button
                               onClick={() => {
-                                dispatch(duplicateItem(index));
+                                handleDuplicateItem(index);
                                 setActiveMenuIndex(null);
                               }}
                               className="w-full px-3 py-1.5 text-left text-slate-200 hover:bg-[#202736] flex items-center gap-2"
@@ -337,22 +423,34 @@ export default function PlaylistTable({ channelId, onPlayFromIndex }) {
                           </div>
                         )}
                       </div>
-                    </td>
-                  </tr>
+                    </div>
+                  </div>
                 );
               })
             )}
-          </tbody>
-        </table>
+          </div>
+        </div>
       </div>
+
+      {/* Playlist Settings / Schedule Modal */}
+      <PlaylistSettingsModal
+        isOpen={isSettingsModalOpen}
+        onClose={() => setIsSettingsModalOpen(false)}
+        playlist={playlistToEdit}
+        onSave={handleSaveSettings}
+        onDelete={handleRequestDeletePlaylist}
+      />
 
       {/* Clear Entire Playlist Confirmation Modal */}
       <ConfirmDeleteModal
         isOpen={isClearModalOpen}
         onClose={() => setIsClearModalOpen(false)}
-        onConfirm={handleConfirmClear}
-        title="Clear Broadcast Playlist"
-        message="Are you sure you want to clear all media items from the broadcast playlist? All queued items will be removed from this channel."
+        onConfirm={() => {
+          handleClearCurrent();
+          setIsClearModalOpen(false);
+        }}
+        title={`Clear "${currentPlaylist?.name || 'Broadcast'}" Playlist`}
+        message="Are you sure you want to clear all media items from this playlist? All queued items will be removed."
         confirmText="Clear All Playlist"
       />
 
@@ -360,11 +458,27 @@ export default function PlaylistTable({ channelId, onPlayFromIndex }) {
       <ConfirmDeleteModal
         isOpen={!!itemToRemove}
         onClose={() => setItemToRemove(null)}
-        onConfirm={handleConfirmRemoveItem}
+        onConfirm={() => {
+          if (itemToRemove && itemToRemove.index !== undefined) {
+            handleRemoveItem(itemToRemove.index);
+          }
+          setItemToRemove(null);
+        }}
         title="Remove From Playlist"
         itemName={itemToRemove?.name}
         message="Are you sure you want to remove this video item from the active broadcast playlist?"
         confirmText="Remove Item"
+      />
+
+      {/* Delete Playlist Confirmation Modal */}
+      <ConfirmDeleteModal
+        isOpen={isDeletePlaylistModalOpen}
+        onClose={() => setIsDeletePlaylistModalOpen(false)}
+        onConfirm={handleConfirmDeletePlaylist}
+        title="Delete Playlist"
+        itemName={sortedPlaylists.find((p) => p._id === playlistToDeleteId)?.name}
+        message="Are you sure you want to permanently delete this playlist configuration and its items?"
+        confirmText="Delete Playlist"
       />
     </div>
   );
