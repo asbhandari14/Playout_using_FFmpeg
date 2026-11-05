@@ -247,6 +247,7 @@ export default function AssetLibrary({ channelId, onAddToPlaylist }) {
         title="Delete Video Asset"
         message="Are you sure you want to permanently delete this media file from local disk storage? Any playlist referencing this asset might fail to play."
         onConfirm={handleConfirmDelete}
+        onClose={handleCancelDelete}
         onCancel={handleCancelDelete}
       />
     </div>

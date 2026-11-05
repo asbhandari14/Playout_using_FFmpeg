@@ -61,7 +61,7 @@ export default function CreatePlaylistForm({
   const typeConfig = PLAYLIST_TYPE_CONFIG[selectedType] || PLAYLIST_TYPE_CONFIG.default;
 
   return (
-    <div className="space-y-4 max-w-5xl">
+    <div className="space-y-4">
       <button
         type="button"
         onClick={onCancel}
@@ -179,11 +179,10 @@ export default function CreatePlaylistForm({
               ].map((opt) => (
                 <label
                   key={opt.id}
-                  className={`p-2.5 rounded-xl border cursor-pointer text-center transition flex flex-col items-center justify-center ${
-                    (formData.scheduleOption || 'none') === opt.id
-                      ? 'bg-[#00bcd4]/15 border-[#00bcd4] text-[#00bcd4] font-semibold'
-                      : 'bg-[#090d16] border-[#1a2337] text-slate-400 hover:border-slate-600'
-                  }`}
+                  className={`p-2.5 rounded-xl border cursor-pointer text-center transition flex flex-col items-center justify-center ${(formData.scheduleOption || 'none') === opt.id
+                    ? 'bg-[#00bcd4]/15 border-[#00bcd4] text-[#00bcd4] font-semibold'
+                    : 'bg-[#090d16] border-[#1a2337] text-slate-400 hover:border-slate-600'
+                    }`}
                 >
                   <input
                     type="radio"
@@ -240,11 +239,10 @@ export default function CreatePlaylistForm({
                       key={d.value}
                       type="button"
                       onClick={() => toggleDayOfWeek(d.value)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${
-                        selected
-                          ? 'bg-[#00bcd4] text-black border-[#00bcd4] shadow-sm'
-                          : 'bg-[#111726] text-slate-400 border-[#1a2337] hover:border-slate-500'
-                      }`}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${selected
+                        ? 'bg-[#00bcd4] text-black border-[#00bcd4] shadow-sm'
+                        : 'bg-[#111726] text-slate-400 border-[#1a2337] hover:border-slate-500'
+                        }`}
                     >
                       {d.label}
                     </button>
@@ -316,7 +314,7 @@ export default function CreatePlaylistForm({
           </button>
           <button
             type="submit"
-            className="px-6 py-2.5 rounded-xl bg-[#00bcd4] hover:bg-[#06b6d4] text-black font-extrabold shadow-lg shadow-cyan-500/20 transition cursor-pointer flex items-center gap-2"
+            className="px-6 py-2.5 rounded-xl bg-[#00bcd4] hover:bg-[#06b6d4] text-black font-medium shadow-lg shadow-cyan-500/20 transition cursor-pointer flex items-center gap-2"
           >
             <Layers size={14} />
             <span>Create Playlist</span>

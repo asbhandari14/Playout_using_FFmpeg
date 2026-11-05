@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useCallback } from 'react';
 import { AlertTriangle, Trash2, X, Loader2 } from 'lucide-react';
 
 /**
@@ -8,6 +8,7 @@ import { AlertTriangle, Trash2, X, Loader2 } from 'lucide-react';
 export default function ConfirmDeleteModal({
   isOpen,
   onClose,
+  onCancel,
   onConfirm,
   title = 'Confirm Deletion',
   itemName = '',
@@ -17,18 +18,32 @@ export default function ConfirmDeleteModal({
   isLoading = false,
   danger = true
 }) {
+  const handleClose = useCallback(() => {
+    if (typeof onClose === 'function') {
+      onClose();
+    } else if (typeof onCancel === 'function') {
+      onCancel();
+    }
+  }, [onClose, onCancel]);
+
+  const handleConfirm = useCallback(() => {
+    if (typeof onConfirm === 'function') {
+      onConfirm();
+    }
+  }, [onConfirm]);
+
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (!isOpen) return;
       if (e.key === 'Escape' && !isLoading) {
-        onClose();
+        handleClose();
       } else if (e.key === 'Enter' && !isLoading) {
-        onConfirm();
+        handleConfirm();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose, onConfirm, isLoading]);
+  }, [isOpen, handleClose, handleConfirm, isLoading]);
 
   if (!isOpen) return null;
 
@@ -36,7 +51,7 @@ export default function ConfirmDeleteModal({
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm transition-opacity duration-200"
       onClick={(e) => {
-        if (e.target === e.currentTarget && !isLoading) onClose();
+        if (e.target === e.currentTarget && !isLoading) handleClose();
       }}
     >
       <div
@@ -66,9 +81,9 @@ export default function ConfirmDeleteModal({
           </div>
 
           <button
-            onClick={onClose}
+            onClick={handleClose}
             disabled={isLoading}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-[#1f2838] transition disabled:opacity-40"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-[#1f2838] transition disabled:opacity-40 cursor-pointer"
             title="Cancel and close"
           >
             <X size={18} />
@@ -99,18 +114,18 @@ export default function ConfirmDeleteModal({
         <div className="px-6 py-5 bg-[#0e121a] border-t border-[#1c2434] flex items-center justify-end space-x-3 mt-3">
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             disabled={isLoading}
-            className="px-4 py-2.5 rounded-xl bg-[#1a2130] hover:bg-[#232c3f] border border-[#27344c] text-xs font-bold text-slate-300 hover:text-white transition disabled:opacity-50"
+            className="px-4 py-2.5 rounded-xl bg-[#1a2130] hover:bg-[#232c3f] border border-[#27344c] text-xs font-bold text-slate-300 hover:text-white transition disabled:opacity-50 cursor-pointer"
           >
             {cancelText}
           </button>
 
           <button
             type="button"
-            onClick={onConfirm}
+            onClick={handleConfirm}
             disabled={isLoading}
-            className={`px-5 py-2.5 rounded-xl font-extrabold text-xs tracking-wider uppercase transition flex items-center gap-2 shadow-lg ${
+            className={`px-5 py-2.5 rounded-xl font-extrabold text-xs tracking-wider uppercase transition flex items-center gap-2 shadow-lg cursor-pointer ${
               danger
                 ? 'bg-rose-600 hover:bg-rose-500 text-white shadow-rose-950/50 hover:shadow-rose-900/60'
                 : 'bg-amber-600 hover:bg-amber-500 text-white shadow-amber-950/50'

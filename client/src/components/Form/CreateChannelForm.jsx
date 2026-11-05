@@ -60,7 +60,7 @@ export default function CreateChannelForm({
   };
 
   return (
-    <div className="space-y-4 max-w-5xl">
+    <div className="space-y-4">
       <button
         type="button"
         onClick={onCancel}

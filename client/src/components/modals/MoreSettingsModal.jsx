@@ -404,7 +404,7 @@ export default function MoreSettingsModal({
       <div className="bg-[#0b0e14] border border-[#222b3d] rounded-2xl w-full max-w-5xl h-[88vh] max-h-[820px] flex flex-col shadow-2xl shadow-black/80 overflow-hidden">
         
         {/* Top Header Bar */}
-        <div className="px-6 py-3.5 border-b border-[#1b2333] flex items-center justify-between bg-gradient-to-r from-[#0f1420] to-[#0a0d14]">
+        <div className="px-6 py-3.5 border-b border-[#1b2333] flex items-center justify-between bg-linear-to-r from-[#0f1420] to-[#0a0d14]">
           <div className="flex items-center space-x-3">
             <div className="w-9 h-9 rounded-xl bg-blue-600/15 border border-blue-500/30 flex items-center justify-center text-blue-400">
               <Sliders size={18} />

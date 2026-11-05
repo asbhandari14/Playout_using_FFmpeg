@@ -468,7 +468,8 @@ export default function useDashboard(initialSection = 'channels', initialSubView
     setEditingPlaylistId(null);
     setPlaylistFormData({
       ...getEmptyPlaylistForm(forcedType),
-      channel: channels[0]?._id || ''
+      channel: channels[0]?._id || '',
+      items: []
     });
     const sectionMap = {
       default: 'default_playlist',
@@ -497,7 +498,8 @@ export default function useDashboard(initialSection = 'channels', initialSubView
       daysOfWeek: Array.isArray(p.daysOfWeek) ? [...p.daysOfWeek] : [],
       liveSourceUrl: p.liveSourceUrl || '',
       loop: p.loop !== undefined ? p.loop : true,
-      isActive: p.isActive !== undefined ? p.isActive : true
+      isActive: p.isActive !== undefined ? p.isActive : true,
+      items: Array.isArray(p.items) ? p.items : []
     });
     const sectionMap = {
       default: 'default_playlist',
@@ -511,7 +513,7 @@ export default function useDashboard(initialSection = 'channels', initialSubView
   };
 
   const submitPlaylist = async (e) => {
-    e.preventDefault();
+    if (e?.preventDefault) e.preventDefault();
     const f = playlistFormData;
 
     if (!f.name || !f.channel) {
@@ -532,7 +534,12 @@ export default function useDashboard(initialSection = 'channels', initialSubView
         daysOfWeek: f.daysOfWeek || [],
         liveSourceUrl: f.liveSourceUrl || '',
         loop: Boolean(f.loop),
-        isActive: Boolean(f.isActive)
+        isActive: Boolean(f.isActive),
+        items: (f.items || []).map((it) => ({
+          asset: it.asset?._id || it.asset,
+          order: it.order,
+          status: it.status || 'queued'
+        }))
       };
 
       if (editingPlaylistId) {

@@ -215,11 +215,10 @@ export default function PlaylistSettingsModal({
             ].map((opt) => (
               <label
                 key={opt.id}
-                className={`p-2.5 rounded-lg border cursor-pointer text-center transition flex flex-col items-center justify-center ${
-                  formData.scheduleOption === opt.id
-                    ? 'bg-blue-600/15 border-blue-500 text-blue-300 font-semibold shadow-sm'
-                    : 'bg-[#0d1017] border-[#232b3c] text-slate-400 hover:border-slate-600'
-                }`}
+                className={`p-2.5 rounded-lg border cursor-pointer text-center transition flex flex-col items-center justify-center ${formData.scheduleOption === opt.id
+                  ? 'bg-blue-600/15 border-blue-500 text-blue-300 font-semibold shadow-sm'
+                  : 'bg-[#0d1017] border-[#232b3c] text-slate-400 hover:border-slate-600'
+                  }`}
               >
                 <input
                   type="radio"
@@ -280,11 +279,10 @@ export default function PlaylistSettingsModal({
                     key={d.value}
                     type="button"
                     onClick={() => toggleDayOfWeek(d.value)}
-                    className={`px-3 py-1 rounded-md text-xs font-semibold transition border ${
-                      selected
-                        ? 'bg-blue-600 text-white border-blue-500 shadow-sm'
-                        : 'bg-[#141822] text-slate-400 border-[#232b3c] hover:border-slate-500'
-                    }`}
+                    className={`px-3 py-1 rounded-md text-xs font-semibold transition border ${selected
+                      ? 'bg-blue-600 text-white border-blue-500 shadow-sm'
+                      : 'bg-[#141822] text-slate-400 border-[#232b3c] hover:border-slate-500'
+                      }`}
                   >
                     {d.label}
                   </button>
@@ -380,7 +378,7 @@ export default function PlaylistSettingsModal({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold shadow-md shadow-blue-600/30 transition disabled:opacity-50"
+              className="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium shadow-md shadow-blue-600/30 transition disabled:opacity-50"
             >
               {isSubmitting ? 'Saving...' : isEditing ? 'Update Playlist' : 'Create Playlist'}
             </button>

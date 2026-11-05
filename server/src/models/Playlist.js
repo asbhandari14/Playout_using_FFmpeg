@@ -186,11 +186,11 @@ const playlistSchema = new mongoose.Schema(
 );
 
 // Pre-save hook: auto-assign priority based on type if not explicitly set
-playlistSchema.pre('save', function (next) {
+playlistSchema.pre('save', function () {
   if (this.type && PLAYLIST_PRIORITY[this.type] !== undefined) {
     this.priority = PLAYLIST_PRIORITY[this.type];
   }
-  next();
+
 });
 
 // Indexes for high-performance lookup by priority and channel
@@ -200,4 +200,4 @@ playlistSchema.index({ channel: 1, priority: -1, isActive: 1 });
 export const Playlist = mongoose.model('Playlist', playlistSchema);
 
 // Safe cleanup of legacy unique index on channel if it exists in MongoDB
-Playlist.collection?.dropIndex('channel_1').catch(() => {});
+Playlist.collection?.dropIndex('channel_1').catch(() => { });

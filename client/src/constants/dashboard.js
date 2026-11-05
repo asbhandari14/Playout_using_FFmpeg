@@ -66,5 +66,6 @@ export const getEmptyPlaylistForm = (type = 'default') => ({
   daysOfWeek: [],
   liveSourceUrl: '',
   loop: true,
-  isActive: true
+  isActive: true,
+  items: []
 });

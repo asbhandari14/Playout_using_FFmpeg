@@ -19,6 +19,7 @@ import CreateServerForm from '../../components/form/CreateServerForm.jsx';
 import UpdateServerForm from '../../components/form/UpdateServerForm.jsx';
 
 import PlaylistSection from '../playlist/PlaylistSection.jsx';
+import PlaylistBuilder from '../playlist/PlaylistBuilder.jsx';
 import CreatePlaylistForm from '../../components/form/CreatePlaylistForm.jsx';
 import UpdatePlaylistForm from '../../components/form/UpdatePlaylistForm.jsx';
 
@@ -193,25 +194,15 @@ export default function Dashboard({ initialSection = 'channels', initialSubView 
           {/* 4. Emergency Playlist (Priority 5) */}
           {activeSection === 'emergency_playlist' &&
             (isFormView ? (
-              subView === 'create' ? (
-                <CreatePlaylistForm
-                  formData={playlistForm.data}
-                  setFormData={playlistForm.setData}
-                  channels={channels}
-                  forcedType="emergency"
-                  onSubmit={playlistForm.submit}
-                  onCancel={() => nav.setSubView('list')}
-                />
-              ) : (
-                <UpdatePlaylistForm
-                  formData={playlistForm.data}
-                  setFormData={playlistForm.setData}
-                  channels={channels}
-                  forcedType="emergency"
-                  onSubmit={playlistForm.submit}
-                  onCancel={() => nav.setSubView('list')}
-                />
-              )
+              <PlaylistBuilder
+                formData={playlistForm.data}
+                setFormData={playlistForm.setData}
+                channels={channels}
+                forcedType="emergency"
+                onSubmit={playlistForm.submit}
+                onCancel={() => nav.setSubView('list')}
+                mode={subView}
+              />
             ) : (
               <PlaylistSection
                 type="emergency"
@@ -228,25 +219,15 @@ export default function Dashboard({ initialSection = 'channels', initialSubView 
           {/* 5. Advertisement Playlist (Priority 4) */}
           {activeSection === 'advertisement_playlist' &&
             (isFormView ? (
-              subView === 'create' ? (
-                <CreatePlaylistForm
-                  formData={playlistForm.data}
-                  setFormData={playlistForm.setData}
-                  channels={channels}
-                  forcedType="advertisement"
-                  onSubmit={playlistForm.submit}
-                  onCancel={() => nav.setSubView('list')}
-                />
-              ) : (
-                <UpdatePlaylistForm
-                  formData={playlistForm.data}
-                  setFormData={playlistForm.setData}
-                  channels={channels}
-                  forcedType="advertisement"
-                  onSubmit={playlistForm.submit}
-                  onCancel={() => nav.setSubView('list')}
-                />
-              )
+              <PlaylistBuilder
+                formData={playlistForm.data}
+                setFormData={playlistForm.setData}
+                channels={channels}
+                forcedType="advertisement"
+                onSubmit={playlistForm.submit}
+                onCancel={() => nav.setSubView('list')}
+                mode={subView}
+              />
             ) : (
               <PlaylistSection
                 type="advertisement"
@@ -263,25 +244,15 @@ export default function Dashboard({ initialSection = 'channels', initialSubView 
           {/* 6. Live Scheduling (Priority 3) */}
           {activeSection === 'live_schedule' &&
             (isFormView ? (
-              subView === 'create' ? (
-                <CreatePlaylistForm
-                  formData={playlistForm.data}
-                  setFormData={playlistForm.setData}
-                  channels={channels}
-                  forcedType="live_schedule"
-                  onSubmit={playlistForm.submit}
-                  onCancel={() => nav.setSubView('list')}
-                />
-              ) : (
-                <UpdatePlaylistForm
-                  formData={playlistForm.data}
-                  setFormData={playlistForm.setData}
-                  channels={channels}
-                  forcedType="live_schedule"
-                  onSubmit={playlistForm.submit}
-                  onCancel={() => nav.setSubView('list')}
-                />
-              )
+              <PlaylistBuilder
+                formData={playlistForm.data}
+                setFormData={playlistForm.setData}
+                channels={channels}
+                forcedType="live_schedule"
+                onSubmit={playlistForm.submit}
+                onCancel={() => nav.setSubView('list')}
+                mode={subView}
+              />
             ) : (
               <PlaylistSection
                 type="live_schedule"
@@ -298,25 +269,15 @@ export default function Dashboard({ initialSection = 'channels', initialSubView 
           {/* 7. Scheduling Playlist (Priority 2) */}
           {activeSection === 'scheduling_playlist' &&
             (isFormView ? (
-              subView === 'create' ? (
-                <CreatePlaylistForm
-                  formData={playlistForm.data}
-                  setFormData={playlistForm.setData}
-                  channels={channels}
-                  forcedType="scheduling"
-                  onSubmit={playlistForm.submit}
-                  onCancel={() => nav.setSubView('list')}
-                />
-              ) : (
-                <UpdatePlaylistForm
-                  formData={playlistForm.data}
-                  setFormData={playlistForm.setData}
-                  channels={channels}
-                  forcedType="scheduling"
-                  onSubmit={playlistForm.submit}
-                  onCancel={() => nav.setSubView('list')}
-                />
-              )
+              <PlaylistBuilder
+                formData={playlistForm.data}
+                setFormData={playlistForm.setData}
+                channels={channels}
+                forcedType="scheduling"
+                onSubmit={playlistForm.submit}
+                onCancel={() => nav.setSubView('list')}
+                mode={subView}
+              />
             ) : (
               <PlaylistSection
                 type="scheduling"
@@ -333,25 +294,15 @@ export default function Dashboard({ initialSection = 'channels', initialSubView 
           {/* 8. Default Playlist (Priority 1) */}
           {activeSection === 'default_playlist' &&
             (isFormView ? (
-              subView === 'create' ? (
-                <CreatePlaylistForm
-                  formData={playlistForm.data}
-                  setFormData={playlistForm.setData}
-                  channels={channels}
-                  forcedType="default"
-                  onSubmit={playlistForm.submit}
-                  onCancel={() => nav.setSubView('list')}
-                />
-              ) : (
-                <UpdatePlaylistForm
-                  formData={playlistForm.data}
-                  setFormData={playlistForm.setData}
-                  channels={channels}
-                  forcedType="default"
-                  onSubmit={playlistForm.submit}
-                  onCancel={() => nav.setSubView('list')}
-                />
-              )
+              <PlaylistBuilder
+                formData={playlistForm.data}
+                setFormData={playlistForm.setData}
+                channels={channels}
+                forcedType="default"
+                onSubmit={playlistForm.submit}
+                onCancel={() => nav.setSubView('list')}
+                mode={subView}
+              />
             ) : (
               <PlaylistSection
                 type="default"
@@ -367,23 +318,15 @@ export default function Dashboard({ initialSection = 'channels', initialSubView 
 
           {/* General Playlist Form */}
           {activeSection === 'playlists' && isFormView && (
-            subView === 'create' ? (
-              <CreatePlaylistForm
-                formData={playlistForm.data}
-                setFormData={playlistForm.setData}
-                channels={channels}
-                onSubmit={playlistForm.submit}
-                onCancel={() => nav.setSubView('list')}
-              />
-            ) : (
-              <UpdatePlaylistForm
-                formData={playlistForm.data}
-                setFormData={playlistForm.setData}
-                channels={channels}
-                onSubmit={playlistForm.submit}
-                onCancel={() => nav.setSubView('list')}
-              />
-            )
+            <PlaylistBuilder
+              formData={playlistForm.data}
+              setFormData={playlistForm.setData}
+              channels={channels}
+              forcedType={playlistForm.data?.type || 'default'}
+              onSubmit={playlistForm.submit}
+              onCancel={() => nav.setSubView('list')}
+              mode={subView}
+            />
           )}
 
           {/* Fallback for other sections */}

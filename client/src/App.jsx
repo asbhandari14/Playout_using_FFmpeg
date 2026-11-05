@@ -177,6 +177,14 @@ export default function App() {
         }
       />
       <Route
+        path="/playlists/emergency/create"
+        element={
+          <ProtectedRoute>
+            <Dashboard initialSection="emergency_playlist" initialSubView="create" />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/playlists/advertisement"
         element={
           <ProtectedRoute>
