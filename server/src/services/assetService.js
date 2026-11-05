@@ -1,8 +1,8 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { Asset } from '../models/Asset.js';
-import { Channel } from '../models/Channel.js';
+import { Asset } from '../models/asset.model.js';
+import { Channel } from '../models/channel.model.js';
 import { ASSET_STATUS } from '../config/constants.js';
 import { probeVideo, generateThumbnail, normalizeVideo } from '../utils/media.js';
 import { io } from '../server.js';

@@ -1,4 +1,4 @@
-import { Server } from '../models/Server.js';
+import { Server } from '../models/server.model.js';
 import { ROLES } from '../config/constants.js';
 import { z } from 'zod';
 

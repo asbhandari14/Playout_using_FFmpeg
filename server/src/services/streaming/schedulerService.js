@@ -1,4 +1,4 @@
-import { Schedule } from '../../models/Schedule.js';
+import { Schedule } from '../../models/schedule.model.js';
 import { streamManager } from './streamManager.js';
 
 class SchedulerService {
@@ -117,58 +117,58 @@ class SchedulerService {
       const now = new Date();
       const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
-        for (const channelIdStr of activeChannelIds) {
-          const stream = streamManager.getStream(channelIdStr);
-          if (!stream || !stream.feeder) continue;
+      for (const channelIdStr of activeChannelIds) {
+        const stream = streamManager.getStream(channelIdStr);
+        if (!stream || !stream.feeder) continue;
 
-          // Check priority-based playlist transitions on the 1-second clock tick
-          stream.feeder.checkPriorityTransition().catch(() => {});
+        // Check priority-based playlist transitions on the 1-second clock tick
+        stream.feeder.checkPriorityTransition().catch(() => { });
 
-          const schedule = await this.getActiveScheduleForChannel(channelIdStr, now);
-          if (!schedule) continue;
+        const schedule = await this.getActiveScheduleForChannel(channelIdStr, now);
+        if (!schedule) continue;
 
-          if (schedule.type === 'lband') {
-            if (schedule.lastAiredDate === todayStr) continue;
-            schedule.lastAiredDate = todayStr;
-            await schedule.save();
+        if (schedule.type === 'lband') {
+          if (schedule.lastAiredDate === todayStr) continue;
+          schedule.lastAiredDate = todayStr;
+          await schedule.save();
 
-            const dur = Number(schedule.duration) || 60;
-            console.log(`[SchedulerService] Firing scheduled L-Band "${schedule.title}" for ${dur}s on channel ${channelIdStr}`);
-            streamManager.fireLBand(channelIdStr, dur).catch((err) => {
-              console.error(`[SchedulerService] Error triggering L-Band schedule '${schedule.title}':`, err);
-            });
-          } else if (schedule.type === 'ashton') {
-            if (schedule.lastAiredDate === todayStr) continue;
-            schedule.lastAiredDate = todayStr;
-            await schedule.save();
+          const dur = Number(schedule.duration) || 60;
+          console.log(`[SchedulerService] Firing scheduled L-Band "${schedule.title}" for ${dur}s on channel ${channelIdStr}`);
+          streamManager.fireLBand(channelIdStr, dur).catch((err) => {
+            console.error(`[SchedulerService] Error triggering L-Band schedule '${schedule.title}':`, err);
+          });
+        } else if (schedule.type === 'ashton') {
+          if (schedule.lastAiredDate === todayStr) continue;
+          schedule.lastAiredDate = todayStr;
+          await schedule.save();
 
-            const dur = Number(schedule.duration) || 60;
-            const squeeze = schedule.ashtonSqueeze !== false;
-            console.log(`[SchedulerService] Firing scheduled Ashton Band "${schedule.title}" for ${dur}s (squeeze: ${squeeze}) on channel ${channelIdStr}`);
-            streamManager.fireAshton(channelIdStr, dur, squeeze).catch((err) => {
-              console.error(`[SchedulerService] Error triggering Ashton schedule '${schedule.title}':`, err);
-            });
-          } else {
-            // Default Video / Ad Commercial schedule
-            if (stream.feeder.isScheduleActive) {
-              continue;
-            }
-
-            console.log(
-                `[SchedulerService] Triggering scheduled video/ad "${schedule.title}" for channel ${channelIdStr} (Window: ${schedule.dailyStartTime} -> ${schedule.dailyEndTime || 'completion'})`
-            );
-
-            stream.feeder
-              .interruptWithSchedule(schedule)
-              .catch((err) => {
-                console.error(`[SchedulerService] Execution error on schedule '${schedule.title}':`, err);
-              });
+          const dur = Number(schedule.duration) || 60;
+          const squeeze = schedule.ashtonSqueeze !== false;
+          console.log(`[SchedulerService] Firing scheduled Ashton Band "${schedule.title}" for ${dur}s (squeeze: ${squeeze}) on channel ${channelIdStr}`);
+          streamManager.fireAshton(channelIdStr, dur, squeeze).catch((err) => {
+            console.error(`[SchedulerService] Error triggering Ashton schedule '${schedule.title}':`, err);
+          });
+        } else {
+          // Default Video / Ad Commercial schedule
+          if (stream.feeder.isScheduleActive) {
+            continue;
           }
+
+          console.log(
+            `[SchedulerService] Triggering scheduled video/ad "${schedule.title}" for channel ${channelIdStr} (Window: ${schedule.dailyStartTime} -> ${schedule.dailyEndTime || 'completion'})`
+          );
+
+          stream.feeder
+            .interruptWithSchedule(schedule)
+            .catch((err) => {
+              console.error(`[SchedulerService] Execution error on schedule '${schedule.title}':`, err);
+            });
         }
-      } finally {
-        this.isChecking = false;
       }
+    } finally {
+      this.isChecking = false;
     }
+  }
 }
 
-  export const schedulerService = new SchedulerService();
+export const schedulerService = new SchedulerService();

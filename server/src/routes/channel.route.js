@@ -8,7 +8,7 @@ import {
   createChannelSchema,
   updateChannelSchema,
   CheckChannelOnlineOrOffline
-} from '../controllers/channelController.js';
+} from '../controllers/channel.controller.js';
 import {
   getPlaylist,
   savePlaylist,
@@ -18,7 +18,7 @@ import {
   updatePlaylist,
   deletePlaylist,
   getActivePlaylist
-} from '../controllers/playlistController.js';
+} from '../controllers/playlist.controller.js';
 import {
   updateLogoBranding,
   removeLogo,
@@ -38,7 +38,7 @@ import {
   uploadAshtonFile,
   updateTimerBranding,
   removeTimer
-} from '../controllers/brandingController.js';
+} from '../controllers/branding.controller.js';
 import {
   getSchedules,
   createSchedule,
@@ -46,12 +46,12 @@ import {
   toggleSchedule,
   deleteSchedule,
   playScheduleNow
-} from '../controllers/scheduleController.js';
+} from '../controllers/schedule.controller.js';
 import {
   startStreamHandler,
   stopStreamHandler,
   getStreamStatusHandler
-} from '../controllers/streamController.js';
+} from '../controllers/stream.controller.js';
 import { authenticate } from '../middleware/auth.js';
 import { authorize } from '../middleware/rbac.js';
 import { validate } from '../middleware/validate.js';

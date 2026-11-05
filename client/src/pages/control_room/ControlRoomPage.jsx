@@ -1,3 +1,4 @@
+import { toast } from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
@@ -166,20 +167,23 @@ export default function ControlRoomPage() {
         await api.post(`/channels/${channelId}/stop`);
         setIsLive(false);
         dispatch(updateChannelStatus({ channelId, status: 'idle' }));
+        toast.success('Live broadcast stopped');
       } else {
         await api.post(`/channels/${channelId}/start`, { startIndex: 0 });
         setIsLive(true);
         dispatch(updateChannelStatus({ channelId, status: 'live' }));
+        toast.success('Live broadcast started!');
       }
 
     } catch (err) {
-      alert(err.response?.data?.message || 'Error toggling live broadcast stream');
+      toast.error(err.response?.data?.message || 'Error toggling live broadcast stream');
     }
   };
 
   // Add asset from library to playlist
   const handleAddToPlaylist = (asset) => {
     dispatch(addItem(asset));
+    toast.success(`Added "${asset.originalName}" to playlist`);
   };
 
   return (

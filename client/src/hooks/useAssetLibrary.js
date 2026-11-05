@@ -1,3 +1,4 @@
+import { toast } from 'react-hot-toast';
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { io } from 'socket.io-client';
@@ -136,7 +137,7 @@ export default function useAssetLibrary(channelId) {
             idx === i ? { ...f, status: 'failed', error: validation.message } : f
           )
         );
-        alert(validation.message);
+        toast.error(validation.message);
         continue;
       }
 
@@ -161,12 +162,14 @@ export default function useAssetLibrary(channelId) {
         setUploadFiles((prev) =>
           prev.map((f, idx) => (idx === i ? { ...f, progress: 100, status: 'completed' } : f))
         );
+        toast.success(`"${item.file?.name}" uploaded successfully`);
       } catch (err) {
         setUploadFiles((prev) =>
           prev.map((f, idx) =>
             idx === i ? { ...f, status: 'failed', error: err || 'Upload failed' } : f
           )
         );
+        toast.error(`Failed to upload "${item.file?.name}": ${err || 'Error'}`);
       }
     }
 
@@ -185,7 +188,12 @@ export default function useAssetLibrary(channelId) {
 
   const handleConfirmDelete = useCallback(async () => {
     if (assetToDelete?._id) {
-      await dispatch(deleteAsset(assetToDelete._id));
+      try {
+        await dispatch(deleteAsset(assetToDelete._id)).unwrap();
+        toast.success(`"${assetToDelete.originalName || 'Asset'}" deleted successfully`);
+      } catch (err) {
+        toast.error(err || 'Failed to delete asset');
+      }
       if (channelId) {
         dispatch(fetchStorageSummary(channelId));
       }

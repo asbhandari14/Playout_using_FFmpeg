@@ -1,3 +1,4 @@
+import { toast } from 'react-hot-toast';
 import { useEffect, useMemo, useCallback, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
@@ -314,51 +315,83 @@ export function usePlaylist(channelId) {
 
   const handleCreatePlaylist = useCallback(
     async (playlistData) => {
-      return await dispatch(createPlaylistThunk({ channelId, ...playlistData })).unwrap();
+      try {
+        const res = await dispatch(createPlaylistThunk({ channelId, ...playlistData })).unwrap();
+        toast.success(`Playlist "${playlistData.name || 'New'}" created successfully`);
+        return res;
+      } catch (err) {
+        toast.error(err || 'Failed to create playlist');
+        throw err;
+      }
     },
     [channelId, dispatch]
   );
 
   const handleUpdatePlaylist = useCallback(
     async (playlistId, playlistData) => {
-      return await dispatch(updatePlaylistThunk({ channelId, playlistId, ...playlistData })).unwrap();
+      try {
+        const res = await dispatch(updatePlaylistThunk({ channelId, playlistId, ...playlistData })).unwrap();
+        toast.success('Playlist updated successfully');
+        return res;
+      } catch (err) {
+        toast.error(err || 'Failed to update playlist');
+        throw err;
+      }
     },
     [channelId, dispatch]
   );
 
   const handleDeletePlaylist = useCallback(
     async (playlistId) => {
-      return await dispatch(deletePlaylistThunk({ channelId, playlistId })).unwrap();
+      try {
+        const res = await dispatch(deletePlaylistThunk({ channelId, playlistId })).unwrap();
+        toast.success('Playlist deleted');
+        return res;
+      } catch (err) {
+        toast.error(err || 'Failed to delete playlist');
+        throw err;
+      }
     },
     [channelId, dispatch]
   );
 
-  const handleSaveCurrent = useCallback(() => {
+  const handleSaveCurrent = useCallback(async () => {
     if (!currentPlaylist) return;
-    dispatch(
-      savePlaylistThunk({
-        channelId,
-        playlistId: currentPlaylist._id,
-        items,
-        loop: currentPlaylist.loop !== undefined ? currentPlaylist.loop : true,
-        type: currentPlaylist.type
-      })
-    );
+    try {
+      await dispatch(
+        savePlaylistThunk({
+          channelId,
+          playlistId: currentPlaylist._id,
+          items,
+          loop: currentPlaylist.loop !== undefined ? currentPlaylist.loop : true,
+          type: currentPlaylist.type
+        })
+      ).unwrap();
+      toast.success(`Playlist "${currentPlaylist.name || 'Broadcast'}" saved successfully`);
+    } catch (err) {
+      toast.error(err || 'Failed to save playlist');
+    }
   }, [channelId, currentPlaylist, items, dispatch]);
 
-  const handleClearCurrent = useCallback(() => {
+  const handleClearCurrent = useCallback(async () => {
     if (!currentPlaylist) return;
-    dispatch(
-      clearPlaylistThunk({
-        channelId,
-        playlistId: currentPlaylist._id
-      })
-    );
+    try {
+      await dispatch(
+        clearPlaylistThunk({
+          channelId,
+          playlistId: currentPlaylist._id
+        })
+      ).unwrap();
+      toast.success('Broadcast playlist cleared');
+    } catch (err) {
+      toast.error(err || 'Failed to clear playlist');
+    }
   }, [channelId, currentPlaylist, dispatch]);
 
   const handleAddItem = useCallback(
     (asset) => {
       dispatch(addItem(asset));
+      toast.success(`Added "${asset.originalName}" to playlist`);
     },
     [dispatch]
   );
@@ -366,6 +399,7 @@ export function usePlaylist(channelId) {
   const handleRemoveItem = useCallback(
     (index) => {
       dispatch(removeItem(index));
+      toast('Item removed from playlist', { icon: '🗑️' });
     },
     [dispatch]
   );
@@ -380,6 +414,7 @@ export function usePlaylist(channelId) {
   const handleDuplicateItem = useCallback(
     (index) => {
       dispatch(duplicateItem(index));
+      toast.success('Video clip duplicated in sequence');
     },
     [dispatch]
   );

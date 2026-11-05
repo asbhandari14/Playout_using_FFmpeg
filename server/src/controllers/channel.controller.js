@@ -1,10 +1,10 @@
 import fs from 'fs';
 import path from 'path';
-import { Channel } from '../models/Channel.js';
-import { User } from '../models/User.js';
-import { Server } from '../models/Server.js';
-import { Playlist } from '../models/Playlist.js';
-import { Asset } from '../models/Asset.js';
+import { Channel } from '../models/channel.model.js';
+import { User } from '../models/user.model.js';
+import { Server } from '../models/server.model.js';
+import { Playlist } from '../models/playlist.model.js';
+import { Asset } from '../models/asset.model.js';
 import { ROLES, CHANNEL_STATUS } from '../config/constants.js';
 import { createFlussonicStream, deleteFlussonicStream, sanitizeStreamKey } from '../services/flussonicService.js';
 import {
@@ -467,8 +467,8 @@ export const CheckChannelOnlineOrOffline = async (req, res) => {
           typeof response.data === 'string'
             ? response.data.trim()
             : response.data
-            ? JSON.stringify(response.data)
-            : '';
+              ? JSON.stringify(response.data)
+              : '';
       } catch {
         // Fallback to native Node fetch if axios is unavailable or throws
         if (typeof fetch === 'function') {

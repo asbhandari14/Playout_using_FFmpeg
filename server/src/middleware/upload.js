@@ -1,7 +1,7 @@
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import { Channel } from '../models/Channel.js';
+import { Channel } from '../models/channel.model.js';
 import { TEMP_DIR, ensureChannelUploadDirs } from '../config/paths.js';
 
 // Storage engine for chunked uploads
@@ -31,7 +31,7 @@ const directStorage = multer.diskStorage({
         try {
           const ch = await Channel.findById(channelId).select('name');
           channelName = ch?.name;
-        } catch {}
+        } catch { }
       }
       const { videoDir } = ensureChannelUploadDirs(channelId, channelName);
       cb(null, videoDir);

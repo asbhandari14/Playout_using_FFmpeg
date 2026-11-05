@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { Channel } from '../models/Channel.js';
+import { Channel } from '../models/channel.model.js';
 import { io } from '../server.js';
 import { STREAMS_DIR, SERVER_ROOT } from '../config/paths.js';
 import { streamManager } from '../services/streaming/streamManager.js';

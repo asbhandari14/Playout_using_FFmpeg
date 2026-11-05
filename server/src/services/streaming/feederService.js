@@ -1,10 +1,10 @@
 import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs';
-import { Playlist, isPlaylistCurrentlyActive, resolveChannelActivePlaylist, PLAYLIST_TYPE } from '../../models/Playlist.js';
-import { Channel } from '../../models/Channel.js';
-import { Schedule } from '../../models/Schedule.js';
-import { Asset } from '../../models/Asset.js';
+import { Playlist, isPlaylistCurrentlyActive, resolveChannelActivePlaylist, PLAYLIST_TYPE } from '../../models/playlist.model.js';
+import { Channel } from '../../models/channel.model.js';
+import { Schedule } from '../../models/schedule.model.js';
+import { Asset } from '../../models/asset.model.js';
 import { io } from '../../server.js';
 import { SERVER_ROOT } from '../../config/paths.js';
 import { PLAYLIST_ITEM_STATUS } from '../../config/constants.js';
@@ -438,7 +438,7 @@ export class FeederService {
           }
           return;
         }
-        this.checkPriorityTransition().catch(() => {});
+        this.checkPriorityTransition().catch(() => { });
       }, 1000);
 
       decoder.stdout.on('error', (err) => {
@@ -580,7 +580,7 @@ export class FeederService {
     };
 
     console.log(
-        `[Feeder:${this.channelId}] >>> ${hadRegularVideoPlaying ? 'PAUSING PLAYLIST ITEM #' + (this.interruptedState.index + 1) + ' AT ' + this.interruptedState.offsetSeconds.toFixed(1) + 's' : 'DIRECT STARTUP PLAYOUT'} FOR SCHEDULE: "${schedule.title}" (${scheduledAssets.length} video(s)) <<<`
+      `[Feeder:${this.channelId}] >>> ${hadRegularVideoPlaying ? 'PAUSING PLAYLIST ITEM #' + (this.interruptedState.index + 1) + ' AT ' + this.interruptedState.offsetSeconds.toFixed(1) + 's' : 'DIRECT STARTUP PLAYOUT'} FOR SCHEDULE: "${schedule.title}" (${scheduledAssets.length} video(s)) <<<`
     );
 
     // 2. Snapshot current branding state (ticker, bug, ashton, lband, logo) and suppress secondary overlays (and logo if showDuringSchedule is false)

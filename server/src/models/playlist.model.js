@@ -288,6 +288,3 @@ playlistSchema.index({ channel: 1, type: 1 });
 playlistSchema.index({ channel: 1, priority: -1, isActive: 1 });
 
 export const Playlist = mongoose.model('Playlist', playlistSchema);
-
-// Safe cleanup of legacy unique index on channel if it exists in MongoDB
-Playlist.collection?.dropIndex('channel_1').catch(() => { });

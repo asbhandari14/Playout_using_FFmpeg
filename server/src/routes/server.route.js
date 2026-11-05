@@ -7,7 +7,7 @@ import {
   deleteServer,
   createServerSchema,
   updateServerSchema
-} from '../controllers/serverController.js';
+} from '../controllers/server.controller.js';
 import { authenticate } from '../middleware/auth.js';
 import { authorize } from '../middleware/rbac.js';
 import { validate } from '../middleware/validate.js';

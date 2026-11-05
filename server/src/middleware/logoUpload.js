@@ -1,6 +1,6 @@
 import multer from 'multer';
 import path from 'path';
-import { Channel } from '../models/Channel.js';
+import { Channel } from '../models/channel.model.js';
 import { ensureChannelUploadDirs } from '../config/paths.js';
 
 const getChannelSubdir = async (req, subfolderKey) => {
@@ -10,7 +10,7 @@ const getChannelSubdir = async (req, subfolderKey) => {
     try {
       const ch = await Channel.findById(channelId).select('name');
       channelName = ch?.name;
-    } catch {}
+    } catch { }
   }
   const dirs = ensureChannelUploadDirs(channelId, channelName);
   return dirs[subfolderKey] || dirs.baseDir;

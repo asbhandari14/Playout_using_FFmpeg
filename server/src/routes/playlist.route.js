@@ -1,10 +1,10 @@
 import { Router } from 'express';
-import { Playlist } from '../models/Playlist.js';
+import { Playlist } from '../models/playlist.model.js';
 import {
   createPlaylist,
   updatePlaylist,
   deletePlaylist
-} from '../controllers/playlistController.js';
+} from '../controllers/playlist.controller.js';
 import { authenticate } from '../middleware/auth.js';
 
 const router = Router();

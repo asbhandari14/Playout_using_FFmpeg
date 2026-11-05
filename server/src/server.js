@@ -40,7 +40,7 @@ server.on('clientError', (err, socket) => {
   if (isNetworkDrop || !socket.writable) {
     try {
       socket.destroy();
-    } catch {}
+    } catch { }
     return;
   }
   try {
@@ -48,7 +48,7 @@ server.on('clientError', (err, socket) => {
   } catch {
     try {
       socket.destroy();
-    } catch {}
+    } catch { }
   }
 });
 
@@ -110,25 +110,23 @@ io.on('connection', (socket) => {
 
 import { streamManager } from './services/streaming/streamManager.js';
 import { schedulerService } from './services/streaming/schedulerService.js';
-import { migrateUploadsToChannelFolders } from './utils/migrateUploads.js';
 import { channelStorageCron } from './services/channel.service.js';
 
 // Start DB and Server
 const startServer = async () => {
   try {
     await connectDB();
-    await migrateUploadsToChannelFolders();
     server.listen(PORT, '0.0.0.0', async () => {
       console.log(`Server is running at the PORT : ${PORT}`);
 
       // PM2 Crash Recovery: Resumes all channels that were live before restart/crash
-      await streamManager.recoverActiveChannels();
+      // await streamManager.recoverActiveChannels();
 
-      // Playout Scheduler Clock Service
-      schedulerService.start();
+      // // Playout Scheduler Clock Service
+      // schedulerService.start();
 
-      // Channel Storage Calculator Cron Job (1-minute interval)
-      channelStorageCron.start();
+      // // Channel Storage Calculator Cron Job (1-minute interval)
+      // channelStorageCron.start();
     });
   } catch (err) {
     console.error('Failed to start server:', err);
@@ -163,7 +161,7 @@ process.once('SIGUSR2', async () => {
     schedulerService.stop();
     channelStorageCron.stop();
     await streamManager.stopAllStreams();
-  } catch {}
+  } catch { }
   process.kill(process.pid, 'SIGUSR2');
 });
 

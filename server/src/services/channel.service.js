@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { Channel } from '../models/Channel.js';
+import { Channel } from '../models/channel.model.js';
 import { getChannelUploadsDir, findChannelUploadsDirById } from '../config/paths.js';
 import { io } from '../server.js';
 

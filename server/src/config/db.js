@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { User } from '../models/user.model.js';
 
 export const connectDB = async () => {
   try {
@@ -14,8 +15,12 @@ export const connectDB = async () => {
       console.log('[MongoDB] Reconnected to database.');
     });
 
-    const conn = await mongoose.connect(process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/cloud_playout');
+    const conn = await mongoose.connect(process.env.MONGO_URI);
     console.log(`[MongoDB] Connected: ${conn.connection.host}/${conn.connection.name}`);
+
+    // Create default Super Admin if no users exist
+    await User.createDefaultUser();
+    
     return conn;
   } catch (error) {
     console.error(`[MongoDB] Connection error: ${error.message}`);

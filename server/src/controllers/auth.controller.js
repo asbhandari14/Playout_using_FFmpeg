@@ -1,5 +1,5 @@
-import { User } from '../models/User.js';
-import { RefreshToken } from '../models/RefreshToken.js';
+import { User } from '../models/user.model.js';
+import { RefreshToken } from '../models/refreshToken.model.js';
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../utils/token.js';
 
 export const login = async (req, res, next) => {

@@ -1,6 +1,6 @@
-import { Channel } from '../../models/Channel.js';
-import { Playlist } from '../../models/Playlist.js';
-import { Server } from '../../models/Server.js';
+import { Channel } from '../../models/channel.model.js';
+import { Playlist } from '../../models/playlist.model.js';
+import { Server } from '../../models/server.model.js';
 import { EncoderService } from './encoderService.js';
 import { FeederService } from './feederService.js';
 import { CHANNEL_STATUS } from '../../config/constants.js';
@@ -229,8 +229,8 @@ class StreamManager {
     setTimeout(async () => {
       try {
         const { schedulerService } = await import('./schedulerService.js');
-        schedulerService.checkSchedules().catch(() => {});
-      } catch {}
+        schedulerService.checkSchedules().catch(() => { });
+      } catch { }
     }, 600);
 
     return streamInstance;

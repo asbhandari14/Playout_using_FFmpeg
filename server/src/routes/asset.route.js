@@ -6,7 +6,7 @@ import {
   getAssetById,
   deleteAsset,
   getStorageSummary
-} from '../controllers/assetController.js';
+} from '../controllers/asset.controller.js';
 import { authenticate } from '../middleware/auth.js';
 import { uploadChunk, uploadDirect } from '../middleware/upload.js';
 

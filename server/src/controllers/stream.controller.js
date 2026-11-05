@@ -1,5 +1,5 @@
 import { streamManager } from '../services/streaming/streamManager.js';
-import { Channel } from '../models/Channel.js';
+import { Channel } from '../models/channel.model.js';
 import { ROLES } from '../config/constants.js';
 
 // POST /api/channels/:channelId/start

@@ -1,3 +1,4 @@
+import { toast } from 'react-hot-toast';
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   ArrowLeft,
@@ -328,6 +329,7 @@ export default function PlaylistBuilder({
         status: 'queued'
       };
       updatePlaylistItems([...current, newItem]);
+      toast.success(`Added "${video.originalName}" to sequence`);
     },
     [formData.items, updatePlaylistItems]
   );
@@ -338,6 +340,7 @@ export default function PlaylistBuilder({
       const current = Array.isArray(formData.items) ? formData.items : [];
       const updated = current.filter((_, idx) => idx !== index);
       updatePlaylistItems(updated);
+      toast('Item removed from playlist', { icon: '🗑️' });
     },
     [formData.items, updatePlaylistItems]
   );
@@ -378,6 +381,7 @@ export default function PlaylistBuilder({
       };
       current.splice(index + 1, 0, duplicated);
       updatePlaylistItems(current);
+      toast.success('Video clip duplicated in sequence');
     },
     [formData.items, updatePlaylistItems]
   );
@@ -385,6 +389,7 @@ export default function PlaylistBuilder({
   // Clear all items
   const handleClearAll = useCallback(() => {
     updatePlaylistItems([]);
+    toast.success('Playlist sequence cleared');
   }, [updatePlaylistItems]);
 
   // Reorder row via drag & drop within playlist
@@ -474,13 +479,16 @@ export default function PlaylistBuilder({
         setUploadProgress(pct);
       }
 
+      toast.success(`${file.name} uploaded successfully!`);
       setUploadAlert({ type: 'success', message: `${file.name} uploaded successfully!` });
       setTimeout(() => setUploadAlert(null), 4000);
       fetchVideos(currentChannelId);
     } catch (err) {
+      const uploadErrMsg = err.response?.data?.message || `Failed to upload ${file.name}`;
+      toast.error(uploadErrMsg);
       setUploadAlert({
         type: 'error',
-        message: err.response?.data?.message || `Failed to upload ${file.name}`
+        message: uploadErrMsg
       });
     } finally {
       setIsUploading(false);
@@ -517,11 +525,11 @@ export default function PlaylistBuilder({
   const handleFormSubmit = async (e) => {
     e.preventDefault();
     if (!formData.name?.trim()) {
-      alert(`Please enter a title for this ${typeConfig.shortLabel} Playlist`);
+      toast.error(`Please enter a title for this ${typeConfig.shortLabel} Playlist`);
       return;
     }
     if (!currentChannelId) {
-      alert('Please select a target channel');
+      toast.error('Please select a target channel');
       return;
     }
 

@@ -1,5 +1,5 @@
-import { Channel } from '../models/Channel.js';
-import { User } from '../models/User.js';
+import { Channel } from '../models/channel.model.js';
+import { User } from '../models/user.model.js';
 import { streamManager } from '../services/streaming/streamManager.js';
 import { renderTickerImage } from '../services/streaming/brandingAssets.js';
 import path from 'path';

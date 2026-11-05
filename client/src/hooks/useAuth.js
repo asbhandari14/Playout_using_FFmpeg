@@ -1,14 +1,12 @@
+import { toast } from 'react-hot-toast';
 import { useState, useEffect, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { loginUser, clearError } from '../store/slices/authSlice.js';
 
-const DEFAULT_EMAIL = 'superadmin@playout.com';
-const DEFAULT_PASSWORD = 'Password@123';
-
 export default function useAuth() {
-  const [email, setEmail] = useState(DEFAULT_EMAIL);
-  const [password, setPassword] = useState(DEFAULT_PASSWORD);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
   const dispatch = useDispatch();
   const navigate = useNavigate();

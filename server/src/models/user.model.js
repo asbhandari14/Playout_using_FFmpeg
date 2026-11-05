@@ -59,4 +59,31 @@ userSchema.statics.hashPassword = async function (plainPassword) {
   return bcrypt.hash(plainPassword, salt);
 };
 
+// Create default Super Admin if User collection is empty
+userSchema.statics.createDefaultUser = async function () {
+    try {
+        const userExists = await this.exists({});
+
+        if (userExists) {
+            console.log("[Default User] Users already exist. Skipping creation.");
+            return;
+        }
+
+        const hashedPassword = await this.hashPassword("123456");
+
+        await this.create({
+            name: "Super Admin",
+            email: "example@mail.com",
+            passwordHash: hashedPassword,
+            role: ROLES.SUPER_ADMIN,
+        });
+
+        console.log("[Default User] Default Super Admin created successfully.");
+
+    } catch (error) {
+        console.error("[Default User] Error creating default user:", error);
+        throw error;
+    }
+};
+
 export const User = mongoose.model('User', userSchema);

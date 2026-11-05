@@ -1,6 +1,6 @@
-import { Schedule } from '../models/Schedule.js';
-import { Asset } from '../models/Asset.js';
-import { Channel } from '../models/Channel.js';
+import { Schedule } from '../models/schedule.model.js';
+import { Asset } from '../models/asset.model.js';
+import { Channel } from '../models/channel.model.js';
 
 // Helper to access Socket.IO without circular dependency on server.js
 const getIO = (req) => req?.app?.get('io') || null;
@@ -11,7 +11,7 @@ const triggerSchedulerDirect = () => {
     schedulerService.checkSchedules().catch((err) => {
       console.warn('[ScheduleController] Direct schedule check error:', err.message);
     });
-  }).catch(() => {});
+  }).catch(() => { });
 };
 
 // Helper to normalize HH:mm to HH:mm:ss

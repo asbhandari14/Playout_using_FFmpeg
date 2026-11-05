@@ -1,3 +1,4 @@
+import { toast } from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
 import Modal from './Modal.jsx';
 import { PLAYLIST_TYPE_CONFIG, DAYS_OF_WEEK } from '../../hooks/usePlaylist.js';
@@ -86,19 +87,25 @@ export default function PlaylistSettingsModal({
     setErrorMsg('');
 
     if (!formData.name.trim()) {
-      setErrorMsg('Please enter a playlist name');
+      const msg = 'Please enter a playlist name';
+      setErrorMsg(msg);
+      toast.error(msg);
       return;
     }
 
     if (formData.scheduleOption === 'date') {
       if (formData.startDate && formData.endDate && formData.startDate > formData.endDate) {
-        setErrorMsg('Start date must be earlier than or equal to End date');
+        const msg = 'Start date must be earlier than or equal to End date';
+        setErrorMsg(msg);
+        toast.error(msg);
         return;
       }
     }
 
     if (formData.scheduleOption === 'weekly' && formData.daysOfWeek.length === 0) {
-      setErrorMsg('Please select at least one day for weekly scheduling');
+      const msg = 'Please select at least one day for weekly scheduling';
+      setErrorMsg(msg);
+      toast.error(msg);
       return;
     }
 
@@ -109,9 +116,12 @@ export default function PlaylistSettingsModal({
         startDate: formData.startDate || null,
         endDate: formData.endDate || null
       });
+      toast.success('Playlist schedule settings saved');
       onClose();
     } catch (err) {
-      setErrorMsg(err.message || 'Failed to save playlist settings');
+      const msg = err.message || 'Failed to save playlist settings';
+      setErrorMsg(msg);
+      toast.error(msg);
     } finally {
       setIsSubmitting(false);
     }

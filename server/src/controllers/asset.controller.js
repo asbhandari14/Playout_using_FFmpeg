@@ -1,8 +1,8 @@
 import fs from 'fs';
 import path from 'path';
-import { Asset } from '../models/Asset.js';
-import { Channel } from '../models/Channel.js';
-import { Playlist } from '../models/Playlist.js';
+import { Asset } from '../models/asset.model.js';
+import { Channel } from '../models/channel.model.js';
+import { Playlist } from '../models/playlist.model.js';
 import { ASSET_STATUS, ROLES } from '../config/constants.js';
 import { checkStorageQuota, mergeChunks, processUploadedAsset } from '../services/assetService.js';
 import { calculateChannelStorage, validateStorageAvailability } from '../services/channel.service.js';
