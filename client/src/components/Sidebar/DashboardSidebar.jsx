@@ -12,10 +12,10 @@ import {
 } from 'lucide-react';
 
 const ACTIVE_CLASS =
-  "bg-[#101726] text-white relative before:content-[''] before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:w-1.5 before:h-6 before:bg-[#00bcd4] before:rounded-r-full font-bold";
-const INACTIVE_CLASS = 'text-slate-400 hover:text-slate-200 hover:bg-[#111726]/60 font-medium';
+  "bg-[#101726] text-white relative before:content-[''] before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:w-1.5 before:h-6 before:bg-[#00bcd4] before:rounded-r-full";
+const INACTIVE_CLASS = 'text-slate-400 hover:text-slate-200 hover:bg-[#111726]/60';
 const BASE_CLASS =
-  'w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs transition cursor-pointer';
+  'w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-base transition cursor-pointer';
 
 export default function DashboardSidebar({ currentUser, isOpen, activeSection, onNavigate }) {
   const navigate = useNavigate();

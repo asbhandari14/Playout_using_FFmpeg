@@ -193,10 +193,26 @@ export default function App() {
         }
       />
       <Route
+        path="/playlists/advertisement/create"
+        element={
+          <ProtectedRoute>
+            <Dashboard initialSection="advertisement_playlist" initialSubView="create" />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/playlists/live-schedule"
         element={
           <ProtectedRoute>
             <Dashboard initialSection="live_schedule" />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/playlists/live-schedule/create"
+        element={
+          <ProtectedRoute>
+            <Dashboard initialSection="live_schedule" initialSubView="create" />
           </ProtectedRoute>
         }
       />
@@ -209,10 +225,26 @@ export default function App() {
         }
       />
       <Route
+        path="/playlists/scheduling/create"
+        element={
+          <ProtectedRoute>
+            <Dashboard initialSection="scheduling_playlist" initialSubView="create" />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/playlists/default"
         element={
           <ProtectedRoute>
             <Dashboard initialSection="default_playlist" />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/playlists/default/create"
+        element={
+          <ProtectedRoute>
+            <Dashboard initialSection="default_playlist" initialSubView="create" />
           </ProtectedRoute>
         }
       />

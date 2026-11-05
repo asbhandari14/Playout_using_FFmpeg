@@ -1,7 +1,7 @@
 import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs';
-import { Playlist, isPlaylistCurrentlyActive, PLAYLIST_TYPE } from '../../models/Playlist.js';
+import { Playlist, isPlaylistCurrentlyActive, resolveChannelActivePlaylist, PLAYLIST_TYPE } from '../../models/Playlist.js';
 import { Channel } from '../../models/Channel.js';
 import { Schedule } from '../../models/Schedule.js';
 import { Asset } from '../../models/Asset.js';
@@ -29,6 +29,9 @@ export class FeederService {
     this.wasInterruptedBySchedule = false;
     this.interruptedState = null;
     this.scheduleBrandingSnapshot = null;
+    this.currentPlayingPlaylist = null;
+    this.wasPreemptedByPriority = false;
+    this.priorityCheckTimer = null;
   }
 
   getEncoder() {
@@ -117,27 +120,13 @@ export class FeederService {
    */
   async resolveActivePlaylist() {
     try {
-      const now = new Date();
-      const candidates = await Playlist.find({ channel: this.channelId, isActive: true })
-        .sort({ priority: -1, createdAt: -1 })
-        .populate({
-          path: 'items.asset',
-          select: 'originalName filePath duration durationFormatted status'
-        });
-
-      if (!candidates || candidates.length === 0) {
-        return null;
-      }
-
-      // Pick highest priority playlist matching active schedule rules
-      const active = candidates.find((p) => isPlaylistCurrentlyActive(p, now));
+      const active = await resolveChannelActivePlaylist(this.channelId, new Date());
       if (active) return active;
 
-      // Fallback to default playlist
-      const defaultPlaylist = candidates.find((p) => p.type === PLAYLIST_TYPE.DEFAULT);
-      if (defaultPlaylist) return defaultPlaylist;
-
-      return candidates[0];
+      return await Playlist.findOne({ channel: this.channelId }).populate({
+        path: 'items.asset',
+        select: 'originalName filePath duration durationFormatted status'
+      });
     } catch (err) {
       console.warn(`[Feeder:${this.channelId}] Error resolving active playlist:`, err.message);
       return await Playlist.findOne({ channel: this.channelId }).populate({
@@ -145,6 +134,53 @@ export class FeederService {
         select: 'originalName filePath duration durationFormatted status'
       });
     }
+  }
+
+  /**
+   * Checks whether the active priority playlist has changed for this channel.
+   * If a higher-priority playlist is armed/scheduled, or current playlist's window expired,
+   * terminates current video decoder immediately so playLoop can transition seamlessly.
+   */
+  async checkPriorityTransition() {
+    if (!this.isRunning || this.isScheduleActive) {
+      return false;
+    }
+
+    try {
+      const targetPlaylist = await this.resolveActivePlaylist();
+      if (!targetPlaylist) return false;
+
+      const currentId = this.currentPlayingPlaylist?._id ? String(this.currentPlayingPlaylist._id) : null;
+      const targetId = String(targetPlaylist._id);
+
+      if (currentId && currentId !== targetId) {
+        console.log(
+          `[Feeder:${this.channelId}] >>> REAL-TIME PRIORITY TRANSITION <<<` +
+          `\nFrom: "${this.currentPlayingPlaylist?.name}" (${this.currentPlayingPlaylist?.type}, P${this.currentPlayingPlaylist?.priority})` +
+          `\nTo:   "${targetPlaylist.name}" (${targetPlaylist.type}, P${targetPlaylist.priority})` +
+          `\nPreempting currently playing video decoder to switch immediately.`
+        );
+
+        this.wasPreemptedByPriority = true;
+        this.currentPlayingPlaylist = targetPlaylist;
+
+        if (this.currentDecoder) {
+          try {
+            this.currentDecoder.stdout.unpipe();
+          } catch { }
+          try {
+            killProcessTree(this.currentDecoder);
+          } catch { }
+          this.currentDecoder = null;
+        }
+
+        return true;
+      }
+    } catch (err) {
+      console.warn(`[Feeder:${this.channelId}] Warning checking priority transition:`, err.message);
+    }
+
+    return false;
   }
 
   async start() {
@@ -204,6 +240,7 @@ export class FeederService {
           this.currentIndex = 0;
         }
         currentPlaylistId = String(playlist._id);
+        this.currentPlayingPlaylist = playlist;
 
         // Special handling for live_schedule with a direct liveSourceUrl
         if (playlist.type === PLAYLIST_TYPE.LIVE_SCHEDULE && playlist.liveSourceUrl && (!playlist.items || playlist.items.length === 0)) {
@@ -230,6 +267,7 @@ export class FeederService {
             );
             this.currentIndex = 0;
             currentPlaylistId = String(activeCheck._id);
+            this.currentPlayingPlaylist = activeCheck;
             break;
           }
 
@@ -277,6 +315,16 @@ export class FeederService {
           this.currentAsset = asset;
           this.currentVideoPath = absolutePath;
           await this.streamAsset(absolutePath, asset.duration);
+
+          // If playback was preempted by priority transition (e.g. emergency armed or schedule window ended):
+          if (this.wasPreemptedByPriority) {
+            console.log(
+              `[Feeder:${this.channelId}] Playout preempted by priority transition. Advancing immediately to new active playlist.`
+            );
+            this.wasPreemptedByPriority = false;
+            this.currentIndex = 0;
+            break;
+          }
 
           // If playback was paused by a scheduled video broadcast, wait until schedule finishes
           if (this.wasInterruptedBySchedule) {
@@ -377,6 +425,22 @@ export class FeederService {
 
       this.currentDecoder = decoder;
 
+      // Real-time priority ticker: checks every second while video is decoding
+      if (this.priorityCheckTimer) {
+        clearInterval(this.priorityCheckTimer);
+        this.priorityCheckTimer = null;
+      }
+      this.priorityCheckTimer = setInterval(() => {
+        if (!this.isRunning || !this.currentDecoder) {
+          if (this.priorityCheckTimer) {
+            clearInterval(this.priorityCheckTimer);
+            this.priorityCheckTimer = null;
+          }
+          return;
+        }
+        this.checkPriorityTransition().catch(() => {});
+      }, 1000);
+
       decoder.stdout.on('error', (err) => {
         if (err.code === 'EPIPE' || err.code === 'EOF' || err.code === 'ECONNRESET') return;
         console.warn(`[Decoder stdout error]`, err.message);
@@ -387,21 +451,23 @@ export class FeederService {
         decoder.stdout.pipe(this.encoderProcess.stdin, { end: false });
       }
 
-      decoder.on('close', () => {
+      const cleanupDecoder = () => {
+        if (this.priorityCheckTimer) {
+          clearInterval(this.priorityCheckTimer);
+          this.priorityCheckTimer = null;
+        }
         try {
           decoder.stdout.unpipe();
         } catch { }
         this.currentDecoder = null;
         resolve();
-      });
+      };
+
+      decoder.on('close', cleanupDecoder);
 
       decoder.on('error', (err) => {
         console.error(`[Decoder error]`, err.message);
-        try {
-          decoder.stdout.unpipe();
-        } catch { }
-        this.currentDecoder = null;
-        resolve();
+        cleanupDecoder();
       });
     });
   }
@@ -808,6 +874,11 @@ export class FeederService {
 
   stop() {
     this.isRunning = false;
+    if (this.priorityCheckTimer) {
+      clearInterval(this.priorityCheckTimer);
+      this.priorityCheckTimer = null;
+    }
+    this.currentPlayingPlaylist = null;
     if (this.isScheduleActive && this.scheduleBrandingSnapshot) {
       this.restorePreScheduleBranding().catch(() => { });
     }

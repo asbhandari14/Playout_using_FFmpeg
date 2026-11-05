@@ -296,7 +296,23 @@ class StreamManager {
   }
 
   getStream(channelId) {
-    return this.activeStreams.get(channelId) || null;
+    return this.activeStreams.get(String(channelId)) || null;
+  }
+
+  /**
+   * Checks and triggers priority playout transitions for a channel.
+   * Called when playlists are created, updated, saved, or deleted, or during clock ticks.
+   */
+  async checkChannelPriorityPlayout(channelId) {
+    const chIdStr = String(channelId);
+    const stream = this.getStream(chIdStr);
+    if (stream && stream.feeder && stream.feeder.isRunning) {
+      return await stream.feeder.checkPriorityTransition().catch((err) => {
+        console.warn(`[StreamManager] Priority transition check error for channel ${chIdStr}:`, err.message);
+        return false;
+      });
+    }
+    return false;
   }
 
   isChannelLive(channelId) {

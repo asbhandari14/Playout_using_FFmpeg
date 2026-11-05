@@ -3,8 +3,10 @@ import {
   PLAYLIST_TYPE,
   PLAYLIST_PRIORITY,
   SCHEDULE_OPTION,
-  isPlaylistCurrentlyActive
+  isPlaylistCurrentlyActive,
+  resolveChannelActivePlaylist
 } from '../models/Playlist.js';
+import { streamManager } from '../services/streaming/streamManager.js';
 import { Asset } from '../models/Asset.js';
 import { Channel } from '../models/Channel.js';
 import { formatDuration } from '../utils/media.js';
@@ -127,8 +129,8 @@ export const getActivePlaylist = async (req, res, next) => {
         select: 'originalName filePath thumbnailPath duration durationFormatted size resolution codec status category'
       });
 
-    // Find the highest priority playlist currently matching schedule
-    const activePlaylist = playlists.find((p) => isPlaylistCurrentlyActive(p, now)) || null;
+    // Find the highest priority active playlist matching strict priority hierarchy
+    const activePlaylist = await resolveChannelActivePlaylist(channelId, now);
 
     return res.status(200).json({
       activePlaylist,
@@ -206,6 +208,9 @@ export const createPlaylist = async (req, res, next) => {
       io.to(`channel:${channelId}`).emit('playlist_updated', populated);
     }
 
+    // Trigger instant priority playout check if channel is currently live
+    streamManager.checkChannelPriorityPlayout(channelId).catch(() => {});
+
     return res.status(201).json({
       message: 'Playlist created successfully',
       playlist: populated
@@ -274,6 +279,9 @@ export const updatePlaylist = async (req, res, next) => {
       io.to(`channel:${channelId}`).emit('playlist_updated', populated);
     }
 
+    // Trigger instant priority playout check if channel is currently live
+    streamManager.checkChannelPriorityPlayout(channelId).catch(() => {});
+
     return res.status(200).json({
       message: 'Playlist updated successfully',
       playlist: populated
@@ -332,6 +340,9 @@ export const savePlaylist = async (req, res, next) => {
       io.to(`channel:${channelId}`).emit('playlist_updated', populated);
     }
 
+    // Trigger instant priority playout check if channel is currently live
+    streamManager.checkChannelPriorityPlayout(channelId).catch(() => {});
+
     return res.status(200).json({
       message: 'Playlist saved successfully',
       playlist: populated
@@ -357,6 +368,9 @@ export const deletePlaylist = async (req, res, next) => {
     if (io) {
       io.to(`channel:${channelId}`).emit('playlists_updated', { channelId });
     }
+
+    // Trigger instant priority playout check if channel is currently live
+    streamManager.checkChannelPriorityPlayout(channelId).catch(() => {});
 
     return res.status(200).json({
       message: 'Playlist deleted successfully',
@@ -393,6 +407,9 @@ export const clearPlaylist = async (req, res, next) => {
       io.to(`channel:${channelId}`).emit('playlists_updated', { channelId });
       io.to(`channel:${channelId}`).emit('playlist_updated', playlist);
     }
+
+    // Trigger instant priority playout check if channel is currently live
+    streamManager.checkChannelPriorityPlayout(channelId).catch(() => {});
 
     return res.status(200).json({
       message: 'Broadcast playlist cleared',

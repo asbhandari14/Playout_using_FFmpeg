@@ -138,7 +138,7 @@ export default function UpdatePlaylistForm({
           )}
 
           {/* Type Badge Card */}
-          <div className={`md:col-span-2 p-3 rounded-xl border text-xs flex items-center justify-between ${typeConfig.colorClass}`}>
+          {/* <div className={`md:col-span-2 p-3 rounded-xl border text-xs flex items-center justify-between ${typeConfig.colorClass}`}>
             <div>
               <span className="font-bold block">{typeConfig.label}</span>
               <span className="text-[11px] opacity-80">{typeConfig.description}</span>
@@ -146,7 +146,7 @@ export default function UpdatePlaylistForm({
             <span className="font-mono font-bold text-xs px-2.5 py-1 rounded bg-black/40 border border-current">
               {typeConfig.badge}
             </span>
-          </div>
+          </div> */}
 
           {/* Live Schedule Stream URL */}
           {selectedType === 'live_schedule' && (

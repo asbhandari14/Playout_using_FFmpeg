@@ -79,55 +79,117 @@ export const DAYS_OF_WEEK = [
   { value: 6, label: 'Sat', full: 'Saturday' }
 ];
 
+/**
+ * Helper to safely extract local midnight Date without UTC shifting
+ */
+const parseDateMidnight = (val, isEnd = false) => {
+  if (!val) return null;
+  if (typeof val === 'string' && val.includes('-')) {
+    const parts = val.split('T')[0].split('-');
+    if (parts.length === 3) {
+      const y = Number(parts[0]);
+      const m = Number(parts[1]) - 1;
+      const d = Number(parts[2]);
+      return isEnd ? new Date(y, m, d, 23, 59, 59, 999) : new Date(y, m, d, 0, 0, 0, 0);
+    }
+  }
+  const d = new Date(val);
+  return isEnd
+    ? new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999)
+    : new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
+};
+
 export const isPlaylistActiveNow = (playlist, now = new Date()) => {
-  if (!playlist || !playlist.isActive) return false;
+  if (!playlist || playlist.isActive === false) return false;
 
-  if (playlist.type === 'default' && (!playlist.scheduleOption || playlist.scheduleOption === 'none')) {
-    return true;
-  }
-  if (playlist.type === 'emergency' && (!playlist.scheduleOption || playlist.scheduleOption === 'none')) {
-    return true;
-  }
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth();
+  const currentDate = now.getDate();
+  const currentDay = now.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
 
-  const currentDay = now.getDay();
   const currentTime = [
     String(now.getHours()).padStart(2, '0'),
     String(now.getMinutes()).padStart(2, '0'),
     String(now.getSeconds()).padStart(2, '0')
   ].join(':');
 
-  // Date check
-  if (playlist.scheduleOption === 'date') {
-    if (playlist.startDate && now < new Date(playlist.startDate)) return false;
+  // 1. Date range check (if scheduleOption is 'date' OR startDate/endDate set)
+  if (playlist.scheduleOption === 'date' || (playlist.startDate && playlist.endDate)) {
+    if (playlist.startDate) {
+      const startDay = parseDateMidnight(playlist.startDate, false);
+      const today = new Date(currentYear, currentMonth, currentDate, 0, 0, 0, 0);
+      if (today < startDay) return false;
+    }
     if (playlist.endDate) {
-      const end = new Date(playlist.endDate);
-      end.setHours(23, 59, 59, 999);
-      if (now > end) return false;
+      const endDay = parseDateMidnight(playlist.endDate, true);
+      if (now > endDay) return false;
     }
   }
 
-  // Weekly check
+  // 2. Weekly check
   if (playlist.scheduleOption === 'weekly') {
     if (Array.isArray(playlist.daysOfWeek) && playlist.daysOfWeek.length > 0) {
       if (!playlist.daysOfWeek.includes(currentDay)) return false;
     }
   }
 
-  // Time window check
-  if (playlist.startTime && playlist.endTime) {
-    const start = playlist.startTime.length === 5 ? `${playlist.startTime}:00` : playlist.startTime;
-    const end = playlist.endTime.length === 5 ? `${playlist.endTime}:00` : playlist.endTime;
+  // 3. Time window check (HH:mm:ss or HH:mm)
+  const hasStart = Boolean(playlist.startTime && String(playlist.startTime).trim());
+  const hasEnd = Boolean(playlist.endTime && String(playlist.endTime).trim());
+
+  if (hasStart && hasEnd) {
+    const rawStart = String(playlist.startTime).trim();
+    const rawEnd = String(playlist.endTime).trim();
+    const start = rawStart.length === 5 ? `${rawStart}:00` : rawStart;
+    const end = rawEnd.length === 5 ? `${rawEnd}:00` : rawEnd;
+
     if (start <= end) {
       if (currentTime < start || currentTime > end) return false;
     } else {
+      // Overnight wraps past midnight (e.g. 23:00 to 02:00)
       if (currentTime < start && currentTime > end) return false;
     }
-  } else if (playlist.startTime) {
-    const start = playlist.startTime.length === 5 ? `${playlist.startTime}:00` : playlist.startTime;
+  } else if (hasStart) {
+    const rawStart = String(playlist.startTime).trim();
+    const start = rawStart.length === 5 ? `${rawStart}:00` : rawStart;
     if (currentTime < start) return false;
+  } else if (hasEnd) {
+    const rawEnd = String(playlist.endTime).trim();
+    const end = rawEnd.length === 5 ? `${rawEnd}:00` : rawEnd;
+    if (currentTime > end) return false;
   }
 
   return true;
+};
+
+/**
+ * Resolves the client-side active playlist following the exact priority order:
+ * Emergency (5) -> Advertisement (4) -> Live Schedule (3) -> Scheduling (2) -> Default (1)
+ */
+export const resolveClientActivePlaylist = (playlists = [], now = new Date()) => {
+  if (!playlists || playlists.length === 0) return null;
+
+  const priorityOrder = ['emergency', 'advertisement', 'live_schedule', 'scheduling', 'default'];
+
+  for (const type of priorityOrder) {
+    const candidates = playlists.filter((p) => p.type === type && p.isActive !== false);
+    for (const p of candidates) {
+      if (isPlaylistActiveNow(p, now)) {
+        const hasItems = Array.isArray(p.items) && p.items.length > 0;
+        const hasLiveSource = p.type === 'live_schedule' && Boolean(p.liveSourceUrl);
+        if (hasItems || hasLiveSource) {
+          return p;
+        }
+      }
+    }
+  }
+
+  const fallbackDefault = playlists.find(
+    (p) => p.type === 'default' && Array.isArray(p.items) && p.items.length > 0
+  );
+  if (fallbackDefault) return fallbackDefault;
+
+  return playlists.find((p) => Array.isArray(p.items) && p.items.length > 0) || playlists[0] || null;
 };
 
 export const formatScheduleSummary = (playlist) => {
@@ -217,6 +279,12 @@ export function usePlaylist(channelId) {
       map[p._id] = isPlaylistActiveNow(p, now);
     }
     return map;
+  }, [playlists, currentTick]);
+
+  // Client-resolved active playlist based on priority hierarchy
+  const resolvedActivePlaylist = useMemo(() => {
+    const now = new Date(currentTick);
+    return resolveClientActivePlaylist(playlists, now);
   }, [playlists, currentTick]);
 
   // Grouped counts by type
@@ -331,6 +399,7 @@ export function usePlaylist(channelId) {
     error,
     saveSuccess,
     activeStatusMap,
+    resolvedActivePlaylist,
     playlistCountsByType,
     // Methods
     handleSelectPlaylist,
@@ -345,6 +414,7 @@ export function usePlaylist(channelId) {
     handleDuplicateItem,
     formatTime,
     formatScheduleSummary,
-    isPlaylistActiveNow
+    isPlaylistActiveNow,
+    resolveClientActivePlaylist
   };
 }

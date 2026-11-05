@@ -121,6 +121,9 @@ class SchedulerService {
           const stream = streamManager.getStream(channelIdStr);
           if (!stream || !stream.feeder) continue;
 
+          // Check priority-based playlist transitions on the 1-second clock tick
+          stream.feeder.checkPriorityTransition().catch(() => {});
+
           const schedule = await this.getActiveScheduleForChannel(channelIdStr, now);
           if (!schedule) continue;
 

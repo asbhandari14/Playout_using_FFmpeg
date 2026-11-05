@@ -1120,7 +1120,7 @@ export default function PlaylistBuilder({
             </div>
 
             {/* Playout Priority Badge Card */}
-            <div className={`p-3 rounded-xl border ${typeConfig.accentBorder} ${typeConfig.accentBg} ${typeConfig.accentText} text-xs`}>
+            {/* <div className={`p-3 rounded-xl border ${typeConfig.accentBorder} ${typeConfig.accentBg} ${typeConfig.accentText} text-xs`}>
               <div className="flex items-center justify-between mb-1">
                 <span className="font-bold flex items-center gap-1">
                   <TypeIcon size={13} />
@@ -1133,7 +1133,7 @@ export default function PlaylistBuilder({
               <p className="text-[10px] opacity-80 leading-relaxed">
                 {typeConfig.description}
               </p>
-            </div>
+            </div> */}
 
             {/* Live Stream URL (for live_schedule) */}
             {activeType === 'live_schedule' && (
@@ -1412,3 +1412,4 @@ export default function PlaylistBuilder({
     </div>
   );
 }
+

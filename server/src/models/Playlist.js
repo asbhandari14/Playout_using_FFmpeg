@@ -9,63 +9,153 @@ import {
 export { PLAYLIST_TYPE, PLAYLIST_PRIORITY, SCHEDULE_OPTION };
 
 /**
- * Checks if a playlist is currently scheduled and active based on date range,
- * days of week, and daily start/end wall-clock time.
+ * Helper to safely extract local midnight Date without UTC shifting
+ */
+const parseDateMidnight = (val, isEnd = false) => {
+  if (!val) return null;
+  if (typeof val === 'string' && val.includes('-')) {
+    const parts = val.split('T')[0].split('-');
+    if (parts.length === 3) {
+      const y = Number(parts[0]);
+      const m = Number(parts[1]) - 1;
+      const d = Number(parts[2]);
+      return isEnd ? new Date(y, m, d, 23, 59, 59, 999) : new Date(y, m, d, 0, 0, 0, 0);
+    }
+  }
+  const d = new Date(val);
+  return isEnd
+    ? new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999)
+    : new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
+};
+
+/**
+ * Checks if a playlist is currently scheduled and active based on active status,
+ * date range, days of week, and daily start/end wall-clock time.
  */
 export const isPlaylistCurrentlyActive = (playlist, now = new Date()) => {
-  if (!playlist || !playlist.isActive) return false;
+  if (!playlist) return false;
 
-  // Unscheduled default playlist is always eligible
-  if (playlist.type === PLAYLIST_TYPE.DEFAULT && (!playlist.scheduleOption || playlist.scheduleOption === SCHEDULE_OPTION.NONE)) {
-    return true;
-  }
+  // 1. Check whether it is ON (isActive: true)
+  if (playlist.isActive === false) return false;
 
-  // Unscheduled emergency playlist is immediately triggered when active
-  if (playlist.type === PLAYLIST_TYPE.EMERGENCY && (!playlist.scheduleOption || playlist.scheduleOption === SCHEDULE_OPTION.NONE)) {
-    return true;
-  }
-
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth();
+  const currentDate = now.getDate();
   const currentDay = now.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+
   const currentTimeStr = [
     String(now.getHours()).padStart(2, '0'),
     String(now.getMinutes()).padStart(2, '0'),
     String(now.getSeconds()).padStart(2, '0')
   ].join(':');
 
-  // 1. Date scheduling window check
-  if (playlist.scheduleOption === SCHEDULE_OPTION.DATE) {
-    if (playlist.startDate && now < new Date(playlist.startDate)) return false;
+  // 2. Date scheduling window check (if scheduleOption is 'date' OR startDate/endDate set)
+  if (playlist.scheduleOption === SCHEDULE_OPTION.DATE || (playlist.startDate && playlist.endDate)) {
+    if (playlist.startDate) {
+      const startDay = parseDateMidnight(playlist.startDate, false);
+      const today = new Date(currentYear, currentMonth, currentDate, 0, 0, 0, 0);
+      if (today < startDay) return false;
+    }
     if (playlist.endDate) {
-      const end = new Date(playlist.endDate);
-      end.setHours(23, 59, 59, 999);
-      if (now > end) return false;
+      const endDay = parseDateMidnight(playlist.endDate, true);
+      if (now > endDay) return false;
     }
   }
 
-  // 2. Weekly scheduling days of the week check
+  // 3. Weekly scheduling days of the week check
   if (playlist.scheduleOption === SCHEDULE_OPTION.WEEKLY) {
     if (Array.isArray(playlist.daysOfWeek) && playlist.daysOfWeek.length > 0) {
       if (!playlist.daysOfWeek.includes(currentDay)) return false;
     }
   }
 
-  // 3. Daily wall-clock time window check (HH:mm:ss or HH:mm)
-  if (playlist.startTime && playlist.endTime) {
-    const start = playlist.startTime.length === 5 ? `${playlist.startTime}:00` : playlist.startTime;
-    const end = playlist.endTime.length === 5 ? `${playlist.endTime}:00` : playlist.endTime;
+  // 4. Daily wall-clock time window check (HH:mm:ss or HH:mm)
+  // Evaluated if startTime or endTime is set (for any scheduleOption)
+  const hasStart = Boolean(playlist.startTime && String(playlist.startTime).trim());
+  const hasEnd = Boolean(playlist.endTime && String(playlist.endTime).trim());
+
+  if (hasStart && hasEnd) {
+    const rawStart = String(playlist.startTime).trim();
+    const rawEnd = String(playlist.endTime).trim();
+    const start = rawStart.length === 5 ? rawStart + ':00' : rawStart;
+    const end = rawEnd.length === 5 ? rawEnd + ':00' : rawEnd;
 
     if (start <= end) {
       if (currentTimeStr < start || currentTimeStr > end) return false;
     } else {
-      // Wraps past midnight
+      // Overnight wraps past midnight (e.g. 23:00 to 02:00)
       if (currentTimeStr < start && currentTimeStr > end) return false;
     }
-  } else if (playlist.startTime) {
-    const start = playlist.startTime.length === 5 ? `${playlist.startTime}:00` : playlist.startTime;
+  } else if (hasStart) {
+    const rawStart = String(playlist.startTime).trim();
+    const start = rawStart.length === 5 ? rawStart + ':00' : rawStart;
     if (currentTimeStr < start) return false;
+  } else if (hasEnd) {
+    const rawEnd = String(playlist.endTime).trim();
+    const end = rawEnd.length === 5 ? rawEnd + ':00' : rawEnd;
+    if (currentTimeStr > end) return false;
   }
 
   return true;
+};
+
+/**
+ * Resolves what to play for a channel based on strict priority hierarchy:
+ * 1. Emergency Playlist (Priority 5 - highest)
+ * 2. Advertisement Playlist (Priority 4)
+ * 3. Live Scheduling Playlist (Priority 3)
+ * 4. Scheduling Playlist (Priority 2)
+ * 5. Default Playlist (Priority 1 - lowest)
+ *
+ * For each tier:
+ * - Checks whether channel has this playlist
+ * - Checks if it is ON (isActive: true)
+ * - Checks current date and time against schedule data and time
+ * - If it falls in range, returns this playlist (plays till the time ends)
+ * - Then moves down to next tier in priority order
+ */
+export const resolveChannelActivePlaylist = async (channelId, now = new Date()) => {
+  const playlists = await Playlist.find({ channel: channelId, isActive: true })
+    .populate({
+      path: 'items.asset',
+      select: 'originalName filePath thumbnailPath duration durationFormatted size resolution codec status category'
+    });
+
+  if (!playlists || playlists.length === 0) {
+    return null;
+  }
+
+  const priorityOrder = [
+    PLAYLIST_TYPE.EMERGENCY,      // Priority 5
+    PLAYLIST_TYPE.ADVERTISEMENT,  // Priority 4
+    PLAYLIST_TYPE.LIVE_SCHEDULE,  // Priority 3
+    PLAYLIST_TYPE.SCHEDULING,     // Priority 2
+    PLAYLIST_TYPE.DEFAULT         // Priority 1
+  ];
+
+  for (const type of priorityOrder) {
+    const candidates = playlists.filter((p) => p.type === type);
+    if (candidates.length === 0) continue;
+
+    for (const p of candidates) {
+      if (isPlaylistCurrentlyActive(p, now)) {
+        const hasItems = Array.isArray(p.items) && p.items.length > 0;
+        const hasLiveSource = p.type === PLAYLIST_TYPE.LIVE_SCHEDULE && Boolean(p.liveSourceUrl);
+        if (hasItems || hasLiveSource) {
+          return p;
+        }
+      }
+    }
+  }
+
+  // Fallback: Default playlist with items
+  const fallbackDefault = playlists.find(
+    (p) => p.type === PLAYLIST_TYPE.DEFAULT && Array.isArray(p.items) && p.items.length > 0
+  );
+  if (fallbackDefault) return fallbackDefault;
+
+  // Final fallback to any playlist with items
+  return playlists.find((p) => Array.isArray(p.items) && p.items.length > 0) || playlists[0] || null;
 };
 
 const playlistItemSchema = new mongoose.Schema({
