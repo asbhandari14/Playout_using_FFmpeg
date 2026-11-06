@@ -99,6 +99,14 @@ export default function App() {
 
         {/* Channels List & Studio View */}
         <Route
+          path="/info"
+          element={
+            <ProtectedRoute>
+              <Dashboard initialSection="info" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/channels"
           element={
             <ProtectedRoute>

@@ -7,3 +7,8 @@ streams/
 .DS_Store
 Thumbs.db
 
+# Hide the Readme file
+.md
+.tldr
+.cjs
+

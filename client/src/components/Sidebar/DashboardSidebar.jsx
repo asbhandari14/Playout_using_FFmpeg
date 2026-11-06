@@ -8,7 +8,8 @@ import {
   Megaphone,
   Radio,
   Calendar,
-  Layers
+  Layers,
+  Info
 } from 'lucide-react';
 
 const ACTIVE_CLASS =
@@ -30,6 +31,7 @@ export default function DashboardSidebar({ currentUser, isOpen, activeSection, o
   };
 
   const isChannelsActive = activeSection === 'channels' || activeSection === 'dashboard';
+  const isInfoActive = activeSection === 'info';
   const isServersActive = activeSection === 'servers';
   const isUsersActive = activeSection === 'users';
   const isDefaultActive = activeSection === 'default_playlist';
@@ -87,6 +89,16 @@ export default function DashboardSidebar({ currentUser, isOpen, activeSection, o
           <div className="flex items-center gap-3">
             <UserIcon size={18} className={isUsersActive ? 'text-[#00bcd4]' : ''} />
             <span>User</span>
+          </div>
+        </button>
+
+        <button
+          onClick={() => handleNav('info', '/info')}
+          className={`${BASE_CLASS} ${isInfoActive ? ACTIVE_CLASS : INACTIVE_CLASS}`}
+        >
+          <div className="flex items-center gap-3">
+            <Info size={18} className={isInfoActive ? 'text-[#00bcd4]' : ''} />
+            <span>Info</span>
           </div>
         </button>
 

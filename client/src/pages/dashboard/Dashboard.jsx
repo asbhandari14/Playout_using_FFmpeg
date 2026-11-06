@@ -23,6 +23,7 @@ import PlaylistBuilder from '../playlist/PlaylistBuilder.jsx';
 import CreatePlaylistForm from '../../components/form/CreatePlaylistForm.jsx';
 import UpdatePlaylistForm from '../../components/form/UpdatePlaylistForm.jsx';
 
+import ChannelInfoForm from '../../components/form/ChannelInfoForm.jsx';
 import ModulePlaceholder from '../../components/placeholder/ModulePlaceholder.jsx';
 
 export default function Dashboard({ initialSection = 'channels', initialSubView = 'list' }) {
@@ -193,6 +194,16 @@ export default function Dashboard({ initialSection = 'channels', initialSubView 
               />
             ))}
 
+          {/* Info - Channel Broadcast Information */}
+          {activeSection === 'info' && (
+            <ChannelInfoForm
+              channels={channels}
+              selectedChannelId={channels[0]?._id}
+              onCancel={() => nav.goToSection('channels')}
+              onOpenStudio={actions.openChannelStudio}
+            />
+          )}
+
           {/* 4. Emergency Playlist (Priority 5) */}
           {activeSection === 'emergency_playlist' &&
             (isFormView ? (
@@ -336,6 +347,7 @@ export default function Dashboard({ initialSection = 'channels', initialSubView 
             activeSection !== 'channels' &&
             activeSection !== 'dashboard' &&
             activeSection !== 'servers' &&
+            activeSection !== 'info' &&
             activeSection !== 'default_playlist' &&
             activeSection !== 'scheduling_playlist' &&
             activeSection !== 'live_schedule' &&
