@@ -300,6 +300,24 @@ const playlistSchema = new mongoose.Schema(
       type: Boolean,
       default: true
     },
+    // On-air branding & overlay visibility during this playlist playout
+    showLogo: {
+      type: Boolean,
+      default: true
+    },
+    showBug: {
+      type: Boolean,
+      default: true
+    },
+    showTicker: {
+      type: Boolean,
+      default: true
+    },
+    // Advertisement playlist only: whether to show the "Back In" countdown timer overlay
+    showBackInTimer: {
+      type: Boolean,
+      default: false
+    },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',

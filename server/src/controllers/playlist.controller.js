@@ -164,6 +164,10 @@ export const createPlaylist = async (req, res, next) => {
       liveSourceUrl = '',
       loop = true,
       isActive = true,
+      showLogo = true,
+      showBug = true,
+      showTicker = true,
+      showBackInTimer = false,
       items = []
     } = req.body;
 
@@ -192,6 +196,10 @@ export const createPlaylist = async (req, res, next) => {
       liveSourceUrl: liveSourceUrl || '',
       loop: loop !== undefined ? Boolean(loop) : true,
       isActive: isActive !== undefined ? Boolean(isActive) : true,
+      showLogo: showLogo !== undefined ? Boolean(showLogo) : true,
+      showBug: showBug !== undefined ? Boolean(showBug) : true,
+      showTicker: showTicker !== undefined ? Boolean(showTicker) : true,
+      showBackInTimer: type === PLAYLIST_TYPE.ADVERTISEMENT ? Boolean(showBackInTimer) : false,
       items: formattedItems,
       totalDuration,
       totalDurationFormatted,
@@ -237,6 +245,10 @@ export const updatePlaylist = async (req, res, next) => {
       liveSourceUrl,
       loop,
       isActive,
+      showLogo,
+      showBug,
+      showTicker,
+      showBackInTimer,
       items
     } = req.body;
 
@@ -259,6 +271,12 @@ export const updatePlaylist = async (req, res, next) => {
     if (liveSourceUrl !== undefined) playlist.liveSourceUrl = liveSourceUrl;
     if (loop !== undefined) playlist.loop = Boolean(loop);
     if (isActive !== undefined) playlist.isActive = Boolean(isActive);
+    if (showLogo !== undefined) playlist.showLogo = Boolean(showLogo);
+    if (showBug !== undefined) playlist.showBug = Boolean(showBug);
+    if (showTicker !== undefined) playlist.showTicker = Boolean(showTicker);
+    if (showBackInTimer !== undefined) {
+      playlist.showBackInTimer = playlist.type === PLAYLIST_TYPE.ADVERTISEMENT ? Boolean(showBackInTimer) : false;
+    }
 
     if (items !== undefined) {
       const { formattedItems, totalDuration, totalDurationFormatted } = await calculateFormattedItems(items);

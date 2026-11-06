@@ -60,5 +60,9 @@ export const getEmptyPlaylistForm = (type = 'default') => ({
   liveSourceUrl: '',
   loop: true,
   isActive: true,
+  showLogo: true,
+  showBug: true,
+  showTicker: true,
+  showBackInTimer: false,
   items: []
 });

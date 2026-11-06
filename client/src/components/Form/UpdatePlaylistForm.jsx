@@ -4,7 +4,9 @@ import {
   Calendar,
   Clock,
   Radio,
-  Layers
+  Layers,
+  Sparkles,
+  Timer
 } from 'lucide-react';
 import { PLAYLIST_TYPE_CONFIG, DAYS_OF_WEEK } from '../../hooks/usePlaylist.js';
 
@@ -279,6 +281,100 @@ export default function UpdatePlaylistForm({
               />
             </div>
           </Field>
+
+          {/* On-Air Branding & Graphics Overlays */}
+          <div className="md:col-span-2 p-3.5 rounded-xl bg-[#090d16] border border-[#1a2337] space-y-3">
+            <div className="flex items-center justify-between pb-2 border-b border-[#141b2a]">
+              <div className="flex items-center gap-2">
+                <Sparkles size={14} className="text-[#00bcd4]" />
+                <span className="text-xs font-semibold text-slate-200">On-Air Branding & Graphics Overlays</span>
+              </div>
+              <span className="text-[10px] text-slate-500">Configure graphics visibility for this playlist</span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              {/* Logo */}
+              <label className={`flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer transition ${
+                formData.showLogo !== false
+                  ? 'bg-[#00bcd4]/10 border-[#00bcd4]/40 text-slate-200'
+                  : 'bg-[#0d121d] border-[#182133] text-slate-400 opacity-60'
+              }`}>
+                <input
+                  type="checkbox"
+                  checked={formData.showLogo !== false}
+                  onChange={handleCheckbox('showLogo')}
+                  className="mt-0.5 rounded bg-[#101726] border-slate-700 text-[#00bcd4] focus:ring-0"
+                />
+                <div className="flex flex-col">
+                  <span className="text-xs font-semibold">Channel Logo</span>
+                  <span className="text-[10px] opacity-70">Show main station logo</span>
+                </div>
+              </label>
+
+              {/* Bug */}
+              <label className={`flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer transition ${
+                formData.showBug !== false
+                  ? 'bg-[#00bcd4]/10 border-[#00bcd4]/40 text-slate-200'
+                  : 'bg-[#0d121d] border-[#182133] text-slate-400 opacity-60'
+              }`}>
+                <input
+                  type="checkbox"
+                  checked={formData.showBug !== false}
+                  onChange={handleCheckbox('showBug')}
+                  className="mt-0.5 rounded bg-[#101726] border-slate-700 text-[#00bcd4] focus:ring-0"
+                />
+                <div className="flex flex-col">
+                  <span className="text-xs font-semibold">Station Bug</span>
+                  <span className="text-[10px] opacity-70">Show watermark / animated bug</span>
+                </div>
+              </label>
+
+              {/* Ticker */}
+              <label className={`flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer transition ${
+                formData.showTicker !== false
+                  ? 'bg-[#00bcd4]/10 border-[#00bcd4]/40 text-slate-200'
+                  : 'bg-[#0d121d] border-[#182133] text-slate-400 opacity-60'
+              }`}>
+                <input
+                  type="checkbox"
+                  checked={formData.showTicker !== false}
+                  onChange={handleCheckbox('showTicker')}
+                  className="mt-0.5 rounded bg-[#101726] border-slate-700 text-[#00bcd4] focus:ring-0"
+                />
+                <div className="flex flex-col">
+                  <span className="text-xs font-semibold">News Ticker</span>
+                  <span className="text-[10px] opacity-70">Show running bottom ticker</span>
+                </div>
+              </label>
+            </div>
+
+            {/* Advertisement-Only: Back-In Countdown Timer */}
+            {selectedType === 'advertisement' && (
+              <div className="pt-2 border-t border-[#141b2a]">
+                <label className={`flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer transition ${
+                  formData.showBackInTimer === true
+                    ? 'bg-amber-500/15 border-amber-500/50 text-amber-200'
+                    : 'bg-[#0d121d] border-[#182133] text-slate-400 opacity-60'
+                }`}>
+                  <input
+                    type="checkbox"
+                    checked={formData.showBackInTimer === true}
+                    onChange={handleCheckbox('showBackInTimer')}
+                    className="mt-0.5 rounded bg-[#101726] border-slate-700 text-amber-500 focus:ring-0"
+                  />
+                  <div className="flex flex-col">
+                    <span className="text-xs font-semibold text-amber-300 flex items-center gap-1.5">
+                      <Timer size={13} />
+                      <span>Show Back-In Countdown Timer (Ad Break)</span>
+                    </span>
+                    <span className="text-[10px] opacity-80 mt-0.5">
+                      Display live countdown overlay (e.g. "BACK IN 00:30") during this advertisement playlist
+                    </span>
+                  </div>
+                </label>
+              </div>
+            )}
+          </div>
 
           {/* Toggles */}
           <div className="md:col-span-2 flex items-center justify-between p-3.5 rounded-xl bg-[#090d16] border border-[#1a2337]">

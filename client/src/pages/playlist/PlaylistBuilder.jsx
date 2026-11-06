@@ -25,7 +25,9 @@ import {
   Tv,
   Megaphone,
   CalendarClock,
-  Radio
+  Radio,
+  Sparkles,
+  Timer
 } from 'lucide-react';
 import { io } from 'socket.io-client';
 import api from '../../api/axios.js';
@@ -193,7 +195,11 @@ export default function PlaylistBuilder({
       type: activeType,
       channel: prev.channel || channels[0]?._id || '',
       loop: prev.loop !== undefined ? prev.loop : true,
-      isActive: prev.isActive !== undefined ? prev.isActive : true
+      isActive: prev.isActive !== undefined ? prev.isActive : true,
+      showLogo: prev.showLogo !== undefined ? prev.showLogo : true,
+      showBug: prev.showBug !== undefined ? prev.showBug : true,
+      showTicker: prev.showTicker !== undefined ? prev.showTicker : true,
+      showBackInTimer: prev.showBackInTimer !== undefined ? prev.showBackInTimer : false
     }));
   }, [activeType, channels, setFormData]);
 
@@ -1282,6 +1288,96 @@ export default function PlaylistBuilder({
               <p className="text-[9px] text-slate-500 leading-tight">
                 Leave empty for continuous 24-hour playback while armed.
               </p>
+            </div>
+
+            {/* On-Air Branding & Graphics Overlays */}
+            <div className="pt-2 border-t border-[#182032] space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-slate-300 font-semibold flex items-center gap-1.5 text-xs">
+                  <Sparkles size={13} className="text-cyan-400" />
+                  <span>On-Air Branding & Graphics</span>
+                </label>
+                <span className="text-[10px] text-slate-500">During this playlist</span>
+              </div>
+
+              <div className="space-y-1.5">
+                {/* Logo Toggle */}
+                <label className={`flex items-center justify-between p-2 rounded-xl border cursor-pointer transition ${
+                  formData.showLogo !== false
+                    ? 'bg-[#00bcd4]/10 border-[#00bcd4]/40 text-slate-200'
+                    : 'bg-[#090d16] border-[#1a2337] text-slate-400 opacity-60'
+                }`}>
+                  <div className="flex flex-col">
+                    <span className="font-semibold text-xs">Channel Logo</span>
+                    <span className="text-[9px] opacity-70">Show main station logo</span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={formData.showLogo !== false}
+                    onChange={handleCheckboxChange('showLogo')}
+                    className="rounded w-4 h-4 text-cyan-500 bg-[#121929] border-[#222c42] focus:ring-0 cursor-pointer"
+                  />
+                </label>
+
+                {/* Bug Toggle */}
+                <label className={`flex items-center justify-between p-2 rounded-xl border cursor-pointer transition ${
+                  formData.showBug !== false
+                    ? 'bg-[#00bcd4]/10 border-[#00bcd4]/40 text-slate-200'
+                    : 'bg-[#090d16] border-[#1a2337] text-slate-400 opacity-60'
+                }`}>
+                  <div className="flex flex-col">
+                    <span className="font-semibold text-xs">Station Bug</span>
+                    <span className="text-[9px] opacity-70">Show watermark / animated bug</span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={formData.showBug !== false}
+                    onChange={handleCheckboxChange('showBug')}
+                    className="rounded w-4 h-4 text-cyan-500 bg-[#121929] border-[#222c42] focus:ring-0 cursor-pointer"
+                  />
+                </label>
+
+                {/* Ticker Toggle */}
+                <label className={`flex items-center justify-between p-2 rounded-xl border cursor-pointer transition ${
+                  formData.showTicker !== false
+                    ? 'bg-[#00bcd4]/10 border-[#00bcd4]/40 text-slate-200'
+                    : 'bg-[#090d16] border-[#1a2337] text-slate-400 opacity-60'
+                }`}>
+                  <div className="flex flex-col">
+                    <span className="font-semibold text-xs">Bottom Ticker</span>
+                    <span className="text-[9px] opacity-70">Show running news ticker</span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={formData.showTicker !== false}
+                    onChange={handleCheckboxChange('showTicker')}
+                    className="rounded w-4 h-4 text-cyan-500 bg-[#121929] border-[#222c42] focus:ring-0 cursor-pointer"
+                  />
+                </label>
+
+                {/* Advertisement Only: Back-In Countdown Timer */}
+                {activeType === 'advertisement' && (
+                  <label className={`flex items-center justify-between p-2 rounded-xl border cursor-pointer transition ${
+                    formData.showBackInTimer === true
+                      ? 'bg-amber-500/15 border-amber-500/50 text-amber-200'
+                      : 'bg-[#090d16] border-[#1a2337] text-slate-400 opacity-60'
+                  }`}>
+                    <div className="flex flex-col">
+                      <span className="font-semibold text-xs text-amber-300 flex items-center gap-1">
+                        <Timer size={12} />
+                        <span>Back-In Timer</span>
+                      </span>
+                      <span className="text-[9px] opacity-80">Show "BACK IN 00:30" countdown during ad</span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={formData.showBackInTimer === true}
+                      onChange={handleCheckboxChange('showBackInTimer')}
+                      className="rounded w-4 h-4 text-amber-500 bg-[#121929] border-[#222c42] focus:ring-0 cursor-pointer"
+                    />
+                  </label>
+                )}
+              </div>
             </div>
 
             {/* Loop & Enable Switches */}

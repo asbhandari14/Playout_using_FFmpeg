@@ -2,7 +2,7 @@ import { toast } from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
 import Modal from './Modal.jsx';
 import { PLAYLIST_TYPE_CONFIG, DAYS_OF_WEEK } from '../../hooks/usePlaylist.js';
-import { Calendar, Clock, AlertTriangle, Radio, Film, Layers, Trash2 } from 'lucide-react';
+import { Calendar, Clock, AlertTriangle, Radio, Film, Layers, Trash2, Sparkles, Timer } from 'lucide-react';
 
 export default function PlaylistSettingsModal({
   isOpen,
@@ -24,7 +24,11 @@ export default function PlaylistSettingsModal({
     daysOfWeek: [],
     liveSourceUrl: '',
     loop: true,
-    isActive: true
+    isActive: true,
+    showLogo: true,
+    showBug: true,
+    showTicker: true,
+    showBackInTimer: false
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -44,7 +48,11 @@ export default function PlaylistSettingsModal({
         daysOfWeek: Array.isArray(playlist.daysOfWeek) ? [...playlist.daysOfWeek] : [],
         liveSourceUrl: playlist.liveSourceUrl || '',
         loop: playlist.loop !== undefined ? playlist.loop : true,
-        isActive: playlist.isActive !== undefined ? playlist.isActive : true
+        isActive: playlist.isActive !== undefined ? playlist.isActive : true,
+        showLogo: playlist.showLogo !== undefined ? playlist.showLogo : true,
+        showBug: playlist.showBug !== undefined ? playlist.showBug : true,
+        showTicker: playlist.showTicker !== undefined ? playlist.showTicker : true,
+        showBackInTimer: playlist.showBackInTimer !== undefined ? playlist.showBackInTimer : false
       });
     } else {
       setFormData({
@@ -58,7 +66,11 @@ export default function PlaylistSettingsModal({
         daysOfWeek: [],
         liveSourceUrl: '',
         loop: true,
-        isActive: true
+        isActive: true,
+        showLogo: true,
+        showBug: true,
+        showTicker: true,
+        showBackInTimer: false
       });
     }
     setErrorMsg('');
@@ -335,6 +347,104 @@ export default function PlaylistSettingsModal({
           <span className="text-[10px] text-slate-500 block">
             Leave blank if playlist runs the whole day during the scheduled dates/days.
           </span>
+        </div>
+
+        {/* On-Air Branding & Overlays Settings */}
+        <div className="p-3 rounded-lg bg-[#0d1017] border border-[#232b3c] space-y-2.5">
+          <div className="flex items-center justify-between pb-1.5 border-b border-[#1b2333]">
+            <span className="font-semibold text-slate-200 text-xs flex items-center gap-1.5">
+              <Sparkles size={13} className="text-blue-400" />
+              <span>On-Air Branding & Graphics</span>
+            </span>
+            <span className="text-[10px] text-slate-500">During this playlist</span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            {/* Show Logo */}
+            <label className={`flex items-center gap-2 p-2 rounded border cursor-pointer transition ${
+              formData.showLogo !== false
+                ? 'bg-blue-950/20 border-blue-800/40 text-slate-200'
+                : 'bg-[#141822] border-[#232b3c] text-slate-400 opacity-60'
+            }`}>
+              <input
+                type="checkbox"
+                name="showLogo"
+                checked={formData.showLogo !== false}
+                onChange={handleChange}
+                className="rounded bg-[#141822] border-slate-700 text-blue-600 focus:ring-0"
+              />
+              <div className="flex flex-col">
+                <span className="font-semibold text-[11px]">Channel Logo</span>
+                <span className="text-[9px] opacity-70">Show logo</span>
+              </div>
+            </label>
+
+            {/* Show Bug */}
+            <label className={`flex items-center gap-2 p-2 rounded border cursor-pointer transition ${
+              formData.showBug !== false
+                ? 'bg-blue-950/20 border-blue-800/40 text-slate-200'
+                : 'bg-[#141822] border-[#232b3c] text-slate-400 opacity-60'
+            }`}>
+              <input
+                type="checkbox"
+                name="showBug"
+                checked={formData.showBug !== false}
+                onChange={handleChange}
+                className="rounded bg-[#141822] border-slate-700 text-blue-600 focus:ring-0"
+              />
+              <div className="flex flex-col">
+                <span className="font-semibold text-[11px]">Station Bug</span>
+                <span className="text-[9px] opacity-70">Show bug</span>
+              </div>
+            </label>
+
+            {/* Show Ticker */}
+            <label className={`flex items-center gap-2 p-2 rounded border cursor-pointer transition ${
+              formData.showTicker !== false
+                ? 'bg-blue-950/20 border-blue-800/40 text-slate-200'
+                : 'bg-[#141822] border-[#232b3c] text-slate-400 opacity-60'
+            }`}>
+              <input
+                type="checkbox"
+                name="showTicker"
+                checked={formData.showTicker !== false}
+                onChange={handleChange}
+                className="rounded bg-[#141822] border-slate-700 text-blue-600 focus:ring-0"
+              />
+              <div className="flex flex-col">
+                <span className="font-semibold text-[11px]">Bottom Ticker</span>
+                <span className="text-[9px] opacity-70">Show ticker</span>
+              </div>
+            </label>
+          </div>
+
+          {/* Advertisement-Only: Show Back-In Timer */}
+          {formData.type === 'advertisement' && (
+            <div className="pt-2 border-t border-[#1b2333]">
+              <label className={`flex items-center gap-2 p-2 rounded border cursor-pointer transition ${
+                formData.showBackInTimer === true
+                  ? 'bg-amber-950/25 border-amber-600/50 text-amber-200'
+                  : 'bg-[#141822] border-[#232b3c] text-slate-400 opacity-60'
+              }`}>
+                <input
+                  type="checkbox"
+                  name="showBackInTimer"
+                  checked={formData.showBackInTimer === true}
+                  onChange={handleChange}
+                  className="rounded bg-[#141822] border-slate-700 text-amber-500 focus:ring-0"
+                />
+                <div className="flex flex-col">
+                  <span className="font-semibold text-[11px] text-amber-300 flex items-center gap-1">
+                    <Timer size={12} />
+                    <span>Show Back-In Countdown Timer</span>
+                  </span>
+                  <span className="text-[9px] opacity-80">
+                    Display "BACK IN 00:30" countdown during advertisement break
+                  </span>
+                </div>
+              </label>
+            </div>
+          )}
         </div>
 
         {/* Options: Loop & Active */}

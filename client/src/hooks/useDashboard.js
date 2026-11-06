@@ -543,6 +543,10 @@ export default function useDashboard(initialSection = 'channels', initialSubView
       liveSourceUrl: p.liveSourceUrl || '',
       loop: p.loop !== undefined ? p.loop : true,
       isActive: p.isActive !== undefined ? p.isActive : true,
+      showLogo: p.showLogo !== undefined ? p.showLogo : true,
+      showBug: p.showBug !== undefined ? p.showBug : true,
+      showTicker: p.showTicker !== undefined ? p.showTicker : true,
+      showBackInTimer: p.showBackInTimer !== undefined ? p.showBackInTimer : false,
       items: Array.isArray(p.items) ? p.items : []
     });
     const sectionMap = {
@@ -579,6 +583,10 @@ export default function useDashboard(initialSection = 'channels', initialSubView
         liveSourceUrl: f.liveSourceUrl || '',
         loop: Boolean(f.loop),
         isActive: Boolean(f.isActive),
+        showLogo: f.showLogo !== undefined ? Boolean(f.showLogo) : true,
+        showBug: f.showBug !== undefined ? Boolean(f.showBug) : true,
+        showTicker: f.showTicker !== undefined ? Boolean(f.showTicker) : true,
+        showBackInTimer: f.type === 'advertisement' ? Boolean(f.showBackInTimer) : false,
         items: (f.items || []).map((it) => ({
           asset: it.asset?._id || it.asset,
           order: it.order,

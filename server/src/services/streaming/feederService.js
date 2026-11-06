@@ -1,7 +1,7 @@
 import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs';
-import { Playlist, isPlaylistCurrentlyActive, resolveChannelActivePlaylist, PLAYLIST_TYPE } from '../../models/playlist.model.js';
+import { Playlist, isPlaylistCurrentlyActive, resolveChannelActivePlaylist, parseTimeToSeconds, PLAYLIST_TYPE } from '../../models/playlist.model.js';
 import { Channel } from '../../models/channel.model.js';
 import { Schedule } from '../../models/schedule.model.js';
 import { Asset } from '../../models/asset.model.js';
@@ -229,7 +229,11 @@ export class FeederService {
         startDate: this.currentPlayingPlaylist.startDate || null,
         endDate: this.currentPlayingPlaylist.endDate || null,
         daysOfWeek: this.currentPlayingPlaylist.daysOfWeek || [],
-        liveSourceUrl: this.currentPlayingPlaylist.liveSourceUrl || ''
+        liveSourceUrl: this.currentPlayingPlaylist.liveSourceUrl || '',
+        showLogo: this.currentPlayingPlaylist.showLogo !== false,
+        showBug: this.currentPlayingPlaylist.showBug !== false,
+        showTicker: this.currentPlayingPlaylist.showTicker !== false,
+        showBackInTimer: Boolean(this.currentPlayingPlaylist.showBackInTimer)
       } : null,
       video: (this.currentPlayingPlaylist && this.currentAsset) ? {
         assetId: this.currentAsset._id,
@@ -252,6 +256,57 @@ export class FeederService {
         isInterrupted: false
       }
     };
+  }
+
+  /**
+   * Dynamically applies on-air branding overlays (logo, bug, ticker)
+   * according to the active playlist's configuration via live ZMQ.
+   */
+  async applyPlaylistBranding(playlist) {
+    if (!playlist) return;
+    try {
+      const channelDoc = await Channel.findById(this.channelId);
+      if (!channelDoc || !channelDoc.branding) return;
+
+      const encoder = this.getEncoder();
+      if (!encoder || !encoder.isRunning) return;
+
+      // Channel master branding capability (must be configured on channel level)
+      const masterLogoConfigured = Boolean(channelDoc.branding.logo?.assetPath && channelDoc.branding.logo?.enabled);
+      const masterBugConfigured = Boolean(channelDoc.branding.bug?.assetPath && channelDoc.branding.bug?.enabled);
+      const masterTickerConfigured = Boolean(channelDoc.branding.ticker?.enabled);
+
+      // Playlist-specific permission flags (defaults to true if omitted)
+      const allowLogo = playlist.showLogo !== false;
+      const allowBug = playlist.showBug !== false;
+      const allowTicker = playlist.showTicker !== false;
+
+      // Apply via live ZMQ with zero stream restart
+      if (masterLogoConfigured && allowLogo) {
+        await encoder.setLogoEnabled(true).catch(() => {});
+      } else {
+        await encoder.setLogoEnabled(false).catch(() => {});
+      }
+
+      if (masterBugConfigured && allowBug) {
+        await encoder.setBugEnabled(true).catch(() => {});
+      } else {
+        await encoder.setBugEnabled(false).catch(() => {});
+      }
+
+      if (masterTickerConfigured && allowTicker) {
+        await encoder.setTickerEnabled(true).catch(() => {});
+      } else {
+        await encoder.setTickerEnabled(false).catch(() => {});
+      }
+
+      console.log(
+        `[Feeder:${this.channelId}] Applied branding for playlist "${playlist.name}" (${playlist.type}): ` +
+        `logo=${allowLogo && masterLogoConfigured}, bug=${allowBug && masterBugConfigured}, ticker=${allowTicker && masterTickerConfigured}`
+      );
+    } catch (err) {
+      console.warn(`[Feeder:${this.channelId}] Warning applying playlist branding:`, err.message);
+    }
   }
 
   /**
@@ -293,6 +348,11 @@ export class FeederService {
 
         this.wasPreemptedByPriority = true;
         this.currentPlayingPlaylist = targetPlaylist;
+
+        // Apply new playlist branding immediately
+        if (targetPlaylist) {
+          this.applyPlaylistBranding(targetPlaylist).catch(() => {});
+        }
 
         if (this.currentDecoder) {
           try {
@@ -363,6 +423,12 @@ export class FeederService {
           this.currentAssetDuration = null;
           currentPlaylistId = null;
           console.log(`[Feeder:${this.channelId}] No scheduled playlist active at this time. Feeding live standby slate to maintain broadcast...`);
+          const enc = this.getEncoder();
+          if (enc && enc.isRunning) {
+            enc.setLogoEnabled(false).catch(() => {});
+            enc.setBugEnabled(false).catch(() => {});
+            enc.setTickerEnabled(false).catch(() => {});
+          }
           await this.streamStandbySlate(3);
           continue;
         }
@@ -376,6 +442,7 @@ export class FeederService {
         }
         currentPlaylistId = String(playlist._id);
         this.currentPlayingPlaylist = playlist;
+        await this.applyPlaylistBranding(playlist);
 
         // Special handling for live_schedule with a direct liveSourceUrl
         if (playlist.type === PLAYLIST_TYPE.LIVE_SCHEDULE && playlist.liveSourceUrl && (!playlist.items || playlist.items.length === 0)) {
@@ -447,10 +514,38 @@ export class FeederService {
 
           console.log(`[Feeder:${this.channelId}] Playing [${playlist.type.toUpperCase()}] item #${i + 1}: ${asset.originalName} (${asset.duration}s)`);
 
+          // Build Back-In Countdown Timer overlay if this is an Advertisement playlist and showBackInTimer is enabled
+          let timerFilter = null;
+          if (playlist.type === PLAYLIST_TYPE.ADVERTISEMENT && playlist.showBackInTimer) {
+            try {
+              const freshCh = await Channel.findById(this.channelId).select('branding.backInTimer');
+              const timerCfg = freshCh?.branding?.backInTimer || {};
+
+              // Compute countdown seconds:
+              // If daily endTime is configured for this ad playlist, countdown to window end;
+              // otherwise, countdown to end of the current ad video!
+              let countdownSec = asset.duration || 30;
+              if (playlist.endTime) {
+                const now = new Date();
+                const curSec = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+                const endSec = parseTimeToSeconds(playlist.endTime);
+                if (endSec && endSec > curSec) {
+                  countdownSec = Math.min(countdownSec, endSec - curSec);
+                }
+              }
+              timerFilter = buildBackInTimerFilter(timerCfg, Math.max(1, countdownSec));
+              console.log(
+                `[Feeder:${this.channelId}] Applied Back-In Countdown Timer (${Math.ceil(countdownSec)}s) to ad playlist "${playlist.name}"`
+              );
+            } catch (tErr) {
+              console.warn(`[Feeder:${this.channelId}] Warning preparing Back-In timer for ad:`, tErr.message);
+            }
+          }
+
           // Play the asset through decoder
           this.currentAsset = asset;
           this.currentVideoPath = absolutePath;
-          await this.streamAsset(absolutePath, asset.duration);
+          await this.streamAsset(absolutePath, asset.duration, 0, timerFilter);
 
           // If playback was preempted by priority transition (e.g. emergency armed or schedule window ended):
           if (this.wasPreemptedByPriority) {
