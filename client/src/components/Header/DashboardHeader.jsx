@@ -1,5 +1,7 @@
 import React from 'react';
 import { ChevronDown, LogOut, Radio } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { useSelector } from 'react-redux';
 
 const getInitials = (name) => {
   if (!name) return 'SA';
@@ -16,6 +18,10 @@ export default function DashboardHeader({
   onOpenControlRoom,
   onLogout
 }) {
+
+  const navigate = useNavigate();
+  const user = useSelector((state) => state.auth.user);
+
   return (
     <header className="h-16 bg-[#080c14] border-b border-[#141b2b] px-4 sm:px-6 flex items-center justify-between z-30 sticky top-0 shadow-md">
       {/* Left: Brand */}
@@ -29,6 +35,19 @@ export default function DashboardHeader({
 
       {/* Right: User account dropdown */}
       <div className="flex items-center space-x-3">
+
+        {
+          (user && user.role === 'super_admin' || user.role == "admin") && (
+            <div>
+              <button
+                className="px-3 py-1.5 rounded-lg bg-[#0c121f] border border-[#1b253b] hover:border-slate-600 transition text-base text-white"
+                onClick={() => navigate('/dashboard')}
+              >
+                Dashboard
+              </button>
+            </div>
+          )
+        }
         <div className="relative">
           <button
             onClick={onToggleProfileMenu}

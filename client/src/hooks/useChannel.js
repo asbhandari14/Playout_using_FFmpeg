@@ -5,6 +5,7 @@ import { io } from 'socket.io-client';
 import { fetchChannels } from '../store/slices/channelSlice.js';
 import { logoutUser } from '../store/slices/authSlice.js';
 import { formatStorageComparison } from './useStorageCalc.js';
+import toast from 'react-hot-toast';
 
 export default function useChannel() {
   const dispatch = useDispatch();
@@ -106,10 +107,20 @@ export default function useChannel() {
     setIsProfileMenuOpen((prev) => !prev);
   }, []);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async() => {
+    try {
     setIsProfileMenuOpen(false);
-    dispatch(logoutUser());
-    navigate('/login');
+    const result = await dispatch(logoutUser());
+    console.log("logout result", result);
+
+    if(result && result?.payload && result.payload.success) {
+      toast.success(result?.payload?.message);
+      navigate('/login');
+    }
+    } catch(err) {
+      toast.error('Logout failed. Please try again.');
+      console.error('Logout failed:', err);
+    }
   }, [dispatch, navigate]);
 
   return {

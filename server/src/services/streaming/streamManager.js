@@ -300,6 +300,43 @@ class StreamManager {
   }
 
   /**
+   * Retrieves complete real-time information about which scheduling and which video
+   * is currently playing on the channel.
+   */
+  getChannelCurrentlyPlaying(channelId) {
+    const chIdStr = String(channelId);
+    const stream = this.getStream(chIdStr);
+    if (!stream || !stream.feeder || !stream.feeder.isRunning) {
+      return null;
+    }
+    const info = stream.feeder.getCurrentlyPlayingInfo();
+    const lbandTimer = this.fireTimers.get(`${chIdStr}:lband`);
+    const ashtonTimer = this.fireTimers.get(`${chIdStr}:ashton`);
+
+    return {
+      channelId: chIdStr,
+      channelName: stream.channel?.name,
+      startedAt: stream.startedAt,
+      zmqPort: stream.zmqPort,
+      ...info,
+      activeFireTimers: {
+        lband: lbandTimer ? {
+          active: true,
+          duration: lbandTimer.duration,
+          expiresAt: lbandTimer.expiresAt,
+          remainingSeconds: Math.max(0, Math.ceil((lbandTimer.expiresAt - Date.now()) / 1000))
+        } : null,
+        ashton: ashtonTimer ? {
+          active: true,
+          duration: ashtonTimer.duration,
+          expiresAt: ashtonTimer.expiresAt,
+          remainingSeconds: Math.max(0, Math.ceil((ashtonTimer.expiresAt - Date.now()) / 1000))
+        } : null
+      }
+    };
+  }
+
+  /**
    * Checks and triggers priority playout transitions for a channel.
    * Called when playlists are created, updated, saved, or deleted, or during clock ticks.
    */

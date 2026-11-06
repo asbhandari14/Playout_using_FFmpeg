@@ -120,13 +120,13 @@ const startServer = async () => {
       console.log(`Server is running at the PORT : ${PORT}`);
 
       // PM2 Crash Recovery: Resumes all channels that were live before restart/crash
-      // await streamManager.recoverActiveChannels();
+      await streamManager.recoverActiveChannels();
 
-      // // Playout Scheduler Clock Service
-      // schedulerService.start();
+      // Playout Scheduler Clock Service
+      schedulerService.start();
 
-      // // Channel Storage Calculator Cron Job (1-minute interval)
-      // channelStorageCron.start();
+      // Channel Storage Calculator Cron Job (1-minute interval)
+      channelStorageCron.start();
     });
   } catch (err) {
     console.error('Failed to start server:', err);

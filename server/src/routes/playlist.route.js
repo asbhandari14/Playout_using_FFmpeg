@@ -5,10 +5,15 @@ import {
   updatePlaylist,
   deletePlaylist
 } from '../controllers/playlist.controller.js';
+import { getCurrentlyPlayingHandler } from '../controllers/stream.controller.js';
 import { authenticate } from '../middleware/auth.js';
 
 const router = Router();
 router.use(authenticate);
+
+// Now Playing playout status for a channel
+router.get('/:channelId/now-playing', getCurrentlyPlayingHandler);
+router.get('/:channelId/currently-playing', getCurrentlyPlayingHandler);
 
 // GET /api/playlists - List playlists across channels (or filtered by ?channelId=...&type=...)
 router.get('/', async (req, res, next) => {

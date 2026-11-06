@@ -102,6 +102,7 @@ export default function Dashboard({ initialSection = 'channels', initialSubView 
                   setFormData={channelForm.setData}
                   servers={servers}
                   users={users}
+                  currentUser={currentUser}
                   onSubmit={channelForm.submit}
                   onCancel={() => nav.setSubView('list')}
                 />
@@ -111,6 +112,7 @@ export default function Dashboard({ initialSection = 'channels', initialSubView 
                   setFormData={channelForm.setData}
                   servers={servers}
                   users={users}
+                  currentUser={currentUser}
                   onSubmit={channelForm.submit}
                   onCancel={() => nav.setSubView('list')}
                 />
@@ -167,7 +169,7 @@ export default function Dashboard({ initialSection = 'channels', initialSubView 
                 <CreateUserForm
                   formData={userForm.data}
                   setFormData={userForm.setData}
-                  onTogglePermission={userForm.togglePermission}
+                  currentUser={currentUser}
                   onSubmit={userForm.submit}
                   onCancel={() => nav.setSubView('list')}
                 />
@@ -175,7 +177,7 @@ export default function Dashboard({ initialSection = 'channels', initialSubView 
                 <UpdateUserForm
                   formData={userForm.data}
                   setFormData={userForm.setData}
-                  onTogglePermission={userForm.togglePermission}
+                  currentUser={currentUser}
                   onSubmit={userForm.submit}
                   onCancel={() => nav.setSubView('list')}
                 />

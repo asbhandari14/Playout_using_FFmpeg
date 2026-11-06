@@ -258,10 +258,16 @@ export default function useDashboard(initialSection = 'channels', initialSubView
     }
   };
 
-  const logout = () => {
-    setIsProfileMenuOpen(false);
-    dispatch(logoutUser());
-    navigate('/login');
+  const logout = async() => {
+    try{
+      setIsProfileMenuOpen(false);
+      const result = await dispatch(logoutUser());
+      console.log("logout result", result);
+      navigate('/login');
+    } catch(err) {
+      console.error('Logout failed:', err);
+      toast.error('Logout failed. Please try again.');
+    }
   };
 
   const copyUrl = (url) => {
@@ -282,16 +288,14 @@ export default function useDashboard(initialSection = 'channels', initialSubView
   const openEditUser = (u) => {
     setEditingUserId(u._id);
     setUserFormData({
+      _id: u._id,
+      name: u.name || '',
       username: u.name || '',
       email: u.email || '',
       password: '', // leave empty to keep unchanged
       role: u.role || 'user',
-      bandwidthAmount: u.bandwidthAmount || '',
-      bandwidthUnit: u.bandwidthUnit || 'GB',
-      storageAmount: u.storageAmount || '',
-      storageUnit: u.storageUnit || 'GB',
-      gracePeriodDays: u.gracePeriodDays ?? 3,
-      permissions: u.permissions || [...DEFAULT_USER_PERMISSIONS]
+      isActive: u.isActive !== false,
+      createdBy: u.createdBy
     });
     setActiveSection('users');
     setSubView('edit');
@@ -299,48 +303,61 @@ export default function useDashboard(initialSection = 'channels', initialSubView
 
   const togglePermission = (perm) => {
     setUserFormData((prev) => {
-      const exists = prev.permissions.includes(perm);
+      const exists = prev.permissions?.includes(perm);
       return {
         ...prev,
         permissions: exists
           ? prev.permissions.filter((p) => p !== perm)
-          : [...prev.permissions, perm]
+          : [...(prev.permissions || []), perm]
       };
     });
   };
 
   const submitUser = async (e) => {
-    e.preventDefault();
+    if (e?.preventDefault) e.preventDefault();
     const f = userFormData;
 
-    if (!f.username || !f.email) {
-      alert('Please provide username and email');
+    const name = (f.name || f.username || '').trim();
+    const email = (f.email || '').trim().toLowerCase();
+
+    if (!name || !email) {
+      toast.error('Please provide full name and email address');
+      return;
+    }
+
+    if (!editingUserId) {
+      if (!f.password || f.password.trim().length < 6) {
+        toast.error('Password is required (minimum 6 characters)');
+        return;
+      }
+    } else if (f.password && f.password.trim().length < 6) {
+      toast.error('Password must be at least 6 characters');
       return;
     }
 
     const payload = {
-      name: f.username,
-      email: f.email,
-      role: f.role,
-      bandwidthAmount: f.bandwidthAmount,
-      bandwidthUnit: f.bandwidthUnit,
-      storageAmount: f.storageAmount,
-      storageUnit: f.storageUnit,
-      gracePeriodDays: f.gracePeriodDays,
-      permissions: f.permissions
+      name,
+      email,
+      role: f.role || 'user',
+      isActive: f.isActive !== false
     };
 
-    if (editingUserId) {
-      if (f.password) payload.password = f.password;
-      await dispatch(updateUser({ id: editingUserId, data: payload }));
-    } else {
-      if (!f.password) {
-        alert('Password is required for new users');
-        return;
-      }
-      await dispatch(createUser({ ...payload, password: f.password }));
+    if (f.password && f.password.trim()) {
+      payload.password = f.password.trim();
     }
-    setSubView('list');
+
+    try {
+      if (editingUserId) {
+        await dispatch(updateUser({ id: editingUserId, data: payload })).unwrap();
+        toast.success(`User "${name}" updated successfully`);
+      } else {
+        await dispatch(createUser(payload)).unwrap();
+        toast.success(`User "${name}" created successfully`);
+      }
+      setSubView('list');
+    } catch (err) {
+      toast.error(err || 'Failed to save user');
+    }
   };
 
   // ---------- Channel handlers ----------
@@ -351,8 +368,6 @@ export default function useDashboard(initialSection = 'channels', initialSubView
     setChannelFormData({
       ...getEmptyChannelForm(),
       server: firstServer?._id || '',
-      serverDomain: firstServer?.streamUrl || DEFAULT_SERVER_URL,
-      serverUsername: firstServer?.serverUsername || 'admin',
       assignedUser: firstUser?._id || currentUser?._id || ''
     });
     setActiveSection('channels');
@@ -362,15 +377,13 @@ export default function useDashboard(initialSection = 'channels', initialSubView
   const openEditChannel = (ch) => {
     setEditingChannelId(ch._id);
     const assignedId = ch.assignedUser?._id || ch.assignedUser || '';
-    const serverObj = servers.find((s) => s._id === (ch.server?._id || ch.server)) || ch.server;
+    const serverId = ch.server?._id || ch.server || '';
     const parsedStorage = bytesToStorage(ch.allocatedStorage);
 
     setChannelFormData({
+      _id: ch._id,
       name: ch.name || '',
-      server: serverObj?._id || ch.server?._id || ch.server || '',
-      serverDomain: serverObj?.streamUrl || ch.server?.streamUrl || DEFAULT_SERVER_URL,
-      serverUsername: serverObj?.serverUsername || '',
-      serverPassword: '',
+      server: serverId,
       assignedUser: assignedId,
       streamKey: ch.streamKey || '',
       allocatedStorageAmount: parsedStorage.amount,
@@ -378,43 +391,67 @@ export default function useDashboard(initialSection = 'channels', initialSubView
       resolution: ch.outputSettings?.resolution || '1280x720',
       fps: ch.outputSettings?.fps || 25,
       videoBitrate: ch.outputSettings?.videoBitrate || '2500k',
-      audioBitrate: ch.outputSettings?.audioBitrate || '128k'
+      audioBitrate: ch.outputSettings?.audioBitrate || '128k',
+      status: ch.status || 'idle',
+      allocatedStorage: ch.allocatedStorage || 0,
+      usedStorage: ch.usedStorage || 0,
+      createdBy: ch.createdBy,
+      createdAt: ch.createdAt
     });
     setActiveSection('channels');
     setSubView('edit');
   };
 
   const submitChannel = async (e) => {
-    e.preventDefault();
+    if (e?.preventDefault) e.preventDefault();
     const f = channelFormData;
 
-    if (!f.name) {
-      alert('Channel name is required');
+    if (!f.name || !f.name.trim()) {
+      toast.error('Channel name is required');
+      return;
+    }
+
+    if (!f.server) {
+      toast.error('Please select an active media server');
+      return;
+    }
+
+    if (!f.assignedUser) {
+      toast.error('Please assign an operator or user to the channel');
       return;
     }
 
     const calculatedBytes = storageToBytes(f.allocatedStorageAmount, f.allocatedStorageUnit);
+    const [resW, resH] = (f.resolution || '1280x720').split('x').map(Number);
 
     const payload = {
-      name: f.name,
-      server: f.server || servers[0]?._id,
-      assignedUser: f.assignedUser || users[0]?._id || currentUser?._id,
-      streamKey: f.streamKey || f.name.toLowerCase().replace(/\s+/g, '_'),
+      name: f.name.trim(),
+      server: f.server,
+      assignedUser: f.assignedUser,
+      streamKey: (f.streamKey || f.name).trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_'),
       allocatedStorage: calculatedBytes,
       outputSettings: {
-        resolution: f.resolution,
+        resolution: f.resolution || '1280x720',
+        width: resW || 1280,
+        height: resH || 720,
         fps: Number(f.fps) || 25,
-        videoBitrate: f.videoBitrate,
-        audioBitrate: f.audioBitrate
+        videoBitrate: f.videoBitrate || '2500k',
+        audioBitrate: f.audioBitrate || '128k'
       }
     };
 
-    if (editingChannelId) {
-      await dispatch(updateChannel({ id: editingChannelId, data: payload }));
-    } else {
-      await dispatch(createChannel(payload));
+    try {
+      if (editingChannelId) {
+        await dispatch(updateChannel({ id: editingChannelId, data: payload })).unwrap();
+        toast.success(`Channel "${f.name}" updated successfully`);
+      } else {
+        await dispatch(createChannel(payload)).unwrap();
+        toast.success(`Channel "${f.name}" created and provisioned on Flussonic successfully`);
+      }
+      setSubView('list');
+    } catch (err) {
+      toast.error(err || 'Failed to save channel');
     }
-    setSubView('list');
   };
 
   // ---------- Server handlers ----------
@@ -439,11 +476,11 @@ export default function useDashboard(initialSection = 'channels', initialSubView
   };
 
   const submitServer = async (e) => {
-    e.preventDefault();
+    if (e?.preventDefault) e.preventDefault();
     const f = serverFormData;
 
     if (!f.name || !f.streamUrl) {
-      alert('Stream name and stream URL are required');
+      toast.error('Stream name and stream URL are required');
       return;
     }
 
@@ -454,14 +491,20 @@ export default function useDashboard(initialSection = 'channels', initialSubView
       serverUsername: f.serverUsername || ''
     };
 
-    if (editingServerId) {
-      if (f.serverPassword) payload.serverPassword = f.serverPassword;
-      await dispatch(updateServer({ id: editingServerId, data: payload }));
-    } else {
-      if (f.serverPassword) payload.serverPassword = f.serverPassword;
-      await dispatch(createServer(payload));
+    if (f.serverPassword) payload.serverPassword = f.serverPassword;
+
+    try {
+      if (editingServerId) {
+        await dispatch(updateServer({ id: editingServerId, data: payload })).unwrap();
+        toast.success(`Server "${f.name}" updated successfully`);
+      } else {
+        await dispatch(createServer(payload)).unwrap();
+        toast.success(`Server "${f.name}" created successfully`);
+      }
+      setSubView('list');
+    } catch (err) {
+      toast.error(err || 'Failed to save server');
     }
-    setSubView('list');
   };
 
   // ---------- Playlist handlers ----------
@@ -518,7 +561,7 @@ export default function useDashboard(initialSection = 'channels', initialSubView
     const f = playlistFormData;
 
     if (!f.name || !f.channel) {
-      alert('Playlist name and channel are required');
+      toast.error('Playlist name and channel are required');
       return;
     }
 
@@ -545,15 +588,19 @@ export default function useDashboard(initialSection = 'channels', initialSubView
 
       if (editingPlaylistId) {
         await api.put(`/playlists/${editingPlaylistId}`, payload);
+        toast.success(`Playlist "${f.name}" updated successfully`);
         setPlaylistAlert({ success: 'Playlist updated successfully', error: '' });
       } else {
         await api.post('/playlists', payload);
+        toast.success(`Playlist "${f.name}" created successfully`);
         setPlaylistAlert({ success: 'Playlist created successfully', error: '' });
       }
       await fetchDashboardPlaylists();
       setSubView('list');
     } catch (err) {
-      setPlaylistAlert({ success: '', error: err.response?.data?.message || 'Error saving playlist' });
+      const msg = err.response?.data?.message || 'Error saving playlist';
+      toast.error(msg);
+      setPlaylistAlert({ success: '', error: msg });
     }
   };
 
@@ -571,18 +618,36 @@ export default function useDashboard(initialSection = 'channels', initialSubView
     if (!item) return;
 
     if (type === 'user') {
-      await dispatch(deleteUser(item._id));
+      try {
+        await dispatch(deleteUser(item._id)).unwrap();
+        toast.success(`User "${item.name || item.email}" deleted successfully`);
+      } catch (err) {
+        toast.error(err || 'Failed to delete user');
+      }
     } else if (type === 'channel') {
-      await dispatch(deleteChannel(item._id));
+      try {
+        await dispatch(deleteChannel(item._id)).unwrap();
+        toast.success(`Channel "${item.name}" deleted successfully`);
+      } catch (err) {
+        toast.error(err || 'Failed to delete channel');
+      }
     } else if (type === 'server') {
-      await dispatch(deleteServer(item._id));
+      try {
+        await dispatch(deleteServer(item._id)).unwrap();
+        toast.success(`Server "${item.name}" deleted successfully`);
+      } catch (err) {
+        toast.error(err || 'Failed to delete server');
+      }
     } else if (type === 'playlist') {
       try {
         await api.delete(`/playlists/${item._id}`);
+        toast.success(`Playlist "${item.name}" deleted successfully`);
         setPlaylistAlert({ success: 'Playlist deleted successfully', error: '' });
         await fetchDashboardPlaylists();
       } catch (err) {
-        setPlaylistAlert({ success: '', error: err.response?.data?.message || 'Failed to delete playlist' });
+        const msg = err.response?.data?.message || 'Failed to delete playlist';
+        toast.error(msg);
+        setPlaylistAlert({ success: '', error: msg });
       }
     }
     closeDeleteModal();

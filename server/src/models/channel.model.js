@@ -59,7 +59,7 @@ const channelSchema = new mongoose.Schema(
       default: null
     },
     outputSettings: {
-      resolution: { type: String, default: '1280x720' },
+      resolution: { type: String, enum: ['1280x720', '1920x1080'], default: '1280x720' },
       width: { type: Number, default: 1280 },
       height: { type: Number, default: 720 },
       fps: { type: Number, default: 25 },

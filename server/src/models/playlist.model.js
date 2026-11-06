@@ -11,91 +11,134 @@ export { PLAYLIST_TYPE, PLAYLIST_PRIORITY, SCHEDULE_OPTION };
 /**
  * Helper to safely extract local midnight Date without UTC shifting
  */
-const parseDateMidnight = (val, isEnd = false) => {
+export const parseLocalDateMidnight = (val, isEnd = false) => {
   if (!val) return null;
-  if (typeof val === 'string' && val.includes('-')) {
-    const parts = val.split('T')[0].split('-');
+  let y, m, d;
+  if (val instanceof Date) {
+    const iso = val.toISOString().split('T')[0];
+    const parts = iso.split('-');
+    y = parseInt(parts[0], 10);
+    m = parseInt(parts[1], 10) - 1;
+    d = parseInt(parts[2], 10);
+  } else if (typeof val === 'string') {
+    const datePart = val.split('T')[0].trim();
+    const parts = datePart.split('-');
     if (parts.length === 3) {
-      const y = Number(parts[0]);
-      const m = Number(parts[1]) - 1;
-      const d = Number(parts[2]);
-      return isEnd ? new Date(y, m, d, 23, 59, 59, 999) : new Date(y, m, d, 0, 0, 0, 0);
+      y = parseInt(parts[0], 10);
+      m = parseInt(parts[1], 10) - 1;
+      d = parseInt(parts[2], 10);
+    } else {
+      const dt = new Date(val);
+      y = dt.getFullYear();
+      m = dt.getMonth();
+      d = dt.getDate();
     }
+  } else {
+    const dt = new Date(val);
+    y = dt.getFullYear();
+    m = dt.getMonth();
+    d = dt.getDate();
   }
-  const d = new Date(val);
+
+  if (isNaN(y) || isNaN(m) || isNaN(d)) return null;
   return isEnd
-    ? new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999)
-    : new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
+    ? new Date(y, m, d, 23, 59, 59, 999)
+    : new Date(y, m, d, 0, 0, 0, 0);
+};
+
+export const parseTimeToSeconds = (timeStr) => {
+  if (!timeStr || typeof timeStr !== 'string') return null;
+  const parts = timeStr.trim().split(':');
+  if (parts.length < 2) return null;
+  const h = parseInt(parts[0], 10);
+  const m = parseInt(parts[1], 10);
+  const s = parts.length >= 3 ? parseInt(parts[2], 10) : 0;
+  if (isNaN(h) || isNaN(m) || isNaN(s)) return null;
+  return h * 3600 + m * 60 + s;
 };
 
 /**
- * Checks if a playlist is currently scheduled and active based on active status,
- * date range, days of week, and daily start/end wall-clock time.
+ * Checks if a playlist is currently scheduled and active based on:
+ * 1. Enabled status (isActive === true)
+ * 2. Has playable videos (items.length > 0 or liveSourceUrl for live_schedule)
+ * 3. Date scheduling range (startDate & endDate)
+ * 4. Weekly scheduling days of the week (daysOfWeek)
+ * 5. Daily start/end wall-clock time window (startTime & endTime)
+ * 6. 24/7 continuous playout (scheduleOption === 'none' without constraints)
  */
 export const isPlaylistCurrentlyActive = (playlist, now = new Date()) => {
   if (!playlist) return false;
 
-  // 1. Check whether it is ON (isActive: true)
-  if (playlist.isActive === false) return false;
+  // 1. Must be enabled (isActive: true)
+  if (playlist.isActive !== true) return false;
 
-  const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth();
-  const currentDate = now.getDate();
+  // 2. Must contain playable media
+  const hasLiveSource = playlist.type === PLAYLIST_TYPE.LIVE_SCHEDULE && Boolean(playlist.liveSourceUrl);
+  const hasItems = Array.isArray(playlist.items) && playlist.items.length > 0;
+  if (!hasItems && !hasLiveSource) {
+    return false;
+  }
+
   const currentDay = now.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+  const currentSec = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
 
-  const currentTimeStr = [
-    String(now.getHours()).padStart(2, '0'),
-    String(now.getMinutes()).padStart(2, '0'),
-    String(now.getSeconds()).padStart(2, '0')
-  ].join(':');
+  // 3. Date scheduling window check
+  if (playlist.scheduleOption === SCHEDULE_OPTION.DATE || playlist.startDate || playlist.endDate) {
+    const currentLocalMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
 
-  // 2. Date scheduling window check (if scheduleOption is 'date' OR startDate/endDate set)
-  if (playlist.scheduleOption === SCHEDULE_OPTION.DATE || (playlist.startDate && playlist.endDate)) {
     if (playlist.startDate) {
-      const startDay = parseDateMidnight(playlist.startDate, false);
-      const today = new Date(currentYear, currentMonth, currentDate, 0, 0, 0, 0);
-      if (today < startDay) return false;
+      const startDay = parseLocalDateMidnight(playlist.startDate, false);
+      if (startDay && currentLocalMidnight < startDay) {
+        return false;
+      }
     }
+
     if (playlist.endDate) {
-      const endDay = parseDateMidnight(playlist.endDate, true);
-      if (now > endDay) return false;
+      const endDay = parseLocalDateMidnight(playlist.endDate, true);
+      if (endDay && now > endDay) {
+        return false;
+      }
     }
   }
 
-  // 3. Weekly scheduling days of the week check
-  if (playlist.scheduleOption === SCHEDULE_OPTION.WEEKLY) {
-    if (Array.isArray(playlist.daysOfWeek) && playlist.daysOfWeek.length > 0) {
-      if (!playlist.daysOfWeek.includes(currentDay)) return false;
+  // 4. Weekly scheduling days of the week check
+  if (
+    playlist.scheduleOption === SCHEDULE_OPTION.WEEKLY ||
+    (Array.isArray(playlist.daysOfWeek) && playlist.daysOfWeek.length > 0 && playlist.scheduleOption !== SCHEDULE_OPTION.NONE)
+  ) {
+    if (!Array.isArray(playlist.daysOfWeek) || playlist.daysOfWeek.length === 0 || !playlist.daysOfWeek.includes(currentDay)) {
+      return false;
     }
   }
 
-  // 4. Daily wall-clock time window check (HH:mm:ss or HH:mm)
-  // Evaluated if startTime or endTime is set (for any scheduleOption)
+  // 5. Daily wall-clock time window check (HH:mm:ss or HH:mm)
   const hasStart = Boolean(playlist.startTime && String(playlist.startTime).trim());
   const hasEnd = Boolean(playlist.endTime && String(playlist.endTime).trim());
 
-  if (hasStart && hasEnd) {
-    const rawStart = String(playlist.startTime).trim();
-    const rawEnd = String(playlist.endTime).trim();
-    const start = rawStart.length === 5 ? rawStart + ':00' : rawStart;
-    const end = rawEnd.length === 5 ? rawEnd + ':00' : rawEnd;
+  if (hasStart || hasEnd) {
+    const startSec = hasStart ? parseTimeToSeconds(playlist.startTime) : null;
+    const endSec = hasEnd ? parseTimeToSeconds(playlist.endTime) : null;
 
-    if (start <= end) {
-      if (currentTimeStr < start || currentTimeStr > end) return false;
-    } else {
-      // Overnight wraps past midnight (e.g. 23:00 to 02:00)
-      if (currentTimeStr < start && currentTimeStr > end) return false;
+    if (startSec !== null && endSec !== null) {
+      if (startSec <= endSec) {
+        // Normal daily slot (e.g. 22:03:00 to 22:05:00)
+        if (currentSec < startSec || currentSec > endSec) {
+          return false;
+        }
+      } else {
+        // Wraps past midnight (e.g. 23:00:00 to 02:00:00)
+        if (currentSec < startSec && currentSec > endSec) {
+          return false;
+        }
+      }
+    } else if (startSec !== null) {
+      if (currentSec < startSec) return false;
+    } else if (endSec !== null) {
+      if (currentSec > endSec) return false;
     }
-  } else if (hasStart) {
-    const rawStart = String(playlist.startTime).trim();
-    const start = rawStart.length === 5 ? rawStart + ':00' : rawStart;
-    if (currentTimeStr < start) return false;
-  } else if (hasEnd) {
-    const rawEnd = String(playlist.endTime).trim();
-    const end = rawEnd.length === 5 ? rawEnd + ':00' : rawEnd;
-    if (currentTimeStr > end) return false;
   }
 
+  // All checks passed -> Playlist is active right now
   return true;
 };
 
@@ -110,9 +153,11 @@ export const isPlaylistCurrentlyActive = (playlist, now = new Date()) => {
  * For each tier:
  * - Checks whether channel has this playlist
  * - Checks if it is ON (isActive: true)
- * - Checks current date and time against schedule data and time
+ * - Checks if it has playable video (items.length > 0 or liveSourceUrl)
+ * - Checks current date and time against schedule data and time (24/7, weekly, or datewise)
  * - If it falls in range, returns this playlist (plays till the time ends)
- * - Then moves down to next tier in priority order
+ * - If no playlist matches its schedule, returns null (Standby slate broadcasted to keep stream alive).
+ *   NEVER falls back to playing scheduled playlists out of their scheduled windows!
  */
 export const resolveChannelActivePlaylist = async (channelId, now = new Date()) => {
   const playlists = await Playlist.find({ channel: channelId, isActive: true })
@@ -139,23 +184,14 @@ export const resolveChannelActivePlaylist = async (channelId, now = new Date()) 
 
     for (const p of candidates) {
       if (isPlaylistCurrentlyActive(p, now)) {
-        const hasItems = Array.isArray(p.items) && p.items.length > 0;
-        const hasLiveSource = p.type === PLAYLIST_TYPE.LIVE_SCHEDULE && Boolean(p.liveSourceUrl);
-        if (hasItems || hasLiveSource) {
-          return p;
-        }
+        return p;
       }
     }
   }
 
-  // Fallback: Default playlist with items
-  const fallbackDefault = playlists.find(
-    (p) => p.type === PLAYLIST_TYPE.DEFAULT && Array.isArray(p.items) && p.items.length > 0
-  );
-  if (fallbackDefault) return fallbackDefault;
-
-  // Final fallback to any playlist with items
-  return playlists.find((p) => Array.isArray(p.items) && p.items.length > 0) || playlists[0] || null;
+  // If no playlist matches its schedule right now, return null!
+  // Standby slate will be broadcasted to keep channel live on air.
+  return null;
 };
 
 const playlistItemSchema = new mongoose.Schema({

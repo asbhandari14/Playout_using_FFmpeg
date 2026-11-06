@@ -9,16 +9,16 @@ import {
 } from 'lucide-react';
 
 const shellClass =
-  'flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-[#090d16] border border-[#1a2337] focus-within:border-[#00bcd4] transition';
+  'flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-[#090d16] border border-[#1a2337] focus-within:border-[#00bcd4] transition ';
 const inputClass =
-  'w-full bg-transparent text-slate-100 placeholder-slate-500 focus:outline-none text-xs';
+  'w-full bg-transparent text-slate-100 placeholder-slate-500 focus:outline-none text-lg font-mono';
 
 function Field({ label, hint, className = '', children }) {
   return (
     <div className={className}>
-      <div className="flex items-center justify-between mb-1.5">
-        <label className="text-slate-300 font-semibold">{label}</label>
-        {hint && <span className="text-[10px] text-slate-500">{hint}</span>}
+      <div className="flex items-center justify-between mb-1.5 font-mono">
+        <label className="text-slate-300 text-base">{label}</label>
+        {/* {hint && <span className="text-[10px] text-slate-500">{hint}</span>} */}
       </div>
       {children}
     </div>
@@ -42,15 +42,15 @@ export default function CreateServerForm({
       <button
         type="button"
         onClick={onCancel}
-        className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-white transition cursor-pointer"
+        className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-white transition cursor-pointer font-mono"
       >
         <ArrowLeft size={14} />
         <span>Back to Servers</span>
       </button>
 
       <div>
-        <h1 className="text-xl text-white tracking-wide">Add Media Server</h1>
-        <p className="text-xs text-slate-400 mt-0.5">
+        <h1 className="text-2xl text-white tracking-wide font-mono">Add Media Server</h1>
+        <p className="text-sm text-slate-400 mt-0.5 font-mono">
           Configure a new RTMP ingest and HLS playback server cluster
         </p>
       </div>
@@ -90,8 +90,8 @@ export default function CreateServerForm({
 
           {/* Stream URL */}
           <Field
-            label="Stream URL (Base Host & Port) *"
-            hint="Format: http://ip_or_domain:port"
+            label="Stream URL"
+            hint=""
           >
             <div className={shellClass}>
               <Globe size={16} className="text-slate-500 shrink-0" />
@@ -100,14 +100,10 @@ export default function CreateServerForm({
                 required
                 value={formData.streamUrl || ''}
                 onChange={set('streamUrl')}
-                placeholder="http://94.136.185.222:81"
-                className={`${inputClass} font-mono text-[11px] text-[#00bcd4]`}
+                placeholder="http://123.456.788.90:81"
+                className={`${inputClass} font-mono text-lg text-[#00bcd4]`}
               />
             </div>
-            <p className="text-[10px] text-slate-500 mt-1">
-              RTMP and HLS base URLs are automatically derived from this host (e.g.{' '}
-              <code className="text-slate-400">http://94.136.185.222:81</code>).
-            </p>
           </Field>
 
           {/* Username & Password */}

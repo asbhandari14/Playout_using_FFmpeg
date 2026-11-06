@@ -54,7 +54,7 @@ export default function ChannelCard({ channel, onEnter }) {
         {/* Metadata Details */}
         <div className="space-y-2 py-3 border-y border-[#1c2230] text-[11px] text-slate-300">
           <div className="flex items-center justify-between">
-            <span className="text-slate-500 font-medium">Assigned Operator</span>
+            <span className="text-slate-500 font-medium">Assigned User</span>
             <span className="font-semibold text-slate-200">{channel.assignedOperator}</span>
           </div>
 

@@ -25,38 +25,6 @@ export const parseStorageToBytes = (amount, unit = 'GB') => {
   return Math.round(val * 1024 * 1024 * 1024);
 };
 
-export const createChannelSchema = z.object({
-  name: z.string().min(2, 'Channel name must be at least 2 characters'),
-  server: z.string().min(1, 'Server ID is required'),
-  assignedUser: z.string().min(1, 'Assigned user ID is required'),
-  streamKey: z.string().optional(),
-  allocatedStorage: z.number().nonnegative().optional().default(0),
-  allocatedStorageAmount: z.union([z.number(), z.string()]).optional(),
-  allocatedStorageUnit: z.enum(['MB', 'GB', 'TB', 'mb', 'gb', 'tb']).optional(),
-  outputSettings: z.object({
-    resolution: z.string().optional().default('1280x720'),
-    fps: z.number().optional().default(25),
-    videoBitrate: z.string().optional().default('2500k'),
-    audioBitrate: z.string().optional().default('128k')
-  }).optional()
-});
-
-export const updateChannelSchema = z.object({
-  name: z.string().min(2).optional(),
-  server: z.string().optional(),
-  assignedUser: z.string().optional(),
-  streamKey: z.string().optional(),
-  allocatedStorage: z.number().nonnegative().optional(),
-  allocatedStorageAmount: z.union([z.number(), z.string()]).optional(),
-  allocatedStorageUnit: z.enum(['MB', 'GB', 'TB', 'mb', 'gb', 'tb']).optional(),
-  outputSettings: z.object({
-    resolution: z.string().optional(),
-    fps: z.number().optional(),
-    videoBitrate: z.string().optional(),
-    audioBitrate: z.string().optional()
-  }).optional()
-});
-
 // GET /api/channels
 export const getChannels = async (req, res, next) => {
   try {
@@ -507,3 +475,4 @@ export const CheckChannelOnlineOrOffline = async (req, res) => {
     });
   }
 };
+

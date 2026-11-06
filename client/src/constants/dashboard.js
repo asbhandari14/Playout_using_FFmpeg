@@ -18,24 +18,17 @@ export const DEFAULT_SERVER_URL = 'http://94.136.185.222:81';
 export const RTMP_BASE_URL = 'rtmp://94.136.185.222:1935/static/';
 
 export const getEmptyUserForm = () => ({
+  name: '',
   username: '',
   email: '',
   password: '',
   role: 'user', // 'user' | 'admin' | 'super_admin'
-  bandwidthAmount: '',
-  bandwidthUnit: 'GB',
-  storageAmount: '',
-  storageUnit: 'GB',
-  gracePeriodDays: 3,
-  permissions: [...DEFAULT_USER_PERMISSIONS]
+  isActive: true
 });
 
 export const getEmptyChannelForm = () => ({
   name: '',
   server: '',
-  serverDomain: '',
-  serverUsername: '',
-  serverPassword: '',
   assignedUser: '',
   streamKey: '',
   allocatedStorageAmount: '',

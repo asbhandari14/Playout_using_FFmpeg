@@ -49,8 +49,8 @@ export default function UpdateServerForm({
       </button>
 
       <div>
-        <h1 className="text-xl text-white tracking-wide">Update Media Server</h1>
-        <p className="text-xs text-slate-400 mt-0.5">
+        <h1 className="text-2xl text-white tracking-wide">Update Media Server</h1>
+        <p className="text-sm text-slate-400 mt-0.5">
           Update streaming server endpoint and connection credentials
         </p>
       </div>

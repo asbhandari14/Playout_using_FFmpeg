@@ -36,6 +36,7 @@ export const login = async (req, res, next) => {
     const userObj = user.toJSON();
 
     return res.status(200).json({
+      success: true,
       message: 'Login successful',
       user: userObj,
       accessToken,
@@ -126,7 +127,7 @@ export const logout = async (req, res, next) => {
     if (refreshToken) {
       await RefreshToken.deleteOne({ token: refreshToken });
     }
-    return res.status(200).json({ message: 'Logged out successfully' });
+    return res.status(200).json({ success: true, message: 'Logged out successfully' });
   } catch (error) {
     next(error);
   }

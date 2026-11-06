@@ -22,10 +22,23 @@ export default function useAuth() {
   }, [isAuthenticated, navigate, dispatch]);
 
   const handleSubmit = useCallback(
-    (e) => {
+    async (e) => {
       e.preventDefault();
-      if (!email || !password) return;
-      dispatch(loginUser({ email, password }));
+
+      try {
+        if (!email || !password) {
+          toast.error('Please fill in both email and password');
+          return;
+        }
+
+        const result = await dispatch(loginUser({ email, password }));
+
+        if (result.payload && result.payload.success) {
+          toast.success(result.payload.message || 'Login successful');
+        }
+      } catch (error) {
+        toast.error(error.message || 'Login failed');
+      }
     },
     [email, password, dispatch]
   );

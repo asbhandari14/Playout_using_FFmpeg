@@ -6,11 +6,12 @@ export const loginUser = createAsyncThunk(
   async ({ email, password }, { rejectWithValue }) => {
     try {
       const response = await api.post('/auth/login', { email, password });
-      const { user, accessToken, refreshToken } = response.data;
+      console.log("response", response);
+      const { user, accessToken, refreshToken, success, message } = response.data;
       localStorage.setItem('access_token', accessToken);
       localStorage.setItem('refresh_token', refreshToken);
       localStorage.setItem('user', JSON.stringify(user));
-      return { user, accessToken };
+      return { user, accessToken, message, success };
     } catch (err) {
       return rejectWithValue(err.response?.data?.message || 'Login failed');
     }
@@ -37,7 +38,8 @@ export const checkAuth = createAsyncThunk(
 export const logoutUser = createAsyncThunk('auth/logoutUser', async () => {
   try {
     const refreshToken = localStorage.getItem('refresh_token');
-    await api.post('/auth/logout', { refreshToken });
+    const response = await api.post('/auth/logout', { refreshToken });
+    return response.data;
   } catch (e) {
     // ignore
   } finally {

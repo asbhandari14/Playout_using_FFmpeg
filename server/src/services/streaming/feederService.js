@@ -10,6 +10,7 @@ import { SERVER_ROOT } from '../../config/paths.js';
 import { PLAYLIST_ITEM_STATUS } from '../../config/constants.js';
 import { buildBackInTimerFilter } from './brandingAssets.js';
 import { killProcessTree } from '../../utils/processHelper.js';
+import { formatDuration } from '../../utils/media.js';
 
 export class FeederService {
   constructor(channelId, encoderProcess, options = {}, encoder = null) {
@@ -30,6 +31,10 @@ export class FeederService {
     this.interruptedState = null;
     this.scheduleBrandingSnapshot = null;
     this.currentPlayingPlaylist = null;
+    this.currentSchedule = null;
+    this.currentScheduleAsset = null;
+    this.currentScheduleAssetIndex = 0;
+    this.currentScheduleTargetEndTime = null;
     this.wasPreemptedByPriority = false;
     this.priorityCheckTimer = null;
   }
@@ -115,24 +120,151 @@ export class FeederService {
   }
 
   /**
+   * Returns complete real-time information about what scheduling is playing
+   * and what video is playing on this channel at this exact second.
+   */
+  getCurrentlyPlayingInfo() {
+    const now = Date.now();
+    let elapsedSeconds = 0;
+    let remainingSeconds = 0;
+    let progressPercent = 0;
+
+    if (this.currentAssetStartTime) {
+      const runSec = Math.max(0, (now - this.currentAssetStartTime) / 1000);
+      elapsedSeconds = Math.max(0, (this.currentOffsetAtStart || 0) + runSec);
+      if (this.currentAssetDuration && this.currentAssetDuration > 0) {
+        remainingSeconds = Math.max(0, this.currentAssetDuration - elapsedSeconds);
+        progressPercent = Math.min(100, Math.round((elapsedSeconds / this.currentAssetDuration) * 1000) / 10);
+      }
+    }
+
+    if (this.isScheduleActive && this.currentSchedule) {
+      const scheduleRemainingSec = this.currentScheduleTargetEndTime
+        ? Math.max(0, (this.currentScheduleTargetEndTime - now) / 1000)
+        : remainingSeconds;
+
+      const schedAssets = Array.isArray(this.currentSchedule.assets) && this.currentSchedule.assets.length > 0
+        ? this.currentSchedule.assets
+        : (this.currentSchedule.asset ? [this.currentSchedule.asset] : []);
+
+      return {
+        isLive: true,
+        playoutSource: 'schedule',
+        scheduling: {
+          source: 'schedule_event',
+          id: this.currentSchedule._id,
+          name: this.currentSchedule.title,
+          title: this.currentSchedule.title,
+          type: this.currentSchedule.type || 'video',
+          priority: this.currentSchedule.priority || 10,
+          dailyStartTime: this.currentSchedule.dailyStartTime,
+          dailyEndTime: this.currentSchedule.dailyEndTime || '',
+          duration: this.currentSchedule.duration || 0,
+          durationFormatted: formatDuration(this.currentSchedule.duration || 0),
+          remainingWindowSeconds: Math.ceil(scheduleRemainingSec),
+          remainingWindowFormatted: formatDuration(scheduleRemainingSec),
+          currentAssetIndex: this.currentScheduleAssetIndex || 0,
+          totalAssets: schedAssets.length || 1,
+          daysOfWeek: this.currentSchedule.daysOfWeek || [],
+          startDate: this.currentSchedule.startDate || null,
+          endDate: this.currentSchedule.endDate || null
+        },
+        video: {
+          assetId: this.currentScheduleAsset?._id || this.currentAsset?._id || null,
+          title: this.currentScheduleAsset?.originalName || this.currentAsset?.originalName || 'Scheduled Video',
+          originalName: this.currentScheduleAsset?.originalName || this.currentAsset?.originalName || '',
+          filePath: this.currentScheduleAsset?.filePath || this.currentAsset?.filePath || '',
+          thumbnailPath: this.currentScheduleAsset?.thumbnailPath || this.currentAsset?.thumbnailPath || '',
+          itemIndex: this.currentScheduleAssetIndex || 0,
+          totalItems: schedAssets.length || 1,
+          duration: this.currentAssetDuration || this.currentScheduleAsset?.duration || 0,
+          durationFormatted: formatDuration(this.currentAssetDuration || this.currentScheduleAsset?.duration || 0),
+          elapsedSeconds: Math.round(elapsedSeconds * 10) / 10,
+          elapsedFormatted: formatDuration(elapsedSeconds),
+          remainingSeconds: Math.round(remainingSeconds * 10) / 10,
+          remainingFormatted: formatDuration(remainingSeconds),
+          progressPercent,
+          status: 'playing'
+        },
+        interruptedState: {
+          isInterrupted: Boolean(this.interruptedState),
+          pausedPlaylist: this.currentPlayingPlaylist ? {
+            id: this.currentPlayingPlaylist._id,
+            name: this.currentPlayingPlaylist.name,
+            type: this.currentPlayingPlaylist.type,
+            priority: this.currentPlayingPlaylist.priority
+          } : null,
+          pausedItemIndex: this.interruptedState?.index ?? null,
+          pausedOffsetSeconds: this.interruptedState ? Math.round((this.interruptedState.offsetSeconds || 0) * 10) / 10 : 0,
+          pausedOffsetFormatted: this.interruptedState ? formatDuration(this.interruptedState.offsetSeconds || 0) : '00:00',
+          pausedVideo: this.interruptedState?.asset ? {
+            assetId: this.interruptedState.asset._id,
+            title: this.interruptedState.asset.originalName,
+            originalName: this.interruptedState.asset.originalName,
+            duration: this.interruptedState.asset.duration
+          } : null
+        }
+      };
+    }
+
+    // Regular Priority Playlist playout
+    const playlistItems = Array.isArray(this.currentPlayingPlaylist?.items)
+      ? this.currentPlayingPlaylist.items
+      : [];
+
+    return {
+      isLive: true,
+      playoutSource: this.currentPlayingPlaylist ? 'playlist' : 'standby',
+      scheduling: this.currentPlayingPlaylist ? {
+        source: 'priority_playlist',
+        id: this.currentPlayingPlaylist._id,
+        name: this.currentPlayingPlaylist.name,
+        type: this.currentPlayingPlaylist.type,
+        priority: this.currentPlayingPlaylist.priority,
+        scheduleOption: this.currentPlayingPlaylist.scheduleOption || 'none',
+        loop: this.currentPlayingPlaylist.loop !== false,
+        totalItems: playlistItems.length,
+        startTime: this.currentPlayingPlaylist.startTime || '',
+        endTime: this.currentPlayingPlaylist.endTime || '',
+        startDate: this.currentPlayingPlaylist.startDate || null,
+        endDate: this.currentPlayingPlaylist.endDate || null,
+        daysOfWeek: this.currentPlayingPlaylist.daysOfWeek || [],
+        liveSourceUrl: this.currentPlayingPlaylist.liveSourceUrl || ''
+      } : null,
+      video: (this.currentPlayingPlaylist && this.currentAsset) ? {
+        assetId: this.currentAsset._id,
+        title: this.currentAsset.originalName,
+        originalName: this.currentAsset.originalName,
+        filePath: this.currentAsset.filePath || '',
+        thumbnailPath: this.currentAsset.thumbnailPath || '',
+        itemIndex: this.currentIndex,
+        totalItems: playlistItems.length,
+        duration: this.currentAssetDuration || this.currentAsset.duration || 0,
+        durationFormatted: formatDuration(this.currentAssetDuration || this.currentAsset.duration || 0),
+        elapsedSeconds: Math.round(elapsedSeconds * 10) / 10,
+        elapsedFormatted: formatDuration(elapsedSeconds),
+        remainingSeconds: Math.round(remainingSeconds * 10) / 10,
+        remainingFormatted: formatDuration(remainingSeconds),
+        progressPercent,
+        status: 'playing'
+      } : null,
+      interruptedState: {
+        isInterrupted: false
+      }
+    };
+  }
+
+  /**
    * Resolves the highest-priority active playlist matching current time/date/day.
    * Priority: emergency (5) > advertisement (4) > live_schedule (3) > scheduling (2) > default (1)
    */
   async resolveActivePlaylist() {
     try {
       const active = await resolveChannelActivePlaylist(this.channelId, new Date());
-      if (active) return active;
-
-      return await Playlist.findOne({ channel: this.channelId }).populate({
-        path: 'items.asset',
-        select: 'originalName filePath duration durationFormatted status'
-      });
+      return active || null;
     } catch (err) {
       console.warn(`[Feeder:${this.channelId}] Error resolving active playlist:`, err.message);
-      return await Playlist.findOne({ channel: this.channelId }).populate({
-        path: 'items.asset',
-        select: 'originalName filePath duration durationFormatted status'
-      });
+      return null;
     }
   }
 
@@ -148,16 +280,14 @@ export class FeederService {
 
     try {
       const targetPlaylist = await this.resolveActivePlaylist();
-      if (!targetPlaylist) return false;
-
       const currentId = this.currentPlayingPlaylist?._id ? String(this.currentPlayingPlaylist._id) : null;
-      const targetId = String(targetPlaylist._id);
+      const targetId = targetPlaylist?._id ? String(targetPlaylist._id) : null;
 
-      if (currentId && currentId !== targetId) {
+      if (currentId !== targetId) {
         console.log(
           `[Feeder:${this.channelId}] >>> REAL-TIME PRIORITY TRANSITION <<<` +
-          `\nFrom: "${this.currentPlayingPlaylist?.name}" (${this.currentPlayingPlaylist?.type}, P${this.currentPlayingPlaylist?.priority})` +
-          `\nTo:   "${targetPlaylist.name}" (${targetPlaylist.type}, P${targetPlaylist.priority})` +
+          `\nFrom: "${this.currentPlayingPlaylist?.name || 'Standby Slate'}" (${this.currentPlayingPlaylist?.type || 'standby'}, P${this.currentPlayingPlaylist?.priority || 0})` +
+          `\nTo:   "${targetPlaylist?.name || 'Standby Slate'}" (${targetPlaylist?.type || 'standby'}, P${targetPlaylist?.priority || 0})` +
           `\nPreempting currently playing video decoder to switch immediately.`
         );
 
@@ -227,7 +357,12 @@ export class FeederService {
         const playlist = await this.resolveActivePlaylist();
 
         if (!playlist) {
-          console.log(`[Feeder:${this.channelId}] No playlist configured. Feeding live standby slate...`);
+          this.currentPlayingPlaylist = null;
+          this.currentAsset = null;
+          this.currentAssetStartTime = null;
+          this.currentAssetDuration = null;
+          currentPlaylistId = null;
+          console.log(`[Feeder:${this.channelId}] No scheduled playlist active at this time. Feeding live standby slate to maintain broadcast...`);
           await this.streamStandbySlate(3);
           continue;
         }
@@ -259,14 +394,15 @@ export class FeederService {
         for (let i = this.currentIndex; i < playlist.items.length; i++) {
           if (!this.isRunning) break;
 
-          // Before playing next item, check if a higher-priority playlist has become active!
+          // Before playing next item, check if active playlist has changed or expired!
           const activeCheck = await this.resolveActivePlaylist();
-          if (activeCheck && String(activeCheck._id) !== String(playlist._id)) {
+          const activeCheckId = activeCheck?._id ? String(activeCheck._id) : null;
+          if (activeCheckId !== String(playlist._id)) {
             console.log(
-              `[Feeder:${this.channelId}] Preempting for higher/different active playlist: "${activeCheck.name}" (${activeCheck.type}, priority ${activeCheck.priority}).`
+              `[Feeder:${this.channelId}] Active playlist changed or expired (now: "${activeCheck?.name || 'Standby Slate'}"). Switching immediately.`
             );
             this.currentIndex = 0;
-            currentPlaylistId = String(activeCheck._id);
+            currentPlaylistId = activeCheckId;
             this.currentPlayingPlaylist = activeCheck;
             break;
           }
@@ -708,6 +844,9 @@ export class FeederService {
       targetEndTime = Date.now() + totalDur * 1000;
     }
 
+    this.currentSchedule = schedule;
+    this.currentScheduleTargetEndTime = targetEndTime;
+
     // ------------------------------------------------------------------------
     // TIMELINE SYNCHRONIZATION: Calculate which video should be playing now
     // and at what exact second offset if the server restarted mid-schedule.
@@ -772,6 +911,10 @@ export class FeederService {
         const scheduleAssetPath = path.resolve(SERVER_ROOT, currentSchedAsset.filePath);
 
         if (fs.existsSync(scheduleAssetPath)) {
+          this.currentScheduleAsset = currentSchedAsset;
+          this.currentScheduleAssetIndex = assetIdx % scheduledAssets.length;
+          this.currentAsset = currentSchedAsset;
+          this.currentVideoPath = scheduleAssetPath;
           const remainingWindowSeconds = Math.max(0.5, (targetEndTime - Date.now()) / 1000);
           const assetDuration = Math.max(1, Number(currentSchedAsset.duration) || 600);
 
@@ -868,6 +1011,9 @@ export class FeederService {
     this.startOffsetSeconds = this.interruptedState.offsetSeconds;
     this.currentIndex = this.interruptedState.index;
     this.isScheduleActive = false;
+    this.currentSchedule = null;
+    this.currentScheduleAsset = null;
+    this.currentScheduleTargetEndTime = null;
 
     return true;
   }
@@ -879,6 +1025,9 @@ export class FeederService {
       this.priorityCheckTimer = null;
     }
     this.currentPlayingPlaylist = null;
+    this.currentSchedule = null;
+    this.currentScheduleAsset = null;
+    this.currentScheduleTargetEndTime = null;
     if (this.isScheduleActive && this.scheduleBrandingSnapshot) {
       this.restorePreScheduleBranding().catch(() => { });
     }

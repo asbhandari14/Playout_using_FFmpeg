@@ -5,8 +5,6 @@ import {
   createChannel,
   updateChannel,
   deleteChannel,
-  createChannelSchema,
-  updateChannelSchema,
   CheckChannelOnlineOrOffline
 } from '../controllers/channel.controller.js';
 import {
@@ -50,11 +48,11 @@ import {
 import {
   startStreamHandler,
   stopStreamHandler,
-  getStreamStatusHandler
+  getStreamStatusHandler,
+  getCurrentlyPlayingHandler
 } from '../controllers/stream.controller.js';
 import { authenticate } from '../middleware/auth.js';
 import { authorize } from '../middleware/rbac.js';
-import { validate } from '../middleware/validate.js';
 import { uploadLogo, uploadBug, uploadLBand, uploadAshton } from '../middleware/logoUpload.js';
 import { ROLES } from '../config/constants.js';
 
@@ -62,13 +60,17 @@ const router = Router();
 
 router.use(authenticate);
 
+// Global Playout / Now-Playing Status
+router.get('/now-playing', getCurrentlyPlayingHandler);
+router.get('/currently-playing', getCurrentlyPlayingHandler);
+
 // List channels: super_admin, admin, user
 router.get('/', authorize([ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.USER]), getChannels);
 router.get('/:id', authorize([ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.USER]), getChannelById);
 
 // Create, update, delete channels: super_admin and admin only
-router.post('/', authorize([ROLES.SUPER_ADMIN, ROLES.ADMIN]), validate(createChannelSchema), createChannel);
-router.put('/:id', authorize([ROLES.SUPER_ADMIN, ROLES.ADMIN]), validate(updateChannelSchema), updateChannel);
+router.post('/', authorize([ROLES.SUPER_ADMIN, ROLES.ADMIN]), createChannel);
+router.put('/:id', authorize([ROLES.SUPER_ADMIN, ROLES.ADMIN]), updateChannel);
 router.delete('/:id', authorize([ROLES.SUPER_ADMIN, ROLES.ADMIN]), deleteChannel);
 
 // Channel stream live status check (online vs offline)
@@ -76,10 +78,14 @@ router.post('/check-online', CheckChannelOnlineOrOffline);
 router.post('/check-status', CheckChannelOnlineOrOffline);
 router.post('/:channelId/check-online', CheckChannelOnlineOrOffline);
 
-// Live Stream controls (Start / Stop / Status)
+// Live Stream controls (Start / Stop / Status / Now Playing)
 router.post('/:channelId/start', startStreamHandler);
 router.post('/:channelId/stop', stopStreamHandler);
 router.get('/:channelId/stream/status', getStreamStatusHandler);
+router.get('/:channelId/now-playing', getCurrentlyPlayingHandler);
+router.get('/:channelId/currently-playing', getCurrentlyPlayingHandler);
+router.get('/:channelId/current-playout', getCurrentlyPlayingHandler);
+router.get('/:channelId/stream/now-playing', getCurrentlyPlayingHandler);
 
 // Playlist routes (accessible to assigned user, admin, super_admin)
 router.get('/:channelId/playlists', getPlaylists);
