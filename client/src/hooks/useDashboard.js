@@ -2,7 +2,6 @@ import { toast } from 'react-hot-toast';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { io } from 'socket.io-client';
 import api from '../api/axios.js';
 
 import {
@@ -107,33 +106,8 @@ export default function useDashboard(initialSection = 'channels', initialSubView
     };
     window.addEventListener('online', handleOnline);
 
-    const socket = io({
-      reconnection: true,
-      reconnectionAttempts: Infinity,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 4000
-    });
-
-    socket.on('connect', () => {
-      dispatch(fetchChannels());
-      fetchDashboardPlaylists();
-    });
-
-    socket.on('stream_status', () => {
-      dispatch(fetchChannels());
-    });
-
-    socket.on('channel_storage_updated', () => {
-      dispatch(fetchChannels());
-    });
-
-    socket.on('playlists_updated', () => {
-      fetchDashboardPlaylists();
-    });
-
     return () => {
       window.removeEventListener('online', handleOnline);
-      socket.disconnect();
     };
   }, [dispatch, fetchDashboardPlaylists]);
 

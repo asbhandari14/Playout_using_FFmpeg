@@ -22,10 +22,12 @@ export const checkAuth = createAsyncThunk(
   'auth/checkAuth',
   async (_, { rejectWithValue }) => {
     try {
-      const token = localStorage.getItem('access_token');
-      if (!token) return null;
       const response = await api.get('/auth/me');
-      return response.data.user;
+      if (response.data?.user) {
+        localStorage.setItem('user', JSON.stringify(response.data.user));
+        return response.data.user;
+      }
+      return null;
     } catch (err) {
       localStorage.removeItem('access_token');
       localStorage.removeItem('refresh_token');

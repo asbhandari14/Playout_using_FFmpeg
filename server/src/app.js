@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dns from "dns";
@@ -48,6 +49,7 @@ if (process.env.NODE_ENV !== 'test') {
 
 dns.setServers(['0.0.0.0', '8.8.8.8']);
 
+app.use(cookieParser());
 app.use(express.json({}));
 app.use(express.urlencoded({ extended: true }));
 

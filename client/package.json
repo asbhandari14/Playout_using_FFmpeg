@@ -25,7 +25,6 @@
     "react-hot-toast": "^2.6.1",
     "react-redux": "^9.3.0",
     "react-router-dom": "^7.18.4",
-    "socket.io-client": "^4.8.4",
     "tailwindcss": "^4.3.3"
   },
   "devDependencies": {

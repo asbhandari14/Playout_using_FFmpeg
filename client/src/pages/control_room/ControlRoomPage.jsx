@@ -2,7 +2,6 @@ import { toast } from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { io } from 'socket.io-client';
 
 import { fetchChannelById, updateChannelStatus, updateCurrentChannelBranding } from '../../store/slices/channelSlice.js';
 import {
@@ -59,104 +58,60 @@ export default function ControlRoomPage() {
     }
   }, [currentChannel]);
 
-  // Socket.IO real-time channel connection
+  // Real-time channel sync & periodic telemetry polling (No WebSockets)
   useEffect(() => {
     if (!channelId) return;
 
-    const socket = io({
-      reconnection: true,
-      reconnectionAttempts: Infinity,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 4000,
-      timeout: 10000
-    });
+    let isMounted = true;
 
-    socket.on('connect_error', () => {
-      // Quietly retry during network drops without flooding console
-    });
+    // Initial load
+    dispatch(fetchChannelById(channelId));
+    dispatch(fetchPlaylists(channelId));
+    dispatch(fetchActivePlaylist(channelId));
 
-    socket.on('connect', () => {
-      socket.emit('join_channel', channelId);
-      // Re-sync channel data and playlist immediately upon socket connection or reconnection
-      dispatch(fetchChannelById(channelId));
-      dispatch(fetchPlaylists(channelId));
-      dispatch(fetchActivePlaylist(channelId));
-    });
+    const syncLiveTelemetry = async () => {
+      try {
+        const res = await api.get(`/channels/${channelId}/now-playing`);
+        if (!isMounted) return;
+
+        if (res.data?.success) {
+          const liveStatus = Boolean(res.data.isLive);
+          setIsLive(liveStatus);
+          dispatch(updateChannelStatus({ channelId, status: liveStatus ? 'live' : 'idle' }));
+
+          if (res.data.branding) {
+            dispatch(updateCurrentChannelBranding(res.data.branding));
+          }
+
+          if (res.data.scheduling?.source === 'schedule_event') {
+            setCurrentOnAirSchedule(res.data.scheduling);
+          } else {
+            setCurrentOnAirSchedule(null);
+          }
+        }
+      } catch (err) {
+        // Quietly ignore transient network glitches during polling
+      }
+    };
+
+    // Immediate first check
+    syncLiveTelemetry();
+
+    // 2.5s polling loop for live playout status and on-air telemetry
+    const pollTimer = setInterval(syncLiveTelemetry, 2500);
 
     const handleOnline = () => {
-      console.log('[Network] Internet connectivity restored. Re-syncing channel and playlist...');
       dispatch(fetchChannelById(channelId));
       dispatch(fetchPlaylists(channelId));
       dispatch(fetchActivePlaylist(channelId));
-      if (!socket.connected) {
-        socket.connect();
-      }
+      syncLiveTelemetry();
     };
     window.addEventListener('online', handleOnline);
 
-    socket.on('asset_progress', (data) => {
-      dispatch(updateAssetProgress(data));
-    });
-
-    socket.on('asset_ready', (data) => {
-      dispatch(updateAssetReady(data));
-    });
-
-    socket.on('asset_failed', (data) => {
-      dispatch(updateAssetFailed(data));
-    });
-
-    socket.on('playlist_updated', (data) => {
-      dispatch(setPlaylistState(data));
-    });
-
-    socket.on('playlists_updated', () => {
-      dispatch(fetchPlaylists(channelId));
-      dispatch(fetchActivePlaylist(channelId));
-    });
-
-    socket.on('branding_updated', (data) => {
-      if (data?.type && data[data.type]) {
-        dispatch(updateCurrentChannelBranding({ [data.type]: data[data.type] }));
-      } else if (data?.branding) {
-        dispatch(updateCurrentChannelBranding(data.branding));
-      }
-      dispatch(fetchChannelById(channelId));
-    });
-
-    socket.on('stream_status', (data) => {
-      if (data.channelId === channelId) {
-        if (data.status === 'live') {
-          setIsLive(true);
-          dispatch(updateChannelStatus({ channelId, status: 'live' }));
-        } else if (data.status === 'idle') {
-          setIsLive(false);
-          dispatch(updateChannelStatus({ channelId, status: 'idle' }));
-          setCurrentOnAirSchedule(null);
-        } else if (data.status === 'reconnecting') {
-          console.log(`[StreamStatus] Channel auto-reconnecting (attempt #${data.attempt})...`);
-        }
-      }
-    });
-
-    socket.on('schedule_started', (data) => {
-      if (data.channelId === channelId) {
-        console.log('[Socket.IO] Scheduled broadcast started:', data);
-        setCurrentOnAirSchedule(data);
-      }
-    });
-
-    socket.on('schedule_ended', (data) => {
-      if (data.channelId === channelId) {
-        console.log('[Socket.IO] Scheduled broadcast ended:', data);
-        setCurrentOnAirSchedule(null);
-      }
-    });
-
     return () => {
+      isMounted = false;
+      clearInterval(pollTimer);
       window.removeEventListener('online', handleOnline);
-      socket.emit('leave_channel', channelId);
-      socket.disconnect();
     };
   }, [channelId, dispatch]);
 

@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { io } from 'socket.io-client';
 import { fetchChannels } from '../store/slices/channelSlice.js';
 import { logoutUser } from '../store/slices/authSlice.js';
 import { formatStorageComparison } from './useStorageCalc.js';
@@ -25,28 +24,8 @@ export default function useChannel() {
     };
     window.addEventListener('online', handleOnline);
 
-    const socket = io({
-      reconnection: true,
-      reconnectionAttempts: Infinity,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 4000
-    });
-
-    socket.on('connect', () => {
-      dispatch(fetchChannels());
-    });
-
-    socket.on('stream_status', () => {
-      dispatch(fetchChannels());
-    });
-
-    socket.on('channel_storage_updated', () => {
-      dispatch(fetchChannels());
-    });
-
     return () => {
       window.removeEventListener('online', handleOnline);
-      socket.disconnect();
     };
   }, [dispatch]);
 

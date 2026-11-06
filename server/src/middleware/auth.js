@@ -4,11 +4,18 @@ import { User } from '../models/user.model.js';
 export const authenticate = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    let token = null;
+
+    if (req.cookies && (req.cookies.accessToken || req.cookies.token)) {
+      token = req.cookies.accessToken || req.cookies.token;
+    } else if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.split(' ')[1];
+    }
+
+    if (!token) {
       return res.status(401).json({ message: 'Authentication required. No token provided.' });
     }
 
-    const token = authHeader.split(' ')[1];
     const decoded = verifyAccessToken(token);
 
     // Verify user is still active in database

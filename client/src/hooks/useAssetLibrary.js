@@ -1,7 +1,6 @@
 import { toast } from 'react-hot-toast';
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { io } from 'socket.io-client';
 import {
   uploadAssetChunked,
   deleteAsset,
@@ -46,23 +45,8 @@ export default function useAssetLibrary(channelId) {
       dispatch(fetchStorageSummary(channelId));
     }, STORAGE_POLL_INTERVAL_MS);
 
-    // Socket.IO for immediate event-driven refresh
-    const socket = io({
-      reconnection: true,
-      reconnectionAttempts: Infinity,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 4000
-    });
-
-    socket.on('channel_storage_updated', (data) => {
-      if (!data?.channelId || String(data.channelId) === String(channelId)) {
-        dispatch(fetchStorageSummary(channelId));
-      }
-    });
-
     return () => {
       clearInterval(intervalId);
-      socket.disconnect();
     };
   }, [channelId, dispatch]);
 

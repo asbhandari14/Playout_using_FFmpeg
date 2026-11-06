@@ -1,5 +1,4 @@
 import http from 'http';
-import { Server as SocketIOServer } from 'socket.io';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
@@ -56,57 +55,8 @@ server.on('error', (err) => {
   console.error('[HTTP Server Error]', err);
 });
 
-// Setup Socket.IO
-export const io = new SocketIOServer(server, {
-  cors: {
-    origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
-    methods: ['GET', 'POST'],
-    credentials: true
-  },
-  pingTimeout: 20000,
-  pingInterval: 10000
-});
-
-app.set('io', io);
-
-// Suppress Engine.IO connection reset errors during network drops
-io.engine.on('connection_error', (err) => {
-  const isNetworkDrop =
-    err.code === 'ECONNRESET' ||
-    err.code === 'ECONNABORTED' ||
-    (err.message && err.message.includes('ECONNRESET'));
-
-  if (!isNetworkDrop) {
-    console.warn(`[Socket.IO Engine Error] ${err.message}`);
-  }
-});
-
-io.on('connection', (socket) => {
-  console.log(`[Socket.IO] Client connected: ${socket.id}`);
-
-  // Catch socket errors so network disconnects do not become unhandled exceptions
-  socket.on('error', (err) => {
-    if (err.code === 'ECONNRESET' || (err.message && err.message.includes('ECONNRESET'))) {
-      return;
-    }
-    console.warn(`[Socket.IO Socket Error ${socket.id}]:`, err.message);
-  });
-
-  // Channel room join
-  socket.on('join_channel', (channelId) => {
-    socket.join(`channel:${channelId}`);
-    console.log(`[Socket.IO] Socket ${socket.id} joined channel:${channelId}`);
-  });
-
-  socket.on('leave_channel', (channelId) => {
-    socket.leave(`channel:${channelId}`);
-    console.log(`[Socket.IO] Socket ${socket.id} left channel:${channelId}`);
-  });
-
-  socket.on('disconnect', (reason) => {
-    console.log(`[Socket.IO] Client disconnected (${reason}): ${socket.id}`);
-  });
-});
+// WebSockets removed: Playout and telemetry run via REST & periodic polling
+export const io = null;
 
 import { streamManager } from './services/streaming/streamManager.js';
 import { schedulerService } from './services/streaming/schedulerService.js';

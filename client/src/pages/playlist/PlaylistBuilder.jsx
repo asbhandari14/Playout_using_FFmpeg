@@ -29,7 +29,6 @@ import {
   Sparkles,
   Timer
 } from 'lucide-react';
-import { io } from 'socket.io-client';
 import api from '../../api/axios.js';
 import { formatBytes } from '../../hooks/useStorageCalc.js';
 import { DAYS_OF_WEEK } from '../../hooks/usePlaylist.js';
@@ -240,24 +239,6 @@ export default function PlaylistBuilder({
     if (currentChannelId) {
       fetchVideos(currentChannelId);
     }
-  }, [currentChannelId, fetchVideos]);
-
-  // Socket listener for asset updates
-  useEffect(() => {
-    if (!currentChannelId) return;
-    const socket = io({
-      reconnection: true,
-      reconnectionAttempts: Infinity,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 4000
-    });
-
-    socket.on('asset_ready', () => fetchVideos(currentChannelId));
-    socket.on('channel_storage_updated', () => fetchVideos(currentChannelId));
-
-    return () => {
-      socket.disconnect();
-    };
   }, [currentChannelId, fetchVideos]);
 
   // Filter uploaded videos
