@@ -89,12 +89,26 @@ export const ensureBrandingFiles = (
 };
 
 export const safeWriteFileSync = (filePath, buffer, retries = 5, delayMs = 50) => {
+  const dir = path.dirname(filePath);
+  const tempPath = path.join(dir, `.tmp_${Date.now()}_${path.basename(filePath)}`);
+  try {
+    fs.writeFileSync(tempPath, buffer);
+  } catch {
+    fs.writeFileSync(filePath, buffer);
+    return;
+  }
+
   for (let attempt = 0; attempt < retries; attempt++) {
     try {
-      fs.writeFileSync(filePath, buffer);
+      fs.copyFileSync(tempPath, filePath);
+      try { if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath); } catch {}
       return;
     } catch (err) {
-      if (attempt === retries - 1) throw err;
+      if (attempt === retries - 1) {
+        try { fs.writeFileSync(filePath, buffer); } catch {}
+        try { if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath); } catch {}
+        return;
+      }
       const start = Date.now();
       while (Date.now() - start < delayMs) {
         // brief sync wait

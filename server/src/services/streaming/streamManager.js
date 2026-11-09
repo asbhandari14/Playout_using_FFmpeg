@@ -1,3 +1,6 @@
+import fs from 'fs';
+import path from 'path';
+import { SERVER_ROOT, STREAMS_DIR } from '../../config/paths.js';
 import { Channel } from '../../models/channel.model.js';
 import { Playlist } from '../../models/playlist.model.js';
 import { Server } from '../../models/server.model.js';
@@ -399,12 +402,30 @@ class StreamManager {
   /**
    * Instantly fire L-Band for a given duration (default 60s), then automatically close
    */
-  async fireLBand(channelId, duration = 60) {
+  async fireLBand(channelId, duration = 60, customImagePath = null, cutout = null) {
     const dur = Math.max(5, Math.min(3600, Number(duration) || 60));
     const channelIdStr = String(channelId);
     console.log(`[StreamManager] 🔥 Quick Fire L-Band triggered for channel ${channelIdStr} (${dur}s duration)`);
 
     this.clearFireTimer(channelIdStr, 'lband');
+
+    // If custom image path is provided for this specific L-Band schedule
+    if (customImagePath) {
+      const fullCustomPath = path.resolve(SERVER_ROOT, customImagePath);
+      if (fs.existsSync(fullCustomPath)) {
+        const channelStreamDir = path.join(STREAMS_DIR, channelIdStr);
+        if (!fs.existsSync(channelStreamDir)) {
+          fs.mkdirSync(channelStreamDir, { recursive: true });
+        }
+        const targetLBandFile = path.join(channelStreamDir, 'lband.png');
+        try {
+          fs.copyFileSync(fullCustomPath, targetLBandFile);
+          console.log(`[StreamManager] Applied custom L-Band graphic: ${customImagePath}`);
+        } catch (copyErr) {
+          console.warn(`[StreamManager] Warning copying custom L-Band file:`, copyErr.message);
+        }
+      }
+    }
 
     const stream = this.getStream(channelIdStr);
     const channel = await Channel.findById(channelIdStr);
@@ -414,13 +435,36 @@ class StreamManager {
     if (!channel.branding.lband) channel.branding.lband = {};
     channel.branding.lband.enabled = true;
 
+    if (cutout) {
+      if (cutout.windowX !== undefined) channel.branding.lband.windowX = Number(cutout.windowX);
+      if (cutout.windowY !== undefined) channel.branding.lband.windowY = Number(cutout.windowY);
+      if (cutout.windowWidth !== undefined) channel.branding.lband.windowWidth = Number(cutout.windowWidth);
+      if (cutout.windowHeight !== undefined) channel.branding.lband.windowHeight = Number(cutout.windowHeight);
+    }
+
     await Channel.findByIdAndUpdate(channelIdStr, {
-      $set: { 'branding.lband.enabled': true }
+      $set: {
+        'branding.lband.enabled': true,
+        ...(cutout
+          ? {
+              'branding.lband.windowX': channel.branding.lband.windowX,
+              'branding.lband.windowY': channel.branding.lband.windowY,
+              'branding.lband.windowWidth': channel.branding.lband.windowWidth,
+              'branding.lband.windowHeight': channel.branding.lband.windowHeight
+            }
+          : {})
+      }
     });
 
     if (stream && stream.encoder) {
       if (stream.encoder.channel?.branding?.lband) {
         stream.encoder.channel.branding.lband.enabled = true;
+        if (cutout) {
+          stream.encoder.channel.branding.lband.windowX = channel.branding.lband.windowX;
+          stream.encoder.channel.branding.lband.windowY = channel.branding.lband.windowY;
+          stream.encoder.channel.branding.lband.windowWidth = channel.branding.lband.windowWidth;
+          stream.encoder.channel.branding.lband.windowHeight = channel.branding.lband.windowHeight;
+        }
       }
       try {
         await stream.encoder.setLBandEnabled(true);
@@ -521,12 +565,30 @@ class StreamManager {
   /**
    * Instantly fire Ashton Band for a given duration (default 60s), then automatically close
    */
-  async fireAshton(channelId, duration = 60, squeeze = true) {
+  async fireAshton(channelId, duration = 60, squeeze = true, customImagePath = null, customHeight = null) {
     const dur = Math.max(5, Math.min(3600, Number(duration) || 60));
     const channelIdStr = String(channelId);
     console.log(`[StreamManager] 🔥 Quick Fire Ashton Band triggered for channel ${channelIdStr} (${dur}s duration, squeeze: ${squeeze})`);
 
     this.clearFireTimer(channelIdStr, 'ashton');
+
+    // If custom image path is provided for this specific Ashton Band schedule
+    if (customImagePath) {
+      const fullCustomPath = path.resolve(SERVER_ROOT, customImagePath);
+      if (fs.existsSync(fullCustomPath)) {
+        const channelStreamDir = path.join(STREAMS_DIR, channelIdStr);
+        if (!fs.existsSync(channelStreamDir)) {
+          fs.mkdirSync(channelStreamDir, { recursive: true });
+        }
+        const targetAshtonFile = path.join(channelStreamDir, 'ashton.png');
+        try {
+          fs.copyFileSync(fullCustomPath, targetAshtonFile);
+          console.log(`[StreamManager] Applied custom Ashton Band graphic: ${customImagePath}`);
+        } catch (copyErr) {
+          console.warn(`[StreamManager] Warning copying custom Ashton file:`, copyErr.message);
+        }
+      }
+    }
 
     const stream = this.getStream(channelIdStr);
     const channel = await Channel.findById(channelIdStr);
@@ -536,11 +598,13 @@ class StreamManager {
     if (!channel.branding.ashton) channel.branding.ashton = {};
     channel.branding.ashton.enabled = true;
     channel.branding.ashton.squeeze = !!squeeze;
+    if (customHeight) channel.branding.ashton.height = Number(customHeight);
 
     await Channel.findByIdAndUpdate(channelIdStr, {
       $set: {
         'branding.ashton.enabled': true,
-        'branding.ashton.squeeze': !!squeeze
+        'branding.ashton.squeeze': !!squeeze,
+        ...(customHeight ? { 'branding.ashton.height': Number(customHeight) } : {})
       }
     });
 
@@ -548,6 +612,7 @@ class StreamManager {
       if (stream.encoder.channel?.branding?.ashton) {
         stream.encoder.channel.branding.ashton.enabled = true;
         stream.encoder.channel.branding.ashton.squeeze = !!squeeze;
+        if (customHeight) stream.encoder.channel.branding.ashton.height = Number(customHeight);
       }
       try {
         await stream.encoder.setAshtonLive(true, !!squeeze);

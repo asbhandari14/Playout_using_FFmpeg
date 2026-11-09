@@ -190,7 +190,10 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
   // Upload custom logo image
   const handleLogoUpload = async (e) => {
     const file = e.target.files?.[0];
-    if (!file || !channel?._id) return;
+    if (!file || !channel?._id) {
+      toast.error("No file selected or channel not available");
+      return;
+    }
 
     const formData = new FormData();
     formData.append('logo', file);
@@ -254,8 +257,12 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
 
   // Upload custom bug image (PNG) or QuickTime animation (MOV)
   const handleBugUpload = async (e) => {
+    console.log("files", e.target.files);
     const file = e.target.files?.[0];
-    if (!file || !channel?._id) return;
+    if (!file || !channel?._id) {
+      toast.error('No file selected or channel not available');
+      return;
+    }
 
     const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
     if (ext !== '.png' && ext !== '.mov') {
@@ -300,7 +307,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
     isDraggingBugRef.current = true;
     try {
       e.currentTarget.setPointerCapture(e.pointerId);
-    } catch (_) {}
+    } catch (_) { }
     const coords = calculateBugCoordsFromEvent(e);
     if (!coords) return;
     setBugPositionX(coords.x);
@@ -322,7 +329,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
     isDraggingBugRef.current = false;
     try {
       e.currentTarget.releasePointerCapture(e.pointerId);
-    } catch (_) {}
+    } catch (_) { }
     const coords = calculateBugCoordsFromEvent(e);
     const finalX = coords ? coords.x : bugPositionX;
     const finalY = coords ? coords.y : bugPositionY;
@@ -512,8 +519,8 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
           <button
             onClick={() => setActiveTab('logo')}
             className={`py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition ${activeTab === 'logo'
-                ? 'bg-[#2563eb] text-white shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
+              ? 'bg-[#2563eb] text-white shadow-sm'
+              : 'text-slate-400 hover:text-slate-200'
               }`}
           >
             Logo
@@ -521,8 +528,8 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
           <button
             onClick={() => setActiveTab('bug')}
             className={`py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition ${activeTab === 'bug'
-                ? 'bg-[#2563eb] text-white shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
+              ? 'bg-[#2563eb] text-white shadow-sm'
+              : 'text-slate-400 hover:text-slate-200'
               }`}
           >
             Bug
@@ -530,8 +537,8 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
           <button
             onClick={() => setActiveTab('ticker')}
             className={`py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition ${activeTab === 'ticker'
-                ? 'bg-[#2563eb] text-white shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
+              ? 'bg-[#2563eb] text-white shadow-sm'
+              : 'text-slate-400 hover:text-slate-200'
               }`}
           >
             Ticker
@@ -539,8 +546,8 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
           <button
             onClick={() => setActiveTab('timer')}
             className={`py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition ${activeTab === 'timer'
-                ? 'bg-[#2563eb] text-white shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
+              ? 'bg-[#2563eb] text-white shadow-sm'
+              : 'text-slate-400 hover:text-slate-200'
               }`}
           >
             Timer
@@ -552,8 +559,8 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
       {alert && (
         <div
           className={`mx-3 mt-2 p-2.5 rounded-xl border text-xs flex items-center gap-2 animate-fadeIn ${alert.type === 'success'
-              ? 'bg-emerald-950/70 border-emerald-800 text-emerald-300'
-              : 'bg-red-950/70 border-red-800 text-red-300'
+            ? 'bg-emerald-950/70 border-emerald-800 text-emerald-300'
+            : 'bg-red-950/70 border-red-800 text-red-300'
             }`}
         >
           {alert.type === 'success' ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
@@ -689,8 +696,8 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                     handleUpdateLogo({ position: 'top-left' });
                   }}
                   className={`absolute top-2.5 left-2.5 w-7 h-7 rounded-lg flex items-center justify-center transition border ${logoPosition === 'top-left'
-                      ? 'bg-blue-600 border-blue-400 text-white shadow-md'
-                      : 'bg-[#141822] border-[#222a3a] text-slate-400 hover:text-white'
+                    ? 'bg-blue-600 border-blue-400 text-white shadow-md'
+                    : 'bg-[#141822] border-[#222a3a] text-slate-400 hover:text-white'
                     }`}
                   title="Top Left"
                 >
@@ -704,8 +711,8 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                     handleUpdateLogo({ position: 'top-right' });
                   }}
                   className={`absolute top-2.5 right-2.5 w-7 h-7 rounded-lg flex items-center justify-center transition border ${logoPosition === 'top-right'
-                      ? 'bg-blue-600 border-blue-400 text-white shadow-md'
-                      : 'bg-[#141822] border-[#222a3a] text-slate-400 hover:text-white'
+                    ? 'bg-blue-600 border-blue-400 text-white shadow-md'
+                    : 'bg-[#141822] border-[#222a3a] text-slate-400 hover:text-white'
                     }`}
                   title="Top Right"
                 >
@@ -719,8 +726,8 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                     handleUpdateLogo({ position: 'center' });
                   }}
                   className={`w-7 h-7 rounded-lg flex items-center justify-center transition border ${logoPosition === 'center'
-                      ? 'bg-blue-600 border-blue-400 text-white shadow-md'
-                      : 'bg-[#141822] border-[#222a3a] text-slate-400 hover:text-white'
+                    ? 'bg-blue-600 border-blue-400 text-white shadow-md'
+                    : 'bg-[#141822] border-[#222a3a] text-slate-400 hover:text-white'
                     }`}
                   title="Center"
                 >
@@ -734,8 +741,8 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                     handleUpdateLogo({ position: 'bottom-left' });
                   }}
                   className={`absolute bottom-2.5 left-2.5 w-7 h-7 rounded-lg flex items-center justify-center transition border ${logoPosition === 'bottom-left'
-                      ? 'bg-blue-600 border-blue-400 text-white shadow-md'
-                      : 'bg-[#141822] border-[#222a3a] text-slate-400 hover:text-white'
+                    ? 'bg-blue-600 border-blue-400 text-white shadow-md'
+                    : 'bg-[#141822] border-[#222a3a] text-slate-400 hover:text-white'
                     }`}
                   title="Bottom Left"
                 >
@@ -749,8 +756,8 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                     handleUpdateLogo({ position: 'bottom-right' });
                   }}
                   className={`absolute bottom-2.5 right-2.5 w-7 h-7 rounded-lg flex items-center justify-center transition border ${logoPosition === 'bottom-right'
-                      ? 'bg-blue-600 border-blue-400 text-white shadow-md'
-                      : 'bg-[#141822] border-[#222a3a] text-slate-400 hover:text-white'
+                    ? 'bg-blue-600 border-blue-400 text-white shadow-md'
+                    : 'bg-[#141822] border-[#222a3a] text-slate-400 hover:text-white'
                     }`}
                   title="Bottom Right"
                 >
@@ -1026,11 +1033,10 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                           positionY: preset.y
                         });
                       }}
-                      className={`py-1 rounded text-[10px] font-semibold border transition ${
-                        isActive
+                      className={`py-1 rounded text-[10px] font-semibold border transition ${isActive
                           ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-sm'
                           : 'bg-[#121620] text-slate-400 hover:text-white border-[#222938]'
-                      }`}
+                        }`}
                       title={`Snap to ${preset.label}`}
                     >
                       {preset.label}
@@ -1391,11 +1397,10 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                   Live Preview
                 </span>
                 <span
-                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                    timerEnabled
+                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${timerEnabled
                       ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
                       : 'bg-slate-800 text-slate-500'
-                  }`}
+                    }`}
                 >
                   {timerEnabled ? 'SHOWING DURING AD' : 'OFF'}
                 </span>
@@ -1403,17 +1408,16 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
 
               <div className="relative aspect-video bg-[#090c12] border border-[#222938] rounded-xl flex items-center justify-center p-3 overflow-hidden">
                 <div
-                  className={`absolute px-3 py-1.5 rounded-md font-mono font-bold text-xs shadow-lg flex items-center gap-1.5 transition-all ${
-                    timerPosition === 'top-left'
+                  className={`absolute px-3 py-1.5 rounded-md font-mono font-bold text-xs shadow-lg flex items-center gap-1.5 transition-all ${timerPosition === 'top-left'
                       ? 'top-3 left-3'
                       : timerPosition === 'top-right'
-                      ? 'top-3 right-3'
-                      : timerPosition === 'bottom-left'
-                      ? 'bottom-3 left-3'
-                      : timerPosition === 'bottom-right'
-                      ? 'bottom-3 right-3'
-                      : 'top-3 left-3'
-                  }`}
+                        ? 'top-3 right-3'
+                        : timerPosition === 'bottom-left'
+                          ? 'bottom-3 left-3'
+                          : timerPosition === 'bottom-right'
+                            ? 'bottom-3 right-3'
+                            : 'top-3 left-3'
+                    }`}
                   style={{
                     backgroundColor: timerBgColor || '#000000cc',
                     color: timerFontColor || '#ffffff',
@@ -1452,14 +1456,12 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                   setTimerShowDuringSchedule(next);
                   handleUpdateTimer({ enabled: next, showDuringSchedule: next });
                 }}
-                className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors duration-300 ${
-                  timerEnabled ? 'bg-blue-600' : 'bg-slate-700'
-                }`}
+                className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors duration-300 ${timerEnabled ? 'bg-blue-600' : 'bg-slate-700'
+                  }`}
               >
                 <div
-                  className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-300 ${
-                    timerEnabled ? 'translate-x-5' : 'translate-x-0'
-                  }`}
+                  className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-300 ${timerEnabled ? 'translate-x-5' : 'translate-x-0'
+                    }`}
                 />
               </button>
             </div>
@@ -1496,11 +1498,10 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                       setTimerFormat('MM:SS');
                       handleUpdateTimer({ format: 'MM:SS' });
                     }}
-                    className={`py-2 rounded-lg border text-xs font-bold transition flex items-center justify-center gap-1.5 ${
-                      timerFormat === 'MM:SS'
+                    className={`py-2 rounded-lg border text-xs font-bold transition flex items-center justify-center gap-1.5 ${timerFormat === 'MM:SS'
                         ? 'bg-blue-600 border-blue-400 text-white shadow-md'
                         : 'bg-[#090c12] border-[#222938] text-slate-400 hover:text-white'
-                    }`}
+                      }`}
                   >
                     <span>MM:SS (00:30)</span>
                   </button>
@@ -1510,11 +1511,10 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                       setTimerFormat('SS');
                       handleUpdateTimer({ format: 'SS' });
                     }}
-                    className={`py-2 rounded-lg border text-xs font-bold transition flex items-center justify-center gap-1.5 ${
-                      timerFormat === 'SS'
+                    className={`py-2 rounded-lg border text-xs font-bold transition flex items-center justify-center gap-1.5 ${timerFormat === 'SS'
                         ? 'bg-blue-600 border-blue-400 text-white shadow-md'
                         : 'bg-[#090c12] border-[#222938] text-slate-400 hover:text-white'
-                    }`}
+                      }`}
                   >
                     <span>Seconds (30s)</span>
                   </button>
@@ -1540,11 +1540,10 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                         setTimerPosition(p.id);
                         handleUpdateTimer({ position: p.id });
                       }}
-                      className={`py-2 px-3 rounded-lg border text-xs font-bold transition flex items-center justify-center ${
-                        timerPosition === p.id
+                      className={`py-2 px-3 rounded-lg border text-xs font-bold transition flex items-center justify-center ${timerPosition === p.id
                           ? 'bg-blue-600 border-blue-400 text-white shadow-md'
                           : 'bg-[#090c12] border-[#222938] text-slate-400 hover:text-white'
-                      }`}
+                        }`}
                     >
                       {p.label}
                     </button>

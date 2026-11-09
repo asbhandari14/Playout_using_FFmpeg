@@ -7,12 +7,12 @@ import {
   deleteAsset,
   getStorageSummary
 } from '../controllers/asset.controller.js';
-import { authenticate } from '../middleware/auth.js';
+import { auth } from '../middleware/auth.middleware.js';
 import { uploadChunk, uploadDirect } from '../middleware/upload.js';
 
 const router = Router();
 
-router.use(authenticate);
+router.use(auth);
 
 // Chunked upload
 router.post('/upload/chunk', uploadChunk.single('chunk'), uploadChunkHandler);

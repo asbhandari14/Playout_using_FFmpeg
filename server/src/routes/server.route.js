@@ -1,27 +1,23 @@
 import { Router } from 'express';
 import {
-  getServers,
+  getAllServers,
   getServerById,
   createServer,
   updateServer,
   deleteServer,
-  createServerSchema,
-  updateServerSchema
 } from '../controllers/server.controller.js';
-import { authenticate } from '../middleware/auth.js';
-import { authorize } from '../middleware/rbac.js';
+import { auth } from '../middleware/auth.middleware.js';
+import { role } from '../middleware/role.middleware.js';
 import { validate } from '../middleware/validate.js';
 import { ROLES } from '../config/constants.js';
 
 const router = Router();
 
-router.use(authenticate);
-
 // Super_admin and Admin can manage servers
-router.get('/', authorize([ROLES.SUPER_ADMIN, ROLES.ADMIN]), getServers);
-router.post('/', authorize([ROLES.SUPER_ADMIN, ROLES.ADMIN]), validate(createServerSchema), createServer);
-router.get('/:id', authorize([ROLES.SUPER_ADMIN, ROLES.ADMIN]), getServerById);
-router.put('/:id', authorize([ROLES.SUPER_ADMIN, ROLES.ADMIN]), validate(updateServerSchema), updateServer);
-router.delete('/:id', authorize([ROLES.SUPER_ADMIN, ROLES.ADMIN]), deleteServer);
+router.get('/all', auth, role([ROLES.SUPER_ADMIN, ROLES.ADMIN]), getAllServers);
+router.get('/:id', auth, role([ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.USER]), getServerById);
+router.post('/create', auth, role([ROLES.SUPER_ADMIN, ROLES.ADMIN]), createServer);
+router.put('/update/:id', auth, role([ROLES.SUPER_ADMIN, ROLES.ADMIN]), updateServer);
+router.delete('/delete/:id', auth, role([ROLES.SUPER_ADMIN, ROLES.ADMIN]), deleteServer);
 
 export default router;

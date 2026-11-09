@@ -49,11 +49,43 @@ const scheduleSchema = new mongoose.Schema(
       enum: ['video', 'lband', 'ashton'],
       default: 'video'
     },
+    // Image path for L-Band or Ashton graphic
+    imagePath: {
+      type: String,
+      default: '',
+      trim: true
+    },
+    // Schedule option: '24/7' | 'weekly' | 'datewise'
+    scheduleOption: {
+      type: String,
+      enum: ['24/7', 'weekly', 'datewise'],
+      default: '24/7'
+    },
+    // Interval/gap between successive triggers in minutes (e.g. 20)
+    gapMinutes: {
+      type: Number,
+      default: 20
+    },
+    // Timestamp when this schedule was last fired live
+    lastFiredAt: {
+      type: Date,
+      default: null
+    },
     // For ashton schedule: true = squeeze, false = overlay
     ashtonSqueeze: {
       type: Boolean,
       default: true
     },
+    // Ashton height in pixels
+    ashtonHeight: {
+      type: Number,
+      default: 160
+    },
+    // L-Band cutout dimensions
+    windowX: { type: Number, default: 300 },
+    windowY: { type: Number, default: 20 },
+    windowWidth: { type: Number, default: 960 },
+    windowHeight: { type: Number, default: 540 },
     // Optional date range window
     startDate: {
       type: Date,

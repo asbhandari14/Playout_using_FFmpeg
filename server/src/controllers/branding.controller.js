@@ -201,6 +201,12 @@ export const removeLogo = async (req, res, next) => {
 export const uploadLogoFile = async (req, res, next) => {
   try {
     const { channelId } = req.params;
+
+    // Validate channelId and file presence
+    if(!channelId) {
+      return res.status(400).json({ message: 'Channel ID is required' });
+    }
+
     if (!req.file) {
       return res.status(400).json({ message: 'No logo image file provided' });
     }
@@ -270,11 +276,64 @@ export const uploadLogoFile = async (req, res, next) => {
     const currentLogo = updatedChannel?.branding?.logo || {};
 
     // 4. LIVE STREAM CONTROL:
-    // If stream is active on air, seamlessly reload stream to load new cropped & scaled logo dimensions into FFmpeg
-    const isLive = streamManager.isChannelLive(channelId);
-    if (isLive) {
-      console.log(`[Branding] Channel ${channelId} is live on air. Seamlessly reloading stream to display new logo (${scaled.width}x${scaled.height}px)...`);
-      await streamManager.restartStream(channelId);
+    // Push new logo directly to the live FFmpeg overlay via ZMQ with ZERO stream restarts!
+
+    const stream = streamManager.getStream(channelId);
+    console.log("stream value", stream);
+    if (stream?.encoder?.isRunning) {
+      console.log(
+        `[Branding] Channel ${channelId} is live on air. Dynamically updating logo overlay on air via ZMQ (${scaled.width}x${scaled.height}px, zero stream restart)...`
+      );
+
+      // Keep in-memory encoder branding synchronized
+      if (stream.encoder.channel) {
+        if (!stream.encoder.channel.branding) stream.encoder.channel.branding = {};
+        stream.encoder.channel.branding.logo = {
+          ...stream.encoder.channel.branding.logo,
+          ...currentLogo
+        };
+      }
+
+      // Update aspect ratio cache based on the newly scaled logo dimensions
+      if (scaled.width && scaled.height) {
+        stream.encoder.logoAspectRatio = scaled.width / scaled.height;
+      }
+
+      // If feeder has a schedule currently broadcasting, respect schedule branding suppression
+      if (stream.feeder?.isScheduleActive) {
+        const allowOnSchedule = currentLogo.showDuringSchedule !== false;
+        if (stream.feeder.scheduleBrandingSnapshot?.logo) {
+          stream.feeder.scheduleBrandingSnapshot.logo.enabled = true;
+          stream.feeder.scheduleBrandingSnapshot.logo.suppressed = !allowOnSchedule;
+          await Channel.findByIdAndUpdate(channelId, {
+            $set: {
+              'branding.preScheduleBranding.logo.enabled': true,
+              'branding.preScheduleBranding.logo.suppressed': !allowOnSchedule
+            }
+          });
+        }
+
+        if (allowOnSchedule) {
+          await stream.encoder.setLogoSize(currentLogo.sizePercent || defaultSizePercent);
+          await stream.encoder.setLogoPosition(
+            currentLogo.position || 'top-right',
+            currentLogo.marginX !== undefined ? currentLogo.marginX : 2,
+            currentLogo.marginY !== undefined ? currentLogo.marginY : 2
+          );
+          await stream.encoder.setLogoEnabled(true);
+        } else {
+          await stream.encoder.setLogoEnabled(false);
+        }
+      } else {
+        // Normal live playback: dynamically resize and position logo via ZMQ on the fly
+        await stream.encoder.setLogoSize(currentLogo.sizePercent || defaultSizePercent);
+        await stream.encoder.setLogoPosition(
+          currentLogo.position || 'top-right',
+          currentLogo.marginX !== undefined ? currentLogo.marginX : 2,
+          currentLogo.marginY !== undefined ? currentLogo.marginY : 2
+        );
+        await stream.encoder.setLogoEnabled(true);
+      }
     }
 
     if (io) {
@@ -545,11 +604,23 @@ export const uploadBugFile = async (req, res, next) => {
 
     const currentBug = updatedChannel?.branding?.bug || {};
 
-    // LIVE STREAM CONTROL: hot-swap stream to mount new bug file descriptor cleanly
-    const isLive = streamManager.isChannelLive(channelId);
-    if (isLive) {
-      console.log(`[Branding] Channel ${channelId} is live on air. Seamlessly reloading stream to display new bug (${isMov ? 'QuickTime MOV' : 'PNG'})...`);
-      await streamManager.restartStream(channelId);
+    // LIVE STREAM CONTROL: dynamically update bug overlay via ZMQ with zero stream restart
+    const stream = streamManager.getStream(channelId);
+    if (stream?.encoder?.isRunning) {
+      console.log(`[Branding] Channel ${channelId} is live on air. Dynamically updating station bug overlay via ZMQ (zero restart)...`);
+      if (stream.encoder.channel) {
+        if (!stream.encoder.channel.branding) stream.encoder.channel.branding = {};
+        stream.encoder.channel.branding.bug = {
+          ...stream.encoder.channel.branding.bug,
+          ...currentBug
+        };
+      }
+      if (scaledWidth && scaledHeight) {
+        stream.encoder.bugAspectRatio = scaledWidth / scaledHeight;
+      }
+      await stream.encoder.setBugSize(currentBug.sizePercent || defaultSizePercent);
+      await stream.encoder.setBugPosition(currentBug);
+      await stream.encoder.setBugEnabled(true);
     }
 
     if (io) {
@@ -685,15 +756,8 @@ export const updateTickerBranding = async (req, res, next) => {
         }
         // Keep ticker suppressed on air while schedule is active
         await stream.encoder.setTickerEnabled(false);
-      } else if (visualAssetsChanged || enableToggledOn || isForcePush) {
-        console.log(
-          `[Branding] Ticker visual assets or state changed for channel ${channelId} ` +
-          `(textChanged=${textChanged}, bgChanged=${bgChanged}, textColChanged=${textColChanged}, ` +
-          `fontChanged=${fontChanged}, dimensionsChanged=${dimensionsChanged}, enableToggledOn=${enableToggledOn}, forcePush=${isForcePush}). ` +
-          `Seamlessly reloading live stream...`
-        );
-        await streamManager.restartStream(channelId);
       } else {
+        // Dynamically adjust ticker position, crop width, and visibility via ZMQ with zero stream restart
         await stream.encoder.setTickerPosition(
           currentTicker.marginBottom,
           currentTicker.speed,
@@ -837,17 +901,9 @@ export const updateLBandBranding = async (req, res, next) => {
         }
         // Keep L-Band suppressed on air while schedule is active
         await stream.encoder.setLBandEnabled(false);
-      } else if (dimensionsChanged) {
-        console.log(`[Branding] L-Band cutout dimensions changed. Restarting stream seamlessly...`);
-        await streamManager.restartStream(channelId);
       } else {
-        // Just toggling on/off: use instant live ZMQ
-        const zmqRes = await stream.encoder.setLBandEnabled(channel.branding.lband.enabled);
-        if (zmqRes === null) {
-          // If ZMQ did not respond, seamlessly reload stream with L-Band filtergraph
-          console.log(`[Branding] ZMQ command not acknowledged. Seamlessly restarting encoder with L-Band filtergraph...`);
-          await streamManager.restartStream(channelId);
-        }
+        // Dynamically apply L-Band squeeze and overlay positioning via ZMQ with zero stream restart
+        await stream.encoder.setLBandEnabled(channel.branding.lband.enabled);
       }
     }
 
@@ -898,19 +954,10 @@ export const uploadLBandFile = async (req, res, next) => {
     }
     const targetLBandFile = path.join(channelStreamDir, 'lband.png');
 
-    // 1. If stream is currently running AND L-Band is already actively on air, pause it to release locks
     const isLive = streamManager.isChannelLive(channelId);
     const wasAlreadyEnabled = Boolean(channel.branding?.lband?.enabled);
-    let resumeIndex = 0;
-    if (isLive && wasAlreadyEnabled) {
-      const activeStream = streamManager.getStream(channelId);
-      resumeIndex = Math.max(0, activeStream?.feeder?.currentIndex || 0);
-      console.log(`[Branding] Releasing encoder file locks for channel ${channelId} to update active L-Band...`);
-      await streamManager.stopStream(channelId);
-      await new Promise((r) => setTimeout(r, 300));
-    }
 
-    // 2. Automatically analyze transparent video cutout & normalize to 1280x720 broadcast frame
+    // 1. Automatically analyze transparent video cutout & normalize to 1280x720 broadcast frame
     const detected = await analyzeAndNormalizeLBand(req.file.path, targetLBandFile);
 
     const relativePath = path.relative(SERVER_ROOT, req.file.path).replace(/\\/g, '/');
@@ -944,10 +991,19 @@ export const uploadLBandFile = async (req, res, next) => {
       { new: true }
     );
 
-    // 3. If stream was live and already had L-Band enabled, resume it with the newly analyzed cutout and graphic
-    if (isLive && wasAlreadyEnabled) {
-      console.log(`[Branding] Resuming live stream for channel ${channelId} with updated L-Band (index: ${resumeIndex})...`);
-      await streamManager.startStream(channelId, resumeIndex);
+    // 2. LIVE STREAM CONTROL: dynamically update L-Band via ZMQ with zero stream restart
+    const stream = streamManager.getStream(channelId);
+    if (stream?.encoder?.isRunning) {
+      if (stream.encoder.channel) {
+        if (!stream.encoder.channel.branding) stream.encoder.channel.branding = {};
+        stream.encoder.channel.branding.lband = {
+          ...stream.encoder.channel.branding.lband,
+          ...updatedChannel.branding.lband
+        };
+      }
+      if (wasAlreadyEnabled) {
+        await stream.encoder.setLBandEnabled(true);
+      }
     }
 
     if (io) {
@@ -994,10 +1050,7 @@ export const removeLBand = async (req, res, next) => {
       if (stream.encoder.channel?.branding?.lband) {
         stream.encoder.channel.branding.lband.enabled = false;
       }
-      const zmqRes = await stream.encoder.setLBandEnabled(false);
-      if (zmqRes === null) {
-        await streamManager.restartStream(channelId);
-      }
+      await stream.encoder.setLBandEnabled(false);
     }
 
     if (io) {
@@ -1108,18 +1161,12 @@ export const updateAshtonBranding = async (req, res, next) => {
         });
         // Keep Ashton suppressed on air while schedule is active
         await stream.encoder.setAshtonLive(false);
-      } else if (heightChanged) {
-        console.log(`[Branding] Ashton Band height changed. Restarting stream seamlessly...`);
-        await streamManager.restartStream(channelId);
       } else {
-        const zmqRes = await stream.encoder.setAshtonLive(
+        // Dynamically apply Ashton Band squeeze/overlay via ZMQ with zero stream restart
+        await stream.encoder.setAshtonLive(
           channel.branding.ashton.enabled,
           channel.branding.ashton.squeeze !== false
         );
-        if (zmqRes === null) {
-          console.log(`[Branding] ZMQ command not acknowledged. Seamlessly restarting encoder with Ashton filtergraph...`);
-          await streamManager.restartStream(channelId);
-        }
       }
     }
 
@@ -1170,19 +1217,10 @@ export const uploadAshtonFile = async (req, res, next) => {
     }
     const targetAshtonFile = path.join(channelStreamDir, 'ashton.png');
 
-    // 1. If stream is currently running AND Ashton is already actively on air, pause it to release locks
     const isLive = streamManager.isChannelLive(channelId);
     const wasAlreadyEnabled = Boolean(channel.branding?.ashton?.enabled);
-    let resumeIndex = 0;
-    if (isLive && wasAlreadyEnabled) {
-      const activeStream = streamManager.getStream(channelId);
-      resumeIndex = Math.max(0, activeStream?.feeder?.currentIndex || 0);
-      console.log(`[Branding] Releasing encoder file locks for channel ${channelId} to update active Ashton Band...`);
-      await streamManager.stopStream(channelId);
-      await new Promise((r) => setTimeout(r, 300));
-    }
 
-    // 2. Automatically analyze Ashton Band height & format, and compose 1280x720 broadcast frame
+    // 1. Automatically analyze Ashton Band height & format, and compose 1280x720 broadcast frame
     const detected = await analyzeAndNormalizeAshton(req.file.path, targetAshtonFile);
 
     const relativePath = path.relative(SERVER_ROOT, req.file.path).replace(/\\/g, '/');
@@ -1212,10 +1250,19 @@ export const uploadAshtonFile = async (req, res, next) => {
       { new: true }
     );
 
-    // 3. If stream was live and already had Ashton enabled, resume it with the newly analyzed Ashton graphic
-    if (isLive && wasAlreadyEnabled) {
-      console.log(`[Branding] Resuming live stream for channel ${channelId} with updated Ashton Band (index: ${resumeIndex})...`);
-      await streamManager.startStream(channelId, resumeIndex);
+    // 2. LIVE STREAM CONTROL: dynamically update Ashton Band via ZMQ with zero stream restart
+    const stream = streamManager.getStream(channelId);
+    if (stream?.encoder?.isRunning) {
+      if (stream.encoder.channel) {
+        if (!stream.encoder.channel.branding) stream.encoder.channel.branding = {};
+        stream.encoder.channel.branding.ashton = {
+          ...stream.encoder.channel.branding.ashton,
+          ...updatedChannel.branding.ashton
+        };
+      }
+      if (wasAlreadyEnabled) {
+        await stream.encoder.setAshtonLive(true, updatedChannel.branding?.ashton?.squeeze !== false);
+      }
     }
 
     if (io) {
@@ -1262,10 +1309,7 @@ export const removeAshton = async (req, res, next) => {
       if (stream.encoder.channel?.branding?.ashton) {
         stream.encoder.channel.branding.ashton.enabled = false;
       }
-      const zmqRes = await stream.encoder.setAshtonLive(false);
-      if (zmqRes === null) {
-        await streamManager.restartStream(channelId);
-      }
+      await stream.encoder.setAshtonLive(false);
     }
 
     if (io) {

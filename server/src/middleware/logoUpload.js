@@ -92,6 +92,31 @@ export const uploadAshton = multer({
   limits: { fileSize: 25 * 1024 * 1024 }
 });
 
+// Dynamic Overlay Schedule (L-Band or Ashton Band) -> routes to respective channel subfolder
+const overlayStorage = multer.diskStorage({
+  destination: async (req, file, cb) => {
+    try {
+      const type = req.body?.type || 'lband';
+      const key = type === 'ashton' ? 'ashtonDir' : 'lbandDir';
+      const dir = await getChannelSubdir(req, key);
+      cb(null, dir);
+    } catch (err) {
+      cb(err);
+    }
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase() || '.png';
+    const type = req.body?.type || 'overlay';
+    cb(null, `${type}_${Date.now()}${ext}`);
+  }
+});
+
+export const uploadOverlay = multer({
+  storage: overlayStorage,
+  fileFilter: imageFilter,
+  limits: { fileSize: 30 * 1024 * 1024 }
+});
+
 // Station Bug -> logo_img
 const bugStorage = multer.diskStorage({
   destination: async (req, file, cb) => {

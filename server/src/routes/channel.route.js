@@ -51,27 +51,27 @@ import {
   getStreamStatusHandler,
   getCurrentlyPlayingHandler
 } from '../controllers/stream.controller.js';
-import { authenticate } from '../middleware/auth.js';
-import { authorize } from '../middleware/rbac.js';
-import { uploadLogo, uploadBug, uploadLBand, uploadAshton } from '../middleware/logoUpload.js';
+import { auth } from '../middleware/auth.middleware.js';
+import { role } from '../middleware/role.middleware.js';
+import { uploadLogo, uploadBug, uploadLBand, uploadAshton, uploadOverlay } from '../middleware/logoUpload.js';
 import { ROLES } from '../config/constants.js';
 
 const router = Router();
 
-router.use(authenticate);
+router.use(auth);
 
 // Global Playout / Now-Playing Status
 router.get('/now-playing', getCurrentlyPlayingHandler);
 router.get('/currently-playing', getCurrentlyPlayingHandler);
 
 // List channels: super_admin, admin, user
-router.get('/', authorize([ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.USER]), getChannels);
-router.get('/:id', authorize([ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.USER]), getChannelById);
+router.get('/', role([ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.USER]), getChannels);
+router.get('/:id', role([ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.USER]), getChannelById);
 
 // Create, update, delete channels: super_admin and admin only
-router.post('/', authorize([ROLES.SUPER_ADMIN, ROLES.ADMIN]), createChannel);
-router.put('/:id', authorize([ROLES.SUPER_ADMIN, ROLES.ADMIN]), updateChannel);
-router.delete('/:id', authorize([ROLES.SUPER_ADMIN, ROLES.ADMIN]), deleteChannel);
+router.post('/', role([ROLES.SUPER_ADMIN, ROLES.ADMIN]), createChannel);
+router.put('/:id', role([ROLES.SUPER_ADMIN, ROLES.ADMIN]), updateChannel);
+router.delete('/:id', role([ROLES.SUPER_ADMIN, ROLES.ADMIN]), deleteChannel);
 
 // Channel stream live status check (online vs offline)
 router.post('/check-online', CheckChannelOnlineOrOffline);
@@ -127,8 +127,8 @@ router.delete('/:channelId/timer', removeTimer);
 
 // Scheduled Playout routes (time-based video interruption and resumption)
 router.get('/:channelId/schedules', getSchedules);
-router.post('/:channelId/schedules', createSchedule);
-router.put('/:channelId/schedules/:scheduleId', updateSchedule);
+router.post('/:channelId/schedules', uploadOverlay.single('image'), createSchedule);
+router.put('/:channelId/schedules/:scheduleId', uploadOverlay.single('image'), updateSchedule);
 router.patch('/:channelId/schedules/:scheduleId/toggle', toggleSchedule);
 router.post('/:channelId/schedules/:scheduleId/play-now', playScheduleNow);
 router.delete('/:channelId/schedules/:scheduleId', deleteSchedule);

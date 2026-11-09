@@ -1,6 +1,10 @@
+import path from 'path';
+import fs from 'fs';
 import { Schedule } from '../models/schedule.model.js';
 import { Asset } from '../models/asset.model.js';
 import { Channel } from '../models/channel.model.js';
+import { SERVER_ROOT } from '../config/paths.js';
+import { analyzeAndNormalizeLBand, analyzeAndNormalizeAshton } from '../services/streaming/brandingAssets.js';
 
 // Helper to access Socket.IO without circular dependency on server.js
 const getIO = (req) => req?.app?.get('io') || null;
@@ -86,6 +90,23 @@ export const createSchedule = async (req, res, next) => {
 
     const scheduleType = ['video', 'lband', 'ashton'].includes(type) ? type : 'video';
 
+    let imageRelativePath = req.body.imagePath || '';
+    let detectedCutout = null;
+    let detectedAshton = null;
+
+    if (req.file) {
+      imageRelativePath = path.relative(SERVER_ROOT, req.file.path).replace(/\\/g, '/');
+      try {
+        if (scheduleType === 'lband') {
+          detectedCutout = await analyzeAndNormalizeLBand(req.file.path);
+        } else if (scheduleType === 'ashton') {
+          detectedAshton = await analyzeAndNormalizeAshton(req.file.path);
+        }
+      } catch (analErr) {
+        console.warn('[ScheduleController] Graphic analysis warning:', analErr.message);
+      }
+    }
+
     let finalAssetIds = [];
     let totalAssetDuration = 60;
 
@@ -107,7 +128,7 @@ export const createSchedule = async (req, res, next) => {
 
       totalAssetDuration = foundAssets.reduce((sum, a) => sum + (Number(a.duration) || 0), 0) || 60;
     } else {
-      totalAssetDuration = duration && Number(duration) > 0 ? Number(duration) : 60;
+      totalAssetDuration = duration && Number(duration) > 0 ? Number(duration) : 5;
     }
 
     if (!dailyStartTime) {
@@ -122,14 +143,21 @@ export const createSchedule = async (req, res, next) => {
     const normalizedTime = normalizeTimeStr(dailyStartTime);
     const normalizedEndTime = dailyEndTime ? normalizeTimeStr(dailyEndTime) : '';
     let finalDuration = duration && Number(duration) > 0 ? Number(duration) : totalAssetDuration;
-    if (normalizedEndTime) {
+    if (normalizedEndTime && scheduleType === 'video') {
       const winDur = calcWindowDuration(normalizedTime, normalizedEndTime);
       if (winDur > 0) finalDuration = winDur;
     }
 
-    // Normalize days of week
+    // Normalize days of week (accept array or comma-separated string from FormData)
     let normalizedDays = [];
-    if (Array.isArray(daysOfWeek)) {
+    if (typeof daysOfWeek === 'string') {
+      try {
+        const parsed = JSON.parse(daysOfWeek);
+        if (Array.isArray(parsed)) normalizedDays = parsed.map(Number);
+      } catch {
+        normalizedDays = daysOfWeek.split(',').map((s) => Number(s.trim())).filter((d) => !isNaN(d) && d >= 0 && d <= 6);
+      }
+    } else if (Array.isArray(daysOfWeek)) {
       normalizedDays = daysOfWeek.map(Number).filter((d) => !isNaN(d) && d >= 0 && d <= 6);
     }
 
@@ -137,7 +165,15 @@ export const createSchedule = async (req, res, next) => {
       channel: channelId,
       title: title.trim(),
       type: scheduleType,
-      ashtonSqueeze: Boolean(ashtonSqueeze),
+      imagePath: imageRelativePath,
+      scheduleOption: req.body.scheduleOption || (normalizedDays.length > 0 ? 'weekly' : (startDate || endDate ? 'datewise' : '24/7')),
+      gapMinutes: req.body.gapMinutes !== undefined ? Number(req.body.gapMinutes) : 20,
+      ashtonSqueeze: ashtonSqueeze !== false && ashtonSqueeze !== 'false',
+      ashtonHeight: detectedAshton?.height || (req.body.ashtonHeight ? Number(req.body.ashtonHeight) : 160),
+      windowX: detectedCutout?.windowX || (req.body.windowX !== undefined ? Number(req.body.windowX) : 300),
+      windowY: detectedCutout?.windowY || (req.body.windowY !== undefined ? Number(req.body.windowY) : 20),
+      windowWidth: detectedCutout?.windowWidth || (req.body.windowWidth !== undefined ? Number(req.body.windowWidth) : 960),
+      windowHeight: detectedCutout?.windowHeight || (req.body.windowHeight !== undefined ? Number(req.body.windowHeight) : 540),
       assets: finalAssetIds,
       asset: finalAssetIds[0] || null,
       dailyStartTime: normalizedTime,
@@ -147,7 +183,7 @@ export const createSchedule = async (req, res, next) => {
       endDate: endDate ? new Date(endDate) : null,
       daysOfWeek: normalizedDays,
       priority: priority !== undefined ? Number(priority) : 1,
-      enabled: enabled !== undefined ? Boolean(enabled) : true,
+      enabled: enabled !== undefined ? (enabled === true || enabled === 'true') : true,
       createdBy: req.user?._id
     });
 
@@ -206,7 +242,38 @@ export const updateSchedule = async (req, res, next) => {
     if (type !== undefined && ['video', 'lband', 'ashton'].includes(type)) {
       schedule.type = type;
     }
-    if (ashtonSqueeze !== undefined) schedule.ashtonSqueeze = Boolean(ashtonSqueeze);
+    if (ashtonSqueeze !== undefined) {
+      schedule.ashtonSqueeze = ashtonSqueeze !== false && ashtonSqueeze !== 'false';
+    }
+
+    if (req.file) {
+      const relPath = path.relative(SERVER_ROOT, req.file.path).replace(/\\/g, '/');
+      schedule.imagePath = relPath;
+      try {
+        if (schedule.type === 'lband') {
+          const detected = await analyzeAndNormalizeLBand(req.file.path);
+          schedule.windowX = detected.windowX;
+          schedule.windowY = detected.windowY;
+          schedule.windowWidth = detected.windowWidth;
+          schedule.windowHeight = detected.windowHeight;
+        } else if (schedule.type === 'ashton') {
+          const detected = await analyzeAndNormalizeAshton(req.file.path);
+          schedule.ashtonHeight = detected.height;
+        }
+      } catch (err) {
+        console.warn('[ScheduleController] Graphic analysis error on update:', err.message);
+      }
+    } else if (req.body.imagePath) {
+      schedule.imagePath = req.body.imagePath;
+    }
+
+    if (req.body.scheduleOption) schedule.scheduleOption = req.body.scheduleOption;
+    if (req.body.gapMinutes !== undefined) schedule.gapMinutes = Number(req.body.gapMinutes);
+    if (req.body.ashtonHeight !== undefined) schedule.ashtonHeight = Number(req.body.ashtonHeight);
+    if (req.body.windowX !== undefined) schedule.windowX = Number(req.body.windowX);
+    if (req.body.windowY !== undefined) schedule.windowY = Number(req.body.windowY);
+    if (req.body.windowWidth !== undefined) schedule.windowWidth = Number(req.body.windowWidth);
+    if (req.body.windowHeight !== undefined) schedule.windowHeight = Number(req.body.windowHeight);
 
     if (assetIds !== undefined || assetId !== undefined) {
       let finalAssetIds = [];
@@ -241,8 +308,17 @@ export const updateSchedule = async (req, res, next) => {
     }
     if (startDate !== undefined) schedule.startDate = startDate ? new Date(startDate) : null;
     if (endDate !== undefined) schedule.endDate = endDate ? new Date(endDate) : null;
-    if (daysOfWeek !== undefined && Array.isArray(daysOfWeek)) {
-      schedule.daysOfWeek = daysOfWeek.map(Number).filter((d) => !isNaN(d) && d >= 0 && d <= 6);
+    if (daysOfWeek !== undefined) {
+      if (typeof daysOfWeek === 'string') {
+        try {
+          const parsed = JSON.parse(daysOfWeek);
+          if (Array.isArray(parsed)) schedule.daysOfWeek = parsed.map(Number);
+        } catch {
+          schedule.daysOfWeek = daysOfWeek.split(',').map((s) => Number(s.trim())).filter((d) => !isNaN(d) && d >= 0 && d <= 6);
+        }
+      } else if (Array.isArray(daysOfWeek)) {
+        schedule.daysOfWeek = daysOfWeek.map(Number).filter((d) => !isNaN(d) && d >= 0 && d <= 6);
+      }
     }
     if (priority !== undefined) schedule.priority = Number(priority);
     if (enabled !== undefined) schedule.enabled = Boolean(enabled);
@@ -360,16 +436,21 @@ export const playScheduleNow = async (req, res, next) => {
     }
 
     if (schedule.type === 'lband') {
-      const dur = Number(schedule.duration) || 60;
-      await streamManager.fireLBand(channelId, dur);
+      const dur = Number(schedule.duration) || 5;
+      await streamManager.fireLBand(channelId, dur, schedule.imagePath, {
+        windowX: schedule.windowX,
+        windowY: schedule.windowY,
+        windowWidth: schedule.windowWidth,
+        windowHeight: schedule.windowHeight
+      });
       return res.status(200).json({
         success: true,
         message: `L-Band graphic "${schedule.title}" fired live on air for ${dur}s!`
       });
     } else if (schedule.type === 'ashton') {
-      const dur = Number(schedule.duration) || 60;
+      const dur = Number(schedule.duration) || 5;
       const squeeze = schedule.ashtonSqueeze !== false;
-      await streamManager.fireAshton(channelId, dur, squeeze);
+      await streamManager.fireAshton(channelId, dur, squeeze, schedule.imagePath, schedule.ashtonHeight);
       return res.status(200).json({
         success: true,
         message: `Ashton Band "${schedule.title}" fired live on air for ${dur}s!`

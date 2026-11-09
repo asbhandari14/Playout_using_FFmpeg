@@ -5,7 +5,7 @@ export const fetchServers = createAsyncThunk(
   'servers/fetchServers',
   async (params = {}, { rejectWithValue }) => {
     try {
-      const res = await api.get('/servers', { params });
+      const res = await api.get('/servers/all', { params });
       return res.data;
     } catch (err) {
       return rejectWithValue(err.response?.data?.message || 'Failed to fetch servers');
@@ -17,7 +17,7 @@ export const createServer = createAsyncThunk(
   'servers/createServer',
   async (serverData, { rejectWithValue }) => {
     try {
-      const res = await api.post('/servers', serverData);
+      const res = await api.post('/servers/create', serverData);
       return res.data.server;
     } catch (err) {
       return rejectWithValue(err.response?.data?.message || err.response?.data?.errors?.[0] || 'Failed to create server');
@@ -29,7 +29,7 @@ export const updateServer = createAsyncThunk(
   'servers/updateServer',
   async ({ id, data }, { rejectWithValue }) => {
     try {
-      const res = await api.put(`/servers/${id}`, data);
+      const res = await api.put(`/servers/update/${id}`, data);
       return res.data.server;
     } catch (err) {
       return rejectWithValue(err.response?.data?.message || err.response?.data?.errors?.[0] || 'Failed to update server');
@@ -41,7 +41,7 @@ export const deleteServer = createAsyncThunk(
   'servers/deleteServer',
   async (id, { rejectWithValue }) => {
     try {
-      await api.delete(`/servers/${id}`);
+      await api.delete(`/servers/delete/${id}`);
       return id;
     } catch (err) {
       return rejectWithValue(err.response?.data?.message || 'Failed to delete server');

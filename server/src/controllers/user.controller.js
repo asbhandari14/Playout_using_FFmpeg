@@ -1,175 +1,404 @@
+import mongoose from 'mongoose';
 import { User } from '../models/user.model.js';
 import { ROLES } from '../config/constants.js';
 
-// GET /api/users
-export const getUsers = async (req, res, next) => {
-  try {
-    const { search, role, page = 1, limit = 50 } = req.query;
-    const filter = {};
+// ============================================
+// HELPER FUNCTIONS
+// ============================================
 
-    // RBAC: Admin can only see users created by them
-    if (req.user.role === ROLES.ADMIN) {
-      filter.createdBy = req.user._id;
-    } else if (req.user.role === ROLES.USER) {
-      // User can only see themselves
-      filter._id = req.user._id;
+// Validate MongoDB ObjectId
+const isValidId = (id) => mongoose.isValidObjectId(id);
+
+// Escape special regex characters
+const escapeRegex = (value) =>
+  value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// Check whether logged-in user can access target user
+const canAccessUser = (loggedInUser, targetUser) => {
+  if (loggedInUser.role === ROLES.SUPER_ADMIN) {
+    return true;
+  }
+
+  const createdById = targetUser.createdBy?._id
+    ? targetUser.createdBy._id
+    : targetUser.createdBy;
+
+  if (loggedInUser.role === ROLES.ADMIN) {
+    return (
+      String(targetUser._id) === String(loggedInUser._id) ||
+      String(createdById) === String(loggedInUser._id)
+    );
+  }
+
+  if (loggedInUser.role === ROLES.USER) {
+    return String(targetUser._id) === String(loggedInUser._id);
+  }
+
+  return false;
+};
+
+// ============================================
+// GET ALL USERS
+// Super Admin and Admin
+// ============================================
+export const getAllUsers = async (req, res, next) => {
+  try {
+    if (![ROLES.SUPER_ADMIN, ROLES.ADMIN].includes(req.user.role)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Forbidden: Insufficient permissions'
+      });
     }
 
-    if (role && Object.values(ROLES).includes(role)) {
+    const {
+      search = '',
+      role,
+      page = '1',
+      limit = '50'
+    } = req.query;
+
+    const pageNumber = Number(page);
+    const limitNumber = Number(limit);
+
+    // Validate pagination
+    if (
+      !Number.isInteger(pageNumber) ||
+      !Number.isInteger(limitNumber) ||
+      pageNumber < 1 ||
+      limitNumber < 1 ||
+      limitNumber > 100
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid pagination parameters'
+      });
+    }
+
+    // Validate search
+    if (typeof search !== 'string' || search.length > 100) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid search query'
+      });
+    }
+
+    const filter = {};
+
+    // Admin can only see users created by them
+    if (req.user.role === ROLES.ADMIN) {
+      filter.createdBy = req.user._id;
+    }
+
+    // Validate role filter
+    if (role !== undefined) {
+      if (!Object.values(ROLES).includes(role)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid role'
+        });
+      }
+
       filter.role = role;
     }
 
-    if (search) {
+    // Search by name or email
+    if (search.trim()) {
+      const safeSearch = escapeRegex(search.trim());
+
       filter.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { email: { $regex: search, $options: 'i' } }
+        { name: { $regex: safeSearch, $options: 'i' } },
+        { email: { $regex: safeSearch, $options: 'i' } }
       ];
     }
 
     const total = await User.countDocuments(filter);
+
     const users = await User.find(filter)
       .populate('createdBy', 'name email role')
       .sort({ createdAt: -1 })
-      .skip((Number(page) - 1) * Number(limit))
-      .limit(Number(limit));
+      .skip((pageNumber - 1) * limitNumber)
+      .limit(limitNumber);
 
     return res.status(200).json({
+      success: true,
       users,
       total,
-      page: Number(page),
-      pages: Math.ceil(total / Number(limit))
+      page: pageNumber,
+      limit: limitNumber,
+      pages: Math.ceil(total / limitNumber)
     });
+
   } catch (error) {
     next(error);
   }
 };
 
-// GET /api/users/:id
+// ============================================
+// GET USER BY ID
+// Super Admin, Admin and User
+// ============================================
+
 export const getUserById = async (req, res, next) => {
   try {
-    const user = await User.findById(req.params.id).populate('createdBy', 'name email role');
+    const { id } = req.params;
+
+    if (!isValidId(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid user ID'
+      });
+    }
+
+    const user = await User.findById(id)
+      .populate('createdBy', 'name email role');
+
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
     }
 
-    // RBAC check: admin can only view if createdBy matches
-    if (req.user.role === ROLES.ADMIN && String(user.createdBy?._id || user.createdBy) !== String(req.user._id)) {
-      return res.status(403).json({ message: 'Forbidden. You do not manage this user.' });
+    // RBAC check
+    if (!canAccessUser(req.user, user)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Forbidden: You cannot access this user'
+      });
     }
 
-    return res.status(200).json({ user });
+    return res.status(200).json({
+      success: true,
+      user
+    });
+
   } catch (error) {
     next(error);
   }
 };
 
-// POST /api/users
-export const createUser = async (req, res, next) => {
-  try {
-    const { name, email, password, role, isActive } = req.body;
+// ============================================
+// UPDATE USER
+// Super Admin, Admin and User
+// ============================================
 
-    // RBAC: Admin cannot create super_admin or admin; admin can ONLY create 'user'
-    if (req.user.role === ROLES.ADMIN && role !== ROLES.USER) {
-      return res.status(403).json({ message: 'Admins can only create regular users' });
-    }
-
-    const existing = await User.findOne({ email: email.toLowerCase() });
-    if (existing) {
-      return res.status(409).json({ message: 'Email is already registered' });
-    }
-
-    const passwordHash = await User.hashPassword(password);
-    const newUser = await User.create({
-      name,
-      email: email.toLowerCase(),
-      passwordHash,
-      role: role || ROLES.USER,
-      createdBy: req.user._id,
-      isActive: isActive !== undefined ? isActive : true
-    });
-
-    const populated = await User.findById(newUser._id).populate('createdBy', 'name email role');
-    return res.status(201).json({
-      message: 'User created successfully',
-      user: populated
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-// PUT /api/users/:id
 export const updateUser = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const targetUser = await User.findById(id);
-    if (!targetUser) {
-      return res.status(404).json({ message: 'User not found' });
+
+    if (!isValidId(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid user ID'
+      });
     }
 
-    // RBAC check: admin can only edit users created by them
-    if (req.user.role === ROLES.ADMIN) {
-      if (String(targetUser.createdBy) !== String(req.user._id)) {
-        return res.status(403).json({ message: 'Forbidden: You cannot modify users you did not create' });
-      }
-      if (req.body.role && req.body.role !== ROLES.USER) {
-        return res.status(403).json({ message: 'Admins cannot elevate users to admin or super_admin' });
-      }
+    const targetUser = await User.findById(id);
+
+    if (!targetUser) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    const loggedInUser = req.user;
+
+    // RBAC check
+    if (!canAccessUser(loggedInUser, targetUser)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Forbidden: You cannot update this user'
+      });
     }
 
     const { name, email, password, role, isActive } = req.body;
-    if (name) targetUser.name = name;
-    if (email && email.toLowerCase() !== targetUser.email) {
-      const existing = await User.findOne({ email: email.toLowerCase() });
-      if (existing && String(existing._id) !== id) {
-        return res.status(409).json({ message: 'Email already in use' });
+
+    // Update name
+    if (name !== undefined) {
+      if (typeof name !== 'string' || !name.trim()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Name cannot be empty'
+        });
       }
-      targetUser.email = email.toLowerCase();
+
+      targetUser.name = name.trim();
     }
-    if (password) {
+
+    // Update email
+    if (email !== undefined) {
+      if (
+        typeof email !== 'string' ||
+        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: 'Please provide a valid email address'
+        });
+      }
+
+      const normalizedEmail = email.trim().toLowerCase();
+
+      if (normalizedEmail !== targetUser.email) {
+        const existingUser = await User.findOne({
+          email: normalizedEmail
+        });
+
+        if (existingUser) {
+          return res.status(409).json({
+            success: false,
+            message: 'Email already in use'
+          });
+        }
+
+        targetUser.email = normalizedEmail;
+      }
+    }
+
+    // Update password
+    if (password !== undefined) {
+      if (
+        typeof password !== 'string' ||
+        password.length < 6
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: 'Password must contain at least 6 characters'
+        });
+      }
+
       targetUser.passwordHash = await User.hashPassword(password);
     }
-    if (role && (req.user.role === ROLES.SUPER_ADMIN || (req.user.role === ROLES.ADMIN && role === ROLES.USER))) {
-      targetUser.role = role;
+
+    // Update role
+    if (role !== undefined) {
+      if (!Object.values(ROLES).includes(role)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid role'
+        });
+      }
+
+      if (loggedInUser.role === ROLES.SUPER_ADMIN) {
+        targetUser.role = role;
+      } else if (
+        loggedInUser.role === ROLES.ADMIN &&
+        String(targetUser._id) !== String(loggedInUser._id) &&
+        String(targetUser.createdBy) === String(loggedInUser._id) &&
+        role === ROLES.USER
+      ) {
+        targetUser.role = role;
+      } else {
+        return res.status(403).json({
+          success: false,
+          message: 'You are not authorized to change this role'
+        });
+      }
     }
+
+    // Only Super Admin can activate/deactivate accounts
     if (isActive !== undefined) {
+      if (loggedInUser.role !== ROLES.SUPER_ADMIN) {
+        return res.status(403).json({
+          success: false,
+          message: 'Only Super Admin can change account status'
+        });
+      }
+
+      if (typeof isActive !== 'boolean') {
+        return res.status(400).json({
+          success: false,
+          message: 'isActive must be a boolean'
+        });
+      }
+
       targetUser.isActive = isActive;
     }
 
     await targetUser.save();
-    const updated = await User.findById(id).populate('createdBy', 'name email role');
+
+    const updatedUser = await User.findById(id)
+      .populate('createdBy', 'name email role');
 
     return res.status(200).json({
+      success: true,
       message: 'User updated successfully',
-      user: updated
+      user: updatedUser
     });
+
   } catch (error) {
+    // Handle MongoDB duplicate email error
+    if (error.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        message: 'Email already in use'
+      });
+    }
+
     next(error);
   }
 };
 
-// DELETE /api/users/:id
+// ============================================
+// DELETE USER
+// Super Admin and Admin
+// ============================================
+
 export const deleteUser = async (req, res, next) => {
   try {
+    // Only Super Admin and Admin can delete users
+    if (![ROLES.SUPER_ADMIN, ROLES.ADMIN].includes(req.user.role)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Forbidden: Insufficient permissions'
+      });
+    }
+
     const { id } = req.params;
 
-    if (String(req.user._id) === id) {
-      return res.status(400).json({ message: 'You cannot delete your own account' });
+    if (!isValidId(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid user ID'
+      });
+    }
+
+    // Prevent self-deletion
+    if (String(req.user._id) === String(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'You cannot delete your own account'
+      });
     }
 
     const targetUser = await User.findById(id);
+
     if (!targetUser) {
-      return res.status(404).json({ message: 'User not found' });
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
     }
 
-    if (req.user.role === ROLES.ADMIN) {
-      if (String(targetUser.createdBy) !== String(req.user._id)) {
-        return res.status(403).json({ message: 'Forbidden: You cannot delete users you did not create' });
-      }
+    // Admin can only delete users created by them
+    if (
+      req.user.role === ROLES.ADMIN &&
+      String(targetUser.createdBy) !== String(req.user._id)
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: 'Forbidden: You cannot delete users you did not create'
+      });
     }
 
-    await User.findByIdAndDelete(id);
-    return res.status(200).json({ message: 'User deleted successfully' });
+    await targetUser.deleteOne();
+
+    return res.status(200).json({
+      success: true,
+      message: 'User deleted successfully'
+    });
+
   } catch (error) {
     next(error);
   }

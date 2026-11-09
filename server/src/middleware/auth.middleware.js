@@ -1,7 +1,7 @@
-import { verifyAccessToken } from '../utils/token.js';
+import { verifyToken } from '../utils/token.js';
 import { User } from '../models/user.model.js';
 
-export const authenticate = async (req, res, next) => {
+export const auth = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
     let token = null;
@@ -16,10 +16,10 @@ export const authenticate = async (req, res, next) => {
       return res.status(401).json({ message: 'Authentication required. No token provided.' });
     }
 
-    const decoded = verifyAccessToken(token);
+    const decoded = verifyToken(token);
 
     // Verify user is still active in database
-    const user = await User.findById(decoded.userId);
+    const user = await User.findById(decoded._id);
     if (!user || !user.isActive) {
       return res.status(401).json({ message: 'User account is inactive or no longer exists.' });
     }

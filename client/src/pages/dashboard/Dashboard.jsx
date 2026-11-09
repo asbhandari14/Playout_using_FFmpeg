@@ -24,6 +24,7 @@ import CreatePlaylistForm from '../../components/form/CreatePlaylistForm.jsx';
 import UpdatePlaylistForm from '../../components/form/UpdatePlaylistForm.jsx';
 
 import ChannelInfoForm from '../../components/form/ChannelInfoForm.jsx';
+import BandSection from '../../components/band/BandSection.jsx';
 import ModulePlaceholder from '../../components/placeholder/ModulePlaceholder.jsx';
 
 export default function Dashboard({ initialSection = 'channels', initialSubView = 'list' }) {
@@ -204,6 +205,24 @@ export default function Dashboard({ initialSection = 'channels', initialSubView 
             />
           )}
 
+          {/* L-Band Graphic Overlays */}
+          {activeSection === 'lband' && (
+            <BandSection
+              type="lband"
+              channels={channels}
+              currentUser={currentUser}
+            />
+          )}
+
+          {/* Ashton Band Banner Overlays */}
+          {activeSection === 'ashton' && (
+            <BandSection
+              type="ashton"
+              channels={channels}
+              currentUser={currentUser}
+            />
+          )}
+
           {/* 4. Emergency Playlist (Priority 5) */}
           {activeSection === 'emergency_playlist' &&
             (isFormView ? (
@@ -348,6 +367,8 @@ export default function Dashboard({ initialSection = 'channels', initialSubView 
             activeSection !== 'dashboard' &&
             activeSection !== 'servers' &&
             activeSection !== 'info' &&
+            activeSection !== 'lband' &&
+            activeSection !== 'ashton' &&
             activeSection !== 'default_playlist' &&
             activeSection !== 'scheduling_playlist' &&
             activeSection !== 'live_schedule' &&

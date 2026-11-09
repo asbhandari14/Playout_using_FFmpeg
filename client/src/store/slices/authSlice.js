@@ -7,11 +7,12 @@ export const loginUser = createAsyncThunk(
     try {
       const response = await api.post('/auth/login', { email, password });
       console.log("response", response);
-      const { user, accessToken, refreshToken, success, message } = response.data;
-      localStorage.setItem('access_token', accessToken);
-      localStorage.setItem('refresh_token', refreshToken);
-      localStorage.setItem('user', JSON.stringify(user));
-      return { user, accessToken, message, success };
+      const { user, accessToken, refreshToken, token, success, message } = response.data;
+      const effectiveToken = accessToken || token;
+      if (effectiveToken) localStorage.setItem('access_token', effectiveToken);
+      if (refreshToken) localStorage.setItem('refresh_token', refreshToken);
+      if (user) localStorage.setItem('user', JSON.stringify(user));
+      return { user, accessToken: effectiveToken, message, success };
     } catch (err) {
       return rejectWithValue(err.response?.data?.message || 'Login failed');
     }
@@ -61,7 +62,7 @@ const authSlice = createSlice({
   initialState: {
     user: initialUser,
     token: initialToken,
-    isAuthenticated: !!initialToken,
+    isAuthenticated: !!initialToken || !!initialUser,
     loading: false,
     error: null
   },

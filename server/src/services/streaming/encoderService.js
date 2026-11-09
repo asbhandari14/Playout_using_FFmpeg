@@ -721,20 +721,20 @@ export class EncoderService {
       '-y',
       // Input 0: MPEG-TS stdin from Feeder
       '-f', 'mpegts', '-i', 'pipe:0',
-      // Input 1: Looping logo.png
-      '-loop', '1', '-i', this.logoFile,
-      // Input 2: Looping ticker_bg.png (STATIC BACKGROUND BAR)
-      '-loop', '1', '-i', this.tickerBgFile,
-      // Input 3: Looping ticker.png (MOVING TEXT OVERLAY)
-      '-loop', '1', '-i', this.tickerFile,
-      // Input 4: Looping lband.png (L-BAND GRAPHIC WITH TRANSPARENT CUTOUT)
-      '-loop', '1', '-i', this.lbandFile,
-      // Input 5: Looping ashton.png (ASHTON BAND LOWER THIRD)
-      '-loop', '1', '-i', this.ashtonFile,
-      // Input 6: Station Bug (video MOV via -stream_loop -1, animated GIF via -ignore_loop 0, or static image via -loop 1)
+      // Input 1: Dynamic looping logo.png (live reloadable without stream restart)
+      '-stream_loop', '-1', '-f', 'image2', '-framerate', '25', '-i', this.logoFile,
+      // Input 2: Dynamic looping ticker_bg.png (STATIC BACKGROUND BAR)
+      '-stream_loop', '-1', '-f', 'image2', '-framerate', '25', '-i', this.tickerBgFile,
+      // Input 3: Dynamic looping ticker.png (MOVING TEXT OVERLAY)
+      '-stream_loop', '-1', '-f', 'image2', '-framerate', '25', '-i', this.tickerFile,
+      // Input 4: Dynamic looping lband.png (L-BAND GRAPHIC WITH TRANSPARENT CUTOUT)
+      '-stream_loop', '-1', '-f', 'image2', '-framerate', '25', '-i', this.lbandFile,
+      // Input 5: Dynamic looping ashton.png (ASHTON BAND LOWER THIRD)
+      '-stream_loop', '-1', '-f', 'image2', '-framerate', '25', '-i', this.ashtonFile,
+      // Input 6: Station Bug (video MOV via -stream_loop -1, animated GIF via -ignore_loop 0, or static image via dynamic loop)
       ...(this.isBugMov
         ? ['-stream_loop', '-1', '-i', this.bugFile]
-        : (this.isBugGif ? ['-ignore_loop', '0', '-i', this.bugFile] : ['-loop', '1', '-i', this.bugFile])),
+        : (this.isBugGif ? ['-ignore_loop', '0', '-i', this.bugFile] : ['-stream_loop', '-1', '-f', 'image2', '-framerate', '25', '-i', this.bugFile])),
       // Filtergraph
       '-filter_complex', filtergraph,
       '-map', '[vout]',

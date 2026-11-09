@@ -107,6 +107,22 @@ export default function App() {
           }
         />
         <Route
+          path="/lband"
+          element={
+            <ProtectedRoute>
+              <Dashboard initialSection="lband" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/ashton"
+          element={
+            <ProtectedRoute>
+              <Dashboard initialSection="ashton" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/channels"
           element={
             <ProtectedRoute>

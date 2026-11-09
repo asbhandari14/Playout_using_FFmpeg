@@ -5,7 +5,7 @@ export const fetchUsers = createAsyncThunk(
   'users/fetchUsers',
   async (params = {}, { rejectWithValue }) => {
     try {
-      const res = await api.get('/users', { params });
+      const res = await api.get('/users/all', { params });
       return res.data;
     } catch (err) {
       return rejectWithValue(err.response?.data?.message || 'Failed to fetch users');
@@ -17,7 +17,7 @@ export const createUser = createAsyncThunk(
   'users/createUser',
   async (userData, { rejectWithValue }) => {
     try {
-      const res = await api.post('/users', userData);
+      const res = await api.post('/auth/register', userData);
       return res.data.user;
     } catch (err) {
       return rejectWithValue(err.response?.data?.message || err.response?.data?.errors?.[0] || 'Failed to create user');

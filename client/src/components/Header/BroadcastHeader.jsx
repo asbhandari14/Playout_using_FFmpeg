@@ -101,7 +101,6 @@ export default function BroadcastHeader({
 
       {/* Right: Live broadcast toggle, Settings, Fullscreen */}
       <div className="flex items-center space-x-3">
-        {/* Live indicator dot/tower */}
         <div
           className={`p-1.5 rounded-lg border flex items-center justify-center transition ${isLive
             ? 'bg-emerald-950/60 border-emerald-700/60 text-emerald-400 shadow-sm shadow-emerald-500/20'
@@ -169,15 +168,16 @@ export default function BroadcastHeader({
         </button>
 
         {/* Settings button */}
-        <button
+        {/* <button
           onClick={onOpenSettings}
           className="p-1.5 rounded-lg bg-[#141822] border border-[#242c3d] text-slate-300 hover:text-white hover:bg-[#1a2130] transition flex items-center gap-1.5 text-xs font-semibold px-2.5"
           title="Channel Stream Settings"
         >
           <Settings size={14} />
           <span className="hidden sm:inline uppercase text-[10px]">Settings</span>
-        </button>
+        </button> */}
       </div>
+
     </header >
   );
 }

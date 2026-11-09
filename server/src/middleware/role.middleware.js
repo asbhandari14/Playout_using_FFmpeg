@@ -1,7 +1,7 @@
 import { ROLES } from '../config/constants.js';
 
 // RBAC
-export const authorize = (allowedRoles = [], resourceCheck = null) => {
+export const role = (allowedRoles = [], resourceCheck = null) => {
   return async (req, res, next) => {
     try {
       if (!req.user) {

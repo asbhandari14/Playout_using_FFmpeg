@@ -26,14 +26,6 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 
-// Security and utility middleware
-// app.use(
-//   helmet({
-//     crossOriginResourcePolicy: { policy: 'cross-origin' },
-//     contentSecurityPolicy: false // Allow local HLS and media testing
-//   })
-// );
-
 app.use(
   cors({
     origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
@@ -67,12 +59,12 @@ app.get('/api/health', (req, res) => {
 });
 
 // API Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/servers', serverRoutes);
-app.use('/api/channels', channelRoutes);
-app.use('/api/assets', assetRoutes);
-app.use('/api/playlists', playlistRoutes);
+app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/users', userRoutes);
+app.use('/api/v1/servers', serverRoutes);
+app.use('/api/v1/channels', channelRoutes);
+app.use('/api/v1/assets', assetRoutes);
+app.use('/api/v1/playlists', playlistRoutes);
 
 // 404 handler
 app.use((req, res) => {

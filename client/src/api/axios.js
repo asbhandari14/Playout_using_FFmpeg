@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: '/api/v1',
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json'
@@ -44,6 +44,7 @@ api.interceptors.response.use(
     if (
       !originalRequest ||
       originalRequest.url?.includes('/auth/login') ||
+      originalRequest.url?.includes('/auth/register') ||
       originalRequest.url?.includes('/auth/refresh')
     ) {
       return Promise.reject(error);
@@ -71,12 +72,14 @@ api.interceptors.response.use(
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
         localStorage.removeItem('user');
-        window.location.href = '/login';
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login';
+        }
         return Promise.reject(error);
       }
 
       try {
-        const res = await axios.post('/api/auth/refresh', { refreshToken }, { withCredentials: true });
+        const res = await axios.post('/api/v1/auth/refresh', { refreshToken }, { withCredentials: true });
         const { accessToken, refreshToken: newRefreshToken } = res.data;
 
         localStorage.setItem('access_token', accessToken);
@@ -94,7 +97,9 @@ api.interceptors.response.use(
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
         localStorage.removeItem('user');
-        window.location.href = '/login';
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login';
+        }
         return Promise.reject(refreshErr);
       } finally {
         isRefreshing = false;

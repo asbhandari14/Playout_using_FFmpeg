@@ -6,10 +6,10 @@ import {
   deletePlaylist
 } from '../controllers/playlist.controller.js';
 import { getCurrentlyPlayingHandler } from '../controllers/stream.controller.js';
-import { authenticate } from '../middleware/auth.js';
+import { auth } from '../middleware/auth.middleware.js';
 
 const router = Router();
-router.use(authenticate);
+router.use(auth);
 
 // Now Playing playout status for a channel
 router.get('/:channelId/now-playing', getCurrentlyPlayingHandler);

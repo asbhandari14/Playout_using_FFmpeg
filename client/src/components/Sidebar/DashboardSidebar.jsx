@@ -9,7 +9,9 @@ import {
   Radio,
   Calendar,
   Layers,
-  Info
+  Info,
+  PanelBottom,
+  CreditCard
 } from 'lucide-react';
 
 const ACTIVE_CLASS =
@@ -39,6 +41,8 @@ export default function DashboardSidebar({ currentUser, isOpen, activeSection, o
   const isLiveActive = activeSection === 'live_schedule';
   const isAdActive = activeSection === 'advertisement_playlist';
   const isEmergencyActive = activeSection === 'emergency_playlist';
+  const isLBandActive = activeSection === 'lband';
+  const isAshtonActive = activeSection === 'ashton';
 
   return (
     <aside
@@ -175,6 +179,33 @@ export default function DashboardSidebar({ currentUser, isOpen, activeSection, o
           <span className="font-mono text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
             P1
           </span>
+        </button>
+
+        {/* Graphic Overlays Section */}
+        <div className="pt-4 px-3 py-1.5 text-[10px] uppercase font-bold text-slate-500 tracking-wider">
+          Graphic Overlays
+        </div>
+
+        {/* L-Band */}
+        <button
+          onClick={() => handleNav('lband', '/lband')}
+          className={`${BASE_CLASS} ${isLBandActive ? ACTIVE_CLASS : INACTIVE_CLASS}`}
+        >
+          <div className="flex items-center gap-3">
+            <PanelBottom size={18} className={isLBandActive ? 'text-[#00bcd4]' : ''} />
+            <span>L-Band</span>
+          </div>
+        </button>
+
+        {/* Ashton Band */}
+        <button
+          onClick={() => handleNav('ashton', '/ashton')}
+          className={`${BASE_CLASS} ${isAshtonActive ? ACTIVE_CLASS : INACTIVE_CLASS}`}
+        >
+          <div className="flex items-center gap-3">
+            <CreditCard size={18} className={isAshtonActive ? 'text-[#00bcd4]' : ''} />
+            <span>Ashton Band</span>
+          </div>
         </button>
       </nav>
     </aside>
