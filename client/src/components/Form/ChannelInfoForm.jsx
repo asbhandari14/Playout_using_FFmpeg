@@ -21,23 +21,17 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { bytesToStorage } from '../../hooks/useStorageCalc.js';
+import {
+  FORM_CARD_CLASS,
+  FORM_SHELL_CLASS,
+  FORM_INPUT_CLASS,
+  FORM_BTN_CANCEL,
+  FORM_BTN_PRIMARY,
+  FormField as Field
+} from './FormPrimitives.jsx';
 
-const shellClass =
-  'flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-[#090d16] border border-[#1a2337] focus-within:border-[#00bcd4] transition';
-const inputClass =
-  'w-full bg-transparent text-slate-100 placeholder-slate-500 focus:outline-none text-lg font-mono';
-
-function Field({ label, hint, className = '', children }) {
-  return (
-    <div className={className}>
-      <div className="flex items-center justify-between mb-1.5 font-mono">
-        <label className="text-slate-300 text-base">{label}</label>
-        {hint && <span className="text-[10px] text-slate-500">{hint}</span>}
-      </div>
-      {children}
-    </div>
-  );
-}
+const shellClass = FORM_SHELL_CLASS;
+const inputClass = FORM_INPUT_CLASS;
 
 export default function ChannelInfoForm({
   channels = [],
@@ -200,20 +194,20 @@ export default function ChannelInfoForm({
 
   if (!channels || channels.length === 0) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-3.5">
         <button
           type="button"
           onClick={onCancel}
-          className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-white transition cursor-pointer font-mono"
+          className="flex items-center gap-1.5 text-xs font-medium text-slate-400 hover:text-white transition cursor-pointer"
         >
           <ArrowLeft size={14} />
           <span>Back to Channels</span>
         </button>
 
-        <div className="bg-[#0b0e18] border border-[#161f33] rounded-2xl p-12 text-center text-slate-400 font-mono shadow-2xl">
-          <Tv size={36} className="mx-auto mb-3 text-slate-600" />
-          <h2 className="text-xl text-white font-bold mb-1">No Channels Configured</h2>
-          <p className="text-sm text-slate-400">
+        <div className={`${FORM_CARD_CLASS} p-8 text-center text-slate-400`}>
+          <Tv size={30} className="mx-auto mb-2.5 text-slate-600" />
+          <h2 className="text-base text-white font-bold mb-1">No Channels Configured</h2>
+          <p className="text-xs text-slate-400">
             Create a broadcast channel first to inspect technical streaming parameters and endpoints.
           </p>
         </div>
@@ -222,53 +216,53 @@ export default function ChannelInfoForm({
   }
 
   return (
-    <div className="space-y-4 select-none">
+    <div className="space-y-3.5 select-none">
       {/* Top back navigation button */}
       <button
         type="button"
         onClick={onCancel}
-        className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-white transition cursor-pointer font-mono"
+        className="flex items-center gap-1.5 text-xs font-medium text-slate-400 hover:text-white transition cursor-pointer"
       >
         <ArrowLeft size={14} />
         <span>Back to Channels</span>
       </button>
 
       {/* Header section */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5">
         <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl text-white tracking-wide font-mono">Channel Information</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-base sm:text-lg 2xl:text-xl text-white tracking-tight">
+              Channel Information
+            </h1>
             <span
-              className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider font-mono ${
-                isLive
+              className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9.5px] font-bold uppercase tracking-wider font-mono ${isLive
                   ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-800/60'
                   : status === 'error'
-                  ? 'bg-rose-950/80 text-rose-400 border border-rose-800/60'
-                  : 'bg-slate-800/60 text-slate-300 border border-slate-700/60'
-              }`}
+                    ? 'bg-rose-950/80 text-rose-400 border border-rose-800/60'
+                    : 'bg-slate-800/60 text-slate-300 border border-slate-700/60'
+                }`}
             >
               <span
-                className={`w-1.5 h-1.5 rounded-full ${
-                  isLive ? 'bg-emerald-400 animate-pulse' : status === 'error' ? 'bg-rose-400' : 'bg-slate-400'
-                }`}
+                className={`w-1.5 h-1.5 rounded-full ${isLive ? 'bg-emerald-400 animate-pulse' : status === 'error' ? 'bg-rose-400' : 'bg-slate-400'
+                  }`}
               />
               <span>{isLive ? 'Live Playout' : status?.toUpperCase() || 'Idle'}</span>
             </span>
           </div>
-          <p className="text-sm text-slate-400 mt-0.5 font-mono">
+          <p className="text-[11px] 2xl:text-xs text-slate-400 mt-0.5">
             Technical broadcast specifications, streaming endpoints, and media server configuration
           </p>
         </div>
 
         {/* Channel Switcher Dropdown (if multiple channels exist) */}
         {channels.length > 1 && (
-          <div className="flex items-center gap-2.5 bg-[#0b0e18] border border-[#1a2337] px-3.5 py-2 rounded-xl shrink-0">
-            <Tv size={16} className="text-[#00bcd4] shrink-0" />
-            <span className="text-xs text-slate-400 font-mono">Channel:</span>
+          <div className="flex items-center gap-2 bg-[#10141e] border border-[#1e2638] px-3 py-1.5 rounded-lg shrink-0 text-xs">
+            <Tv size={14} className="text-[#00bcd4] shrink-0" />
+            <span className="text-slate-400">Channel:</span>
             <select
               value={activeChannel?._id || ''}
               onChange={(e) => setActiveChannelId(e.target.value)}
-              className="bg-transparent text-cyan-300 font-mono text-sm focus:outline-none cursor-pointer pr-2"
+              className="bg-transparent text-cyan-300 font-semibold text-xs focus:outline-none cursor-pointer pr-1"
             >
               {channels.map((ch) => (
                 <option key={ch._id} value={ch._id} className="bg-[#0b0e18] text-slate-200">
@@ -280,15 +274,15 @@ export default function ChannelInfoForm({
         )}
       </div>
 
-      {/* Main Info Form Card (Identical layout & classes to CreateServerForm) */}
-      <div className="bg-[#0b0e18] border border-[#161f33] rounded-2xl p-6 sm:p-8 shadow-2xl space-y-6">
+      {/* Main Info Form Card */}
+      <div className={`${FORM_CARD_CLASS} space-y-4`}>
         {/* Read-only notice badge */}
-        <div className="p-3 bg-cyan-950/20 border border-cyan-800/40 rounded-xl flex items-center justify-between gap-3 text-cyan-300 font-mono text-xs">
+        <div className="px-3 py-2 bg-cyan-950/20 border border-cyan-800/40 rounded-lg flex items-center justify-between gap-2 text-cyan-300 text-xs">
           <div className="flex items-center gap-2">
-            <Lock size={15} className="text-cyan-400 shrink-0" />
+            <Lock size={13} className="text-cyan-400 shrink-0" />
             <span className="font-semibold">System Managed Configuration (Read-Only)</span>
           </div>
-          <span className="text-[11px] text-slate-400 hidden sm:inline">
+          <span className="text-[10.5px] text-slate-400 hidden sm:inline">
             Playout endpoints and encoder parameters cannot be edited directly
           </span>
         </div>
@@ -325,12 +319,12 @@ export default function ChannelInfoForm({
         {/* Row 2: HLS Playback URL */}
         <Field label="HLS Playback URL" hint="Live stream playback endpoint (.m3u8)">
           <div className={shellClass}>
-            <Globe size={16} className="text-[#00bcd4] shrink-0" />
+            <Globe size={14} className="text-[#00bcd4] shrink-0" />
             <input
               type="text"
               readOnly
               value={finalHlsUrl}
-              className={`${inputClass} font-mono text-lg text-[#00bcd4] cursor-default select-all`}
+              className={`${inputClass} font-mono text-[#00bcd4] cursor-default select-all`}
               title="Click and copy HLS Playback URL"
             />
             <button
@@ -339,7 +333,7 @@ export default function ChannelInfoForm({
               className="text-slate-400 hover:text-cyan-400 transition shrink-0 p-1 cursor-pointer"
               title="Copy HLS URL"
             >
-              {copiedField === 'hls' ? <Check size={16} className="text-emerald-400" /> : <Copy size={16} />}
+              {copiedField === 'hls' ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
             </button>
           </div>
         </Field>
@@ -347,12 +341,12 @@ export default function ChannelInfoForm({
         {/* Row 3: RTMP Ingest / Stream URL */}
         <Field label="RTMP Ingest / Stream URL" hint="Live RTMP broadcast stream ingest endpoint">
           <div className={shellClass}>
-            <Radio size={16} className="text-[#00bcd4] shrink-0" />
+            <Radio size={14} className="text-[#00bcd4] shrink-0" />
             <input
               type="text"
               readOnly
               value={finalRtmpUrl}
-              className={`${inputClass} font-mono text-lg text-[#00bcd4] cursor-default select-all`}
+              className={`${inputClass} font-mono text-[#00bcd4] cursor-default select-all`}
               title="Click and copy RTMP Ingest URL"
             />
             <button
@@ -361,7 +355,7 @@ export default function ChannelInfoForm({
               className="text-slate-400 hover:text-cyan-400 transition shrink-0 p-1 cursor-pointer"
               title="Copy RTMP URL"
             >
-              {copiedField === 'rtmp' ? <Check size={16} className="text-emerald-400" /> : <Copy size={16} />}
+              {copiedField === 'rtmp' ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
             </button>
           </div>
         </Field>
@@ -473,21 +467,21 @@ export default function ChannelInfoForm({
         </Field>
 
         {/* Actions Bottom Bar */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-[#161f33]">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-2.5 pt-3 border-t border-[#1a2234]">
           <button
             type="button"
             onClick={copyAllDetails}
-            className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-[#1b253b] text-cyan-400 hover:text-white hover:bg-[#121929] transition font-semibold font-mono flex items-center justify-center gap-2 cursor-pointer text-xs"
+            className="w-full sm:w-auto px-3.5 py-1.5 2xl:py-2 rounded-lg border border-[#1e2638] text-cyan-400 hover:text-white hover:bg-[#161e2e] transition font-semibold flex items-center justify-center gap-1.5 cursor-pointer text-xs"
           >
-            {copiedAll ? <Check size={15} className="text-emerald-400" /> : <Copy size={15} />}
+            {copiedAll ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
             <span>{copiedAll ? 'All Details Copied!' : 'Copy All Endpoints'}</span>
           </button>
 
-          <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+          <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
             <button
               type="button"
               onClick={onCancel}
-              className="px-5 py-2.5 rounded-xl border border-[#1b253b] text-slate-300 hover:text-white hover:bg-[#121929] transition font-semibold cursor-pointer font-mono text-xs"
+              className={FORM_BTN_CANCEL}
             >
               Back to Channels
             </button>
@@ -496,9 +490,9 @@ export default function ChannelInfoForm({
               <button
                 type="button"
                 onClick={() => onOpenStudio(activeChannel._id)}
-                className="px-6 py-2.5 rounded-xl bg-[#00bcd4] hover:bg-[#06b6d4] text-black font-extrabold shadow-lg shadow-cyan-500/20 transition cursor-pointer font-mono text-xs flex items-center gap-2"
+                className={FORM_BTN_PRIMARY}
               >
-                <ExternalLink size={15} />
+                <ExternalLink size={14} />
                 <span>Open Playout Studio</span>
               </button>
             )}

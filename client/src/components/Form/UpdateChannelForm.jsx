@@ -19,28 +19,15 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { bytesToStorage } from '../../hooks/useStorageCalc.js';
-
-const shellClass =
-  'flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-[#090d16] border border-[#1a2337] focus-within:border-[#00bcd4] transition';
-const inputClass =
-  'w-full bg-transparent text-slate-100 placeholder-slate-500 focus:outline-none text-xs';
-const selectClass =
-  'w-full px-3 py-2.5 rounded-xl bg-[#090d16] border border-[#1a2337] text-slate-200 focus:outline-none focus:border-[#00bcd4] text-xs transition cursor-pointer';
-
-function Field({ label, hint, required, className = '', children }) {
-  return (
-    <div className={className}>
-      <div className="flex items-center justify-between mb-1.5">
-        <label className="text-slate-300 font-semibold text-xs flex items-center gap-1">
-          <span>{label}</span>
-          {required && <span className="text-cyan-400 font-bold">*</span>}
-        </label>
-        {hint && <span className="text-[10px] text-slate-500">{hint}</span>}
-      </div>
-      {children}
-    </div>
-  );
-}
+import {
+  FORM_CARD_CLASS,
+  FORM_SHELL_CLASS,
+  FORM_INPUT_CLASS,
+  FORM_SELECT_CLASS,
+  FORM_BTN_CANCEL,
+  FORM_BTN_PRIMARY,
+  FormField as Field
+} from './FormPrimitives.jsx';
 
 export default function UpdateChannelForm({
   formData = {},
@@ -130,47 +117,45 @@ export default function UpdateChannelForm({
   const isLive = formData.status === 'running' || formData.status === 'playing';
 
   return (
-    <div className="space-y-4 select-none">
+    <div className="space-y-3.5 select-none">
       <button
         type="button"
         onClick={onCancel}
-        className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-white transition cursor-pointer"
+        className="flex items-center gap-1.5 text-xs font-medium text-slate-400 hover:text-white transition cursor-pointer"
       >
         <ArrowLeft size={14} />
         <span>Back to Channels</span>
       </button>
 
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
         <div>
-          <div className="flex items-center gap-2.5">
-            <h1 className="text-xl font-bold text-white tracking-wide">
+          <div className="flex items-center gap-2">
+            <h1 className="text-base sm:text-lg 2xl:text-xl text-white tracking-tight">
               Update Channel: <span className="text-cyan-400">{formData.name || 'Channel'}</span>
             </h1>
             <span
-              className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                isLive
+              className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9.5px] font-bold uppercase tracking-wider ${isLive
                   ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-800/60'
                   : formData.status === 'error'
-                  ? 'bg-rose-950/80 text-rose-400 border border-rose-800/60'
-                  : 'bg-slate-800/60 text-slate-300 border border-slate-700/60'
-              }`}
+                    ? 'bg-rose-950/80 text-rose-400 border border-rose-800/60'
+                    : 'bg-slate-800/60 text-slate-300 border border-slate-700/60'
+                }`}
             >
               <span
-                className={`w-1.5 h-1.5 rounded-full ${
-                  isLive ? 'bg-emerald-400 animate-pulse' : formData.status === 'error' ? 'bg-rose-400' : 'bg-slate-400'
-                }`}
+                className={`w-1.5 h-1.5 rounded-full ${isLive ? 'bg-emerald-400 animate-pulse' : formData.status === 'error' ? 'bg-rose-400' : 'bg-slate-400'
+                  }`}
               />
               <span>{isLive ? 'Live Playout' : formData.status || 'Idle'}</span>
             </span>
           </div>
-          <p className="text-xs text-slate-400 mt-0.5">
+          <p className="text-[11px] 2xl:text-xs text-slate-400 mt-0.5">
             Modify playout pipeline, media server routing, storage quota, and FFmpeg output encoding
           </p>
         </div>
 
         {formData.createdBy && (
-          <div className="text-[11px] text-slate-400 bg-[#0d121f] border border-[#1b253b] px-3 py-1.5 rounded-xl flex items-center gap-1.5 shrink-0">
-            <Info size={13} className="text-slate-400" />
+          <div className="text-[11px] text-slate-400 bg-[#10141e] border border-[#1e2638] px-2.5 py-1 rounded-lg flex items-center gap-1.5 shrink-0">
+            <Info size={12} className="text-slate-400" />
             <span>
               Managed by:{' '}
               <span className="text-slate-200 font-semibold">
@@ -183,27 +168,27 @@ export default function UpdateChannelForm({
 
       <form
         onSubmit={onSubmit}
-        className="bg-[#0b0e18] border border-[#161f33] rounded-2xl p-6 sm:p-8 space-y-6 shadow-2xl"
+        className={`${FORM_CARD_CLASS} space-y-4 2xl:space-y-5`}
       >
         {/* 1. Channel Identity */}
         <div>
-          <h2 className="text-xs font-bold uppercase tracking-wider text-cyan-400 mb-3 flex items-center gap-1.5">
-            <Tv size={14} />
+          <h2 className="text-[11px] font-bold uppercase tracking-wider text-cyan-400 mb-2.5 flex items-center gap-1.5">
+            <Tv size={13} />
             <span>Channel Identity & Stream Key</span>
           </h2>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-xs">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 text-xs">
             {/* Channel Name */}
             <Field label="Channel Name" required hint="Renaming updates assets and directories">
-              <div className={shellClass}>
-                <Tv size={15} className="text-slate-500 shrink-0" />
+              <div className={FORM_SHELL_CLASS}>
+                <Tv size={14} className="text-slate-500 shrink-0" />
                 <input
                   type="text"
                   required
                   value={formData.name || ''}
                   onChange={set('name')}
                   placeholder="Enter channel name"
-                  className={inputClass}
+                  className={FORM_INPUT_CLASS}
                 />
               </div>
             </Field>
@@ -214,21 +199,21 @@ export default function UpdateChannelForm({
               hint="Flussonic stream slug (a-z, 0-9, _, -)"
             >
               <div className="flex items-center gap-2">
-                <div className={`${shellClass} flex-1`}>
-                  <Radio size={15} className="text-slate-500 shrink-0" />
+                <div className={`${FORM_SHELL_CLASS} flex-1`}>
+                  <Radio size={14} className="text-slate-500 shrink-0" />
                   <input
                     type="text"
                     value={formData.streamKey || ''}
                     onChange={set('streamKey')}
                     placeholder={endpoints.streamKey}
-                    className={inputClass}
+                    className={FORM_INPUT_CLASS}
                   />
                 </div>
                 <button
                   type="button"
                   onClick={handleAutoSlug}
                   title="Regenerate Stream Key from Channel Name"
-                  className="px-3 py-2.5 rounded-xl bg-[#121929] hover:bg-[#1a253d] border border-[#222f49] text-cyan-400 text-xs font-bold transition cursor-pointer shrink-0 flex items-center gap-1"
+                  className="px-2.5 py-1.5 2xl:py-2 rounded-lg bg-[#141b2b] hover:bg-[#1a253d] border border-[#222f49] text-cyan-400 text-xs font-semibold transition cursor-pointer shrink-0 flex items-center gap-1"
                 >
                   <Sparkles size={13} />
                   <span className="hidden sm:inline">Auto</span>
@@ -239,17 +224,17 @@ export default function UpdateChannelForm({
         </div>
 
         {/* 2. Infrastructure & Operator Assignment */}
-        <div className="pt-2 border-t border-[#161f33]">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-cyan-400 mb-3 flex items-center gap-1.5">
-            <ServerIcon size={14} />
+        <div className="pt-3 border-t border-[#1a2234]">
+          <h2 className="text-[11px] font-bold uppercase tracking-wider text-cyan-400 mb-2.5 flex items-center gap-1.5">
+            <ServerIcon size={13} />
             <span>Server & Operator Assignment</span>
           </h2>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-xs">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 text-xs">
             {/* Media Server Selection */}
             <Field label="Media Server" required hint="Assigned Flussonic streaming host">
-              <div className={shellClass}>
-                <ServerIcon size={15} className="text-slate-500 shrink-0" />
+              <div className={FORM_SHELL_CLASS}>
+                <ServerIcon size={14} className="text-slate-500 shrink-0" />
                 <select
                   required
                   value={formData.server || ''}
@@ -270,8 +255,8 @@ export default function UpdateChannelForm({
 
             {/* Assigned User */}
             <Field label="Assigned User" required hint="User responsible for managing playout">
-              <div className={shellClass}>
-                <UserCheck size={15} className="text-slate-500 shrink-0" />
+              <div className={FORM_SHELL_CLASS}>
+                <UserCheck size={14} className="text-slate-500 shrink-0" />
                 <select
                   required
                   value={formData.assignedUser || ''}
@@ -293,7 +278,7 @@ export default function UpdateChannelForm({
         </div>
 
         {/* 3. Live Streaming Endpoints Preview Card */}
-        <div className="p-4 rounded-xl bg-[#070a12] border border-[#1a2337] space-y-3">
+        <div className="p-3 rounded-lg bg-[#090d16] border border-[#1c2538] space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
               <Radio size={14} className="text-cyan-400" />
@@ -340,19 +325,19 @@ export default function UpdateChannelForm({
         </div>
 
         {/* 4. Storage Quota & Live Usage */}
-        <div className="pt-2 border-t border-[#161f33]">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-cyan-400 mb-3 flex items-center gap-1.5">
-            <HardDrive size={14} />
+        <div className="pt-3 border-t border-[#1a2234]">
+          <h2 className="text-[11px] font-bold uppercase tracking-wider text-cyan-400 mb-2.5 flex items-center gap-1.5">
+            <HardDrive size={13} />
             <span>Media Storage & Disk Quota</span>
           </h2>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-xs">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 text-xs">
             <Field
               label="Allocated Storage Quota"
               hint="0 or blank = Unlimited disk allocation"
             >
-              <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#090d16] border border-[#1a2337] focus-within:border-[#00bcd4] transition">
-                <HardDrive size={15} className="text-slate-500 shrink-0" />
+              <div className={FORM_SHELL_CLASS}>
+                <HardDrive size={14} className="text-slate-500 shrink-0" />
                 <input
                   type="number"
                   min="0"
@@ -360,7 +345,7 @@ export default function UpdateChannelForm({
                   value={formData.allocatedStorageAmount ?? ''}
                   onChange={set('allocatedStorageAmount')}
                   placeholder="e.g. 50 (or leave empty for unlimited)"
-                  className={inputClass}
+                  className={FORM_INPUT_CLASS}
                 />
                 <select
                   value={formData.allocatedStorageUnit || 'GB'}
@@ -375,7 +360,7 @@ export default function UpdateChannelForm({
             </Field>
 
             {/* Current Disk Usage Display Card */}
-            <div className="p-3.5 rounded-xl bg-[#090d16] border border-[#1a2337] flex flex-col justify-between">
+            <div className="p-2.5 rounded-lg bg-[#090d16] border border-[#1c2538] flex flex-col justify-between">
               <div className="flex items-center justify-between text-xs mb-1">
                 <span className="text-slate-400 font-semibold">Current Disk Usage:</span>
                 <span className="font-mono font-bold text-cyan-400">{usedStorageFormatted}</span>
@@ -397,19 +382,19 @@ export default function UpdateChannelForm({
         </div>
 
         {/* 5. Playout Output Settings (FFmpeg Specs) */}
-        <div className="pt-2 border-t border-[#161f33]">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-cyan-400 mb-3 flex items-center gap-1.5">
-            <Sliders size={14} />
+        <div className="pt-3 border-t border-[#1a2234]">
+          <h2 className="text-[11px] font-bold uppercase tracking-wider text-cyan-400 mb-2.5 flex items-center gap-1.5">
+            <Sliders size={13} />
             <span>Output Playout Encoding Settings (FFmpeg)</span>
           </h2>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
             {/* Resolution */}
             <Field label="Resolution" hint="Width × Height">
               <select
                 value={formData.resolution || '1280x720'}
                 onChange={set('resolution')}
-                className={selectClass}
+                className={FORM_SELECT_CLASS}
               >
                 <option value="1920x1080" className="bg-[#0b0e18]">1920x1080 (1080p FHD)</option>
                 <option value="1280x720" className="bg-[#0b0e18]">1280x720 (720p HD)</option>
@@ -423,7 +408,7 @@ export default function UpdateChannelForm({
               <select
                 value={formData.fps || 25}
                 onChange={set('fps', Number)}
-                className={selectClass}
+                className={FORM_SELECT_CLASS}
               >
                 <option value={25} className="bg-[#0b0e18]">25 FPS (Broadcast / PAL)</option>
                 <option value={30} className="bg-[#0b0e18]">30 FPS (NTSC Standard)</option>
@@ -437,7 +422,7 @@ export default function UpdateChannelForm({
               <select
                 value={formData.videoBitrate || '2500k'}
                 onChange={set('videoBitrate')}
-                className={selectClass}
+                className={FORM_SELECT_CLASS}
               >
                 <option value="6000k" className="bg-[#0b0e18]">6000k (High Quality FHD)</option>
                 <option value="4000k" className="bg-[#0b0e18]">4000k (Pro HD 1080p)</option>
@@ -452,7 +437,7 @@ export default function UpdateChannelForm({
               <select
                 value={formData.audioBitrate || '128k'}
                 onChange={set('audioBitrate')}
-                className={selectClass}
+                className={FORM_SELECT_CLASS}
               >
                 <option value="320k" className="bg-[#0b0e18]">320k (Studio Master)</option>
                 <option value="256k" className="bg-[#0b0e18]">256k (Pro Audio)</option>
@@ -465,17 +450,17 @@ export default function UpdateChannelForm({
         </div>
 
         {/* Action Buttons */}
-        <div className="pt-4 border-t border-[#161f33] flex items-center justify-end gap-3">
+        <div className="pt-3 border-t border-[#1a2234] flex items-center justify-end gap-2.5">
           <button
             type="button"
             onClick={onCancel}
-            className="px-5 py-2.5 rounded-xl text-xs font-semibold text-slate-300 hover:bg-[#161f33] transition cursor-pointer"
+            className={FORM_BTN_CANCEL}
           >
             Cancel
           </button>
           <button
             type="submit"
-            className="px-6 py-2.5 rounded-xl text-xs font-extrabold bg-[#00bcd4] hover:bg-[#06b6d4] text-black shadow-lg shadow-cyan-500/20 transition cursor-pointer flex items-center gap-2"
+            className={FORM_BTN_PRIMARY}
           >
             <Radio size={14} />
             <span>Save Changes</span>

@@ -16,6 +16,10 @@ import {
   Sparkles,
   AlertCircle
 } from 'lucide-react';
+import TableScrollContainer from '../table/TableScrollContainer.jsx';
+
+const BAND_GRID_COLS =
+  'grid grid-cols-[64px_minmax(150px,1.4fr)_100px_130px_115px_86px_96px] items-center gap-2.5';
 
 const DAYS_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -66,31 +70,28 @@ export default function BandTable({
   };
 
   return (
-    <div className="space-y-5 select-none font-sans">
+    <div className="space-y-3.5 2xl:space-y-4 select-none font-sans">
       {/* Top Header & Channel Switcher */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5">
         <div>
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-cyan-950/80 border border-cyan-800/60 flex items-center justify-center text-cyan-400 shadow-lg shadow-cyan-500/10">
-              {isLBand ? <PanelBottom size={18} /> : <CreditCard size={18} />}
-            </div>
-            <h1 className="text-xl sm:text-2xl font-bold text-white tracking-wide font-mono">
+          <div className="flex items-center gap-2">
+            <h1 className="text-base sm:text-lg 2xl:text-xl text-white tracking-tight">
               {isLBand ? 'L-Band Graphic Overlays' : 'Ashton Band Banner Overlays'}
             </h1>
           </div>
-          <p className="text-xs text-slate-400 mt-1 font-mono">
+          <p className="text-[11px] 2xl:text-xs text-slate-400 mt-0.5">
             {isLBand
               ? 'Multi-schedule L-Band commercial squeezes with duration and repeat intervals'
               : 'Multi-schedule lower-third Ashton banners with program squeeze and repeat intervals'}
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           {/* Channel Selector for Admins */}
           {canSwitchChannel && (
-            <div className="flex items-center gap-2 bg-[#0b0e18] border border-[#1a2337] px-3.5 py-2 rounded-xl font-mono text-xs shadow-sm">
-              <Tv size={15} className="text-[#00bcd4] shrink-0" />
-              <span className="text-slate-400">Channel:</span>
+            <div className="flex items-center gap-1.5 bg-[#0f131c] border border-[#1f2738] px-2.5 py-1.5 2xl:py-2 rounded-lg text-xs">
+              {/* <Tv size={14} className="text-[#00bcd4] shrink-0" />
+              <span className="text-slate-400">Channel:</span> */}
               <select
                 value={selectedChannelId || ''}
                 onChange={(e) => onSelectChannel?.(e.target.value)}
@@ -107,33 +108,33 @@ export default function BandTable({
 
           {/* Search box */}
           <div className="relative">
-            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => onSearchChange?.(e.target.value)}
               placeholder={`Search ${isLBand ? 'L-Bands' : 'Ashton Bands'}...`}
-              className="w-44 sm:w-56 pl-9 pr-3.5 py-2 bg-[#090d16] border border-[#1c2539] rounded-xl text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-[#00bcd4] transition font-mono"
+              className="w-44 sm:w-52 2xl:w-60 pl-8 pr-3 py-1.5 2xl:py-2 bg-[#0f131c] border border-[#1f2738] rounded-lg text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-[#00bcd4] transition"
             />
           </div>
 
           {/* Add Band Button */}
           <button
             onClick={onCreate}
-            className="px-4 py-2 rounded-xl bg-[#00bcd4] hover:bg-[#06b6d4] text-black font-extrabold text-xs flex items-center gap-2 shadow-lg shadow-cyan-500/20 transition cursor-pointer font-mono"
+            className="px-3 py-1.5 2xl:px-3.5 2xl:py-2 rounded-lg bg-[#00bcd4] hover:bg-[#06b6d4] text-black font-bold text-xs flex items-center gap-1.5 shadow-md shadow-cyan-500/20 transition cursor-pointer shrink-0"
           >
-            <PlusCircle size={15} />
+            <PlusCircle size={14} />
             <span>Add {isLBand ? 'L-Band' : 'Ashton Band'}</span>
           </button>
         </div>
       </div>
 
       {/* Table Container */}
-      <div className="bg-[#0b0e18] border border-[#161f33] rounded-2xl overflow-hidden shadow-2xl">
-        <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-[#1e2738] scrollbar-track-transparent">
-          <div className="min-w-[960px]">
+      <div className="bg-[#10141e] border border-[#1e2638] rounded-xl 2xl:rounded-2xl overflow-hidden shadow-xl">
+        <TableScrollContainer>
+          <div className="w-full min-w-[836px]">
             {/* Table Header */}
-            <div className="grid grid-cols-[80px_minmax(220px,1.5fr)_130px_160px_150px_100px_130px] items-center gap-4 px-5 py-3.5 bg-[#0e1320] border-b border-[#161f33] text-[10px] uppercase font-bold text-slate-400 font-mono tracking-wider">
+            <div className={`${BAND_GRID_COLS} px-4 py-2.5 2xl:px-5 2xl:py-3 bg-[#131926] border-b border-[#1e2638] text-[10px] 2xl:text-[10.5px] uppercase font-bold text-slate-400 tracking-wider`}>
               <div>Preview</div>
               <div>Schedule Title</div>
               <div>Airing Type</div>
@@ -144,21 +145,21 @@ export default function BandTable({
             </div>
 
             {/* Table Body */}
-            <div className="divide-y divide-[#131b2e]">
+            <div className="divide-y divide-[#171f31]">
               {isLoading ? (
-                <div className="py-16 text-center text-slate-400 text-xs font-mono">
-                  <div className="w-6 h-6 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                <div className="py-12 text-center text-slate-400 text-xs">
+                  <div className="w-5 h-5 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
                   Loading schedules...
                 </div>
               ) : filtered.length === 0 ? (
-                <div className="py-16 text-center text-slate-400 font-mono space-y-2">
-                  <div className="w-12 h-12 rounded-2xl bg-cyan-950/40 border border-cyan-800/40 flex items-center justify-center text-cyan-400 mx-auto mb-3">
-                    {isLBand ? <PanelBottom size={22} /> : <CreditCard size={22} />}
+                <div className="py-12 text-center text-slate-400 space-y-2">
+                  <div className="w-10 h-10 rounded-xl bg-cyan-950/40 border border-cyan-800/40 flex items-center justify-center text-cyan-400 mx-auto mb-2">
+                    {isLBand ? <PanelBottom size={18} /> : <CreditCard size={18} />}
                   </div>
-                  <p className="text-white font-bold text-sm">
+                  <p className="text-white font-semibold text-xs">
                     No {isLBand ? 'L-Band' : 'Ashton Band'} schedules found
                   </p>
-                  <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                  <p className="text-[11px] text-slate-500 max-w-sm mx-auto">
                     {searchQuery
                       ? 'No items match your search filter.'
                       : `Channel "${currentChannel?.name || 'this channel'}" does not have any ${isLBand ? 'L-Band' : 'Ashton Band'} schedules configured yet.`}
@@ -166,9 +167,9 @@ export default function BandTable({
                   {!searchQuery && (
                     <button
                       onClick={onCreate}
-                      className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-cyan-950 border border-cyan-800 text-cyan-300 hover:bg-cyan-900/60 transition text-xs font-bold cursor-pointer"
+                      className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-950 border border-cyan-800 text-cyan-300 hover:bg-cyan-900/60 transition text-xs font-semibold cursor-pointer"
                     >
-                      <PlusCircle size={14} />
+                      <PlusCircle size={13} />
                       <span>Create First {isLBand ? 'L-Band' : 'Ashton Band'}</span>
                     </button>
                   )}
@@ -185,12 +186,12 @@ export default function BandTable({
                   return (
                     <div
                       key={item._id}
-                      className="grid grid-cols-[80px_minmax(220px,1.5fr)_130px_160px_150px_100px_130px] items-center gap-4 px-5 py-3 hover:bg-[#101524] transition text-xs font-mono"
+                      className={`${BAND_GRID_COLS} px-4 py-2.5 2xl:px-5 2xl:py-3 hover:bg-[#141b29] transition text-xs`}
                     >
                       {/* 1. Preview Thumbnail */}
                       <div>
                         {imgUrl ? (
-                          <div className="w-14 h-9 rounded-lg bg-black/60 border border-[#202c44] overflow-hidden flex items-center justify-center relative group">
+                          <div className="w-12 h-8 rounded-md bg-black/60 border border-[#202c44] overflow-hidden flex items-center justify-center relative group">
                             <img
                               src={imgUrl}
                               alt={item.title}
@@ -198,7 +199,7 @@ export default function BandTable({
                             />
                           </div>
                         ) : (
-                          <div className="w-14 h-9 rounded-lg bg-[#0e1422] border border-[#1b253b] flex items-center justify-center text-slate-500 text-[10px]">
+                          <div className="w-12 h-8 rounded-md bg-[#0e1422] border border-[#1b253b] flex items-center justify-center text-slate-500 text-[10px]">
                             No Img
                           </div>
                         )}
@@ -206,10 +207,10 @@ export default function BandTable({
 
                       {/* 2. Title & Specifics */}
                       <div className="truncate">
-                        <span className="font-bold text-white block truncate text-sm">
+                        <span className="font-semibold text-white block truncate text-xs">
                           {item.title}
                         </span>
-                        <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5">
+                        <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5 font-mono">
                           {isLBand ? (
                             <span>Cutout: {item.windowWidth || 960}x{item.windowHeight || 540}</span>
                           ) : (
@@ -223,13 +224,12 @@ export default function BandTable({
                       {/* 3. Airing Type */}
                       <div>
                         <span
-                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                            item.scheduleOption === '24/7'
-                              ? 'bg-blue-950/80 text-blue-300 border border-blue-800/60'
-                              : item.scheduleOption === 'weekly'
+                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${item.scheduleOption === '24/7'
+                            ? 'bg-blue-950/80 text-blue-300 border border-blue-800/60'
+                            : item.scheduleOption === 'weekly'
                               ? 'bg-purple-950/80 text-purple-300 border border-purple-800/60'
                               : 'bg-amber-950/80 text-amber-300 border border-amber-800/60'
-                          }`}
+                            }`}
                         >
                           <Calendar size={11} />
                           <span>{item.scheduleOption || '24/7'}</span>
@@ -277,11 +277,10 @@ export default function BandTable({
                         <button
                           type="button"
                           onClick={() => onToggleStatus?.(item)}
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold border transition cursor-pointer ${
-                            item.enabled
-                              ? 'bg-emerald-950/80 text-emerald-300 border-emerald-800/80 hover:bg-emerald-900/60'
-                              : 'bg-slate-800/60 text-slate-400 border-slate-700 hover:text-white'
-                          }`}
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold border transition cursor-pointer ${item.enabled
+                            ? 'bg-emerald-950/80 text-emerald-300 border-emerald-800/80 hover:bg-emerald-900/60'
+                            : 'bg-slate-800/60 text-slate-400 border-slate-700 hover:text-white'
+                            }`}
                         >
                           <span className={`w-1.5 h-1.5 rounded-full ${item.enabled ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`} />
                           <span>{item.enabled ? 'Active' : 'Disabled'}</span>
@@ -331,7 +330,7 @@ export default function BandTable({
               )}
             </div>
           </div>
-        </div>
+        </TableScrollContainer>
       </div>
     </div>
   );

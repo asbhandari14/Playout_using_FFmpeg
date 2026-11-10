@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { Layers, Calendar, Clock, Radio, Pencil, Trash2, ExternalLink } from 'lucide-react';
 import { PLAYLIST_TYPE_CONFIG, formatScheduleSummary, isPlaylistActiveNow } from '../../hooks/usePlaylist.js';
+import TableScrollContainer from './TableScrollContainer.jsx';
 
-const SCHEDULE_GRID_COLS = 'grid grid-cols-[140px_minmax(200px,1.4fr)_140px_minmax(180px,1.2fr)_130px_100px_130px_100px] items-center gap-4';
+const SCHEDULE_GRID_COLS =
+  'grid grid-cols-[126px_minmax(130px,1.3fr)_minmax(90px,0.9fr)_minmax(120px,1.1fr)_106px_84px_98px_92px] items-center gap-2';
 
 export default function PlaylistScheduleTable({
   playlists = [],
@@ -14,12 +16,12 @@ export default function PlaylistScheduleTable({
   const now = new Date(currentTick);
 
   return (
-    <div className="bg-[#0b0e18] border border-[#161f33] rounded-2xl overflow-hidden shadow-2xl">
+    <div className="bg-[#10141e] border border-[#1e2638] rounded-xl 2xl:rounded-2xl overflow-hidden shadow-xl">
       {/* Horizontal Scaling & Scrolling Container */}
-      <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-[#1e2738] scrollbar-track-transparent">
-        <div className="min-w-[1150px]">
+      <TableScrollContainer>
+        <div className="w-full min-w-[936px]">
           {/* Grid Header */}
-          <div className={`px-5 py-3.5 bg-[#0e1320] border-b border-[#161f33] text-[10px] uppercase font-extrabold text-slate-400 tracking-wider ${SCHEDULE_GRID_COLS}`}>
+          <div className={`px-4 py-2.5 2xl:px-5 2xl:py-3 bg-[#131926] border-b border-[#1e2638] text-[10px] 2xl:text-[10.5px] uppercase font-bold text-slate-400 tracking-wider ${SCHEDULE_GRID_COLS}`}>
             <div>Priority & Type</div>
             <div>Playlist Name</div>
             <div>Channel</div>
@@ -31,10 +33,10 @@ export default function PlaylistScheduleTable({
           </div>
 
           {/* Grid Body */}
-          <div className="divide-y divide-[#131b2e]">
+          <div className="divide-y divide-[#171f31]">
             {playlists.length === 0 ? (
-              <div className="py-12 text-center text-slate-500 text-xs">
-                No playlists found for this section. Click "+ Create Playlist" to configure one.
+              <div className="py-10 text-center text-slate-500 text-xs">
+                No playlists found for this section. Click "Create" to configure one.
               </div>
             ) : (
               playlists.map((playlist) => {
@@ -46,12 +48,12 @@ export default function PlaylistScheduleTable({
                 return (
                   <div
                     key={playlist._id}
-                    className={`px-5 py-3.5 hover:bg-[#101524] transition text-xs ${SCHEDULE_GRID_COLS}`}
+                    className={`px-4 py-2.5 2xl:px-5 2xl:py-3 hover:bg-[#141b29] transition text-xs ${SCHEDULE_GRID_COLS}`}
                   >
                     {/* Priority & Type */}
                     <div>
                       <span
-                        className={`inline-flex items-center gap-1.5 font-mono text-[10px] font-bold px-2.5 py-1 rounded-lg border uppercase tracking-wider ${typeConfig.colorClass}`}
+                        className={`inline-flex items-center gap-1 font-mono text-[9.5px] font-bold px-2 py-0.5 rounded-md border uppercase tracking-wider ${typeConfig.colorClass}`}
                       >
                         <span>P{playlist.priority || typeConfig.priority}</span>
                         <span>•</span>
@@ -62,15 +64,15 @@ export default function PlaylistScheduleTable({
                     {/* Playlist Name */}
                     <div>
                       <div className="flex items-center gap-2 max-w-full">
-                        <div className="w-7 h-7 rounded-lg bg-[#121929] border border-[#222f49] flex items-center justify-center text-[#00bcd4] shrink-0">
+                        <div className="w-6 h-6 2xl:w-7 2xl:h-7 rounded-md 2xl:rounded-lg bg-[#151d2e] border border-[#232f48] flex items-center justify-center text-[#00bcd4] shrink-0">
                           {playlist.type === 'live_schedule' ? (
-                            <Radio size={14} />
+                            <Radio size={13} />
                           ) : (
-                            <Layers size={14} />
+                            <Layers size={13} />
                           )}
                         </div>
                         <div className="truncate">
-                          <span className="font-bold text-white block truncate">
+                          <span className="font-semibold text-white block truncate">
                             {playlist.name}
                           </span>
                           {playlist.type === 'live_schedule' && playlist.liveSourceUrl && (
@@ -180,7 +182,7 @@ export default function PlaylistScheduleTable({
             )}
           </div>
         </div>
-      </div>
+      </TableScrollContainer>
     </div>
   );
 }

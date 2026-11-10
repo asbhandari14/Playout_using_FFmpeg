@@ -1,5 +1,6 @@
 import React from 'react';
 import { User as UserIcon, Pencil, Trash2, Shield, Calendar, CheckCircle2, XCircle } from 'lucide-react';
+import TableScrollContainer from './TableScrollContainer.jsx';
 
 const ROLE_CONFIG = {
   super_admin: {
@@ -20,17 +21,17 @@ const ROLE_CONFIG = {
 };
 
 const USER_GRID_COLS =
-  'grid grid-cols-[minmax(240px,1.6fr)_140px_130px_minmax(180px,1.2fr)_100px] items-center gap-4';
+  'grid grid-cols-[minmax(180px,1.5fr)_115px_100px_minmax(145px,1.1fr)_76px] items-center gap-2.5';
 
 export default function UserTable({ users = [], onEdit, onDelete }) {
   return (
-    <div className="bg-[#0b0e18] border border-[#161f33] rounded-2xl overflow-hidden shadow-2xl">
+    <div className="bg-[#10141e] border border-[#1e2638] rounded-xl 2xl:rounded-2xl overflow-hidden shadow-xl">
       {/* Horizontal Scaling & Scrolling Container */}
-      <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-[#1e2738] scrollbar-track-transparent">
-        <div className="min-w-[880px]">
+      <TableScrollContainer>
+        <div className="w-full min-w-[690px]">
           {/* Grid Header */}
           <div
-            className={`px-5 py-3.5 bg-[#0e1320] border-b border-[#161f33] text-[10px] uppercase font-extrabold text-slate-400 tracking-wider ${USER_GRID_COLS}`}
+            className={`px-4 py-2.5 2xl:px-5 2xl:py-3 bg-[#131926] border-b border-[#1e2638] text-[10px] 2xl:text-[10.5px] uppercase font-bold text-slate-400 tracking-wider ${USER_GRID_COLS}`}
           >
             <div>User Details</div>
             <div>Access Level</div>
@@ -40,9 +41,9 @@ export default function UserTable({ users = [], onEdit, onDelete }) {
           </div>
 
           {/* Grid Body */}
-          <div className="divide-y divide-[#131b2e]">
+          <div className="divide-y divide-[#171f31]">
             {users.length === 0 ? (
-              <div className="py-12 text-center text-slate-500 text-xs">
+              <div className="py-10 text-center text-slate-500 text-xs">
                 No users found matching your search.
               </div>
             ) : (
@@ -60,17 +61,17 @@ export default function UserTable({ users = [], onEdit, onDelete }) {
                 return (
                   <div
                     key={u._id}
-                    className={`px-5 py-3.5 hover:bg-[#101524] transition text-xs ${USER_GRID_COLS}`}
+                    className={`px-4 py-2.5 2xl:px-5 2xl:py-3 hover:bg-[#141b29] transition text-xs ${USER_GRID_COLS}`}
                   >
                     {/* User Details */}
                     <div>
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-xl bg-[#121929] border border-[#222f49] flex items-center justify-center text-cyan-400 shrink-0 font-bold text-xs">
-                          {u.name?.charAt(0)?.toUpperCase() || <UserIcon size={15} />}
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-7 h-7 rounded-lg bg-[#151d2e] border border-[#232f48] flex items-center justify-center text-cyan-400 shrink-0 font-bold text-[11px]">
+                          {u.name?.charAt(0)?.toUpperCase() || <UserIcon size={14} />}
                         </div>
                         <div className="truncate">
-                          <div className="font-bold text-white text-xs truncate">{u.name}</div>
-                          <div className="text-[11px] text-slate-400 truncate">{u.email}</div>
+                          <div className="font-semibold text-white text-xs truncate">{u.name}</div>
+                          <div className="text-[10.5px] text-slate-400 truncate">{u.email}</div>
                         </div>
                       </div>
                     </div>
@@ -78,9 +79,9 @@ export default function UserTable({ users = [], onEdit, onDelete }) {
                     {/* Access Level */}
                     <div>
                       <span
-                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-semibold capitalize tracking-wide ${roleConfig.classes}`}
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10.5px] font-semibold capitalize ${roleConfig.classes}`}
                       >
-                        <Shield size={12} className="shrink-0" />
+                        <Shield size={11} className="shrink-0" />
                         <span>{roleConfig.label}</span>
                       </span>
                     </div>
@@ -88,7 +89,7 @@ export default function UserTable({ users = [], onEdit, onDelete }) {
                     {/* Status */}
                     <div>
                       <span
-                        className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                        className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold ${
                           isActive
                             ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-800/60'
                             : 'bg-rose-950/80 text-rose-400 border border-rose-800/60'
@@ -114,7 +115,7 @@ export default function UserTable({ users = [], onEdit, onDelete }) {
                       </div>
                       {createdDate && (
                         <div className="text-[10px] text-slate-500 flex items-center gap-1">
-                          <Calendar size={11} className="shrink-0" />
+                          <Calendar size={10} className="shrink-0" />
                           <span>Joined {createdDate}</span>
                         </div>
                       )}
@@ -122,20 +123,20 @@ export default function UserTable({ users = [], onEdit, onDelete }) {
 
                     {/* Actions */}
                     <div className="text-right">
-                      <div className="flex items-center justify-end gap-2.5">
+                      <div className="flex items-center justify-end gap-1.5">
                         <button
                           onClick={() => onEdit?.(u)}
-                          className="p-1.5 rounded-lg text-emerald-400 hover:text-emerald-300 hover:bg-emerald-950/30 transition cursor-pointer"
+                          className="p-1 rounded-md text-emerald-400 hover:text-emerald-300 hover:bg-emerald-950/30 transition cursor-pointer"
                           title="Edit User"
                         >
-                          <Pencil size={15} />
+                          <Pencil size={14} />
                         </button>
                         <button
                           onClick={() => onDelete?.('user', u)}
-                          className="p-1.5 rounded-lg text-rose-500 hover:text-rose-400 hover:bg-rose-950/30 transition cursor-pointer"
+                          className="p-1 rounded-md text-rose-500 hover:text-rose-400 hover:bg-rose-950/30 transition cursor-pointer"
                           title="Delete User"
                         >
-                          <Trash2 size={15} />
+                          <Trash2 size={14} />
                         </button>
                       </div>
                     </div>
@@ -145,7 +146,7 @@ export default function UserTable({ users = [], onEdit, onDelete }) {
             )}
           </div>
         </div>
-      </div>
+      </TableScrollContainer>
     </div>
   );
 }

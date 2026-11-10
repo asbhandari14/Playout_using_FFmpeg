@@ -8,29 +8,16 @@ import {
   User as UserIcon,
   Eye,
   EyeOff,
-  Sparkles,
   Info
 } from 'lucide-react';
-
-const shellClass =
-  'flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-[#090d16] border border-[#1a2337] focus-within:border-[#00bcd4] transition';
-const inputClass =
-  'w-full bg-transparent text-slate-100 placeholder-slate-500 focus:outline-none text-lg';
-
-function Field({ label, hint, required, children, className = '' }) {
-  return (
-    <div className={className}>
-      <div className="flex items-center justify-between mb-1.5">
-        <label className="text-slate-300 flex items-center gap-1 text-sm">
-          <span>{label}</span>
-          {required && <span className="text-cyan-400 font-bold">*</span>}
-        </label>
-        {hint && <span className="text-[10px] text-slate-500">{hint}</span>}
-      </div>
-      {children}
-    </div>
-  );
-}
+import {
+  FORM_CARD_CLASS,
+  FORM_SHELL_CLASS,
+  FORM_INPUT_CLASS,
+  FORM_BTN_CANCEL,
+  FORM_BTN_PRIMARY,
+  FormField as Field
+} from './FormPrimitives.jsx';
 
 export default function UpdateUserForm({
   formData = {},
@@ -85,11 +72,11 @@ export default function UpdateUserForm({
   // const displayName = formData.name || formData.username || 'User';
 
   return (
-    <div className="space-y-4 select-none">
+    <div className="space-y-3.5 select-none">
       <button
         type="button"
         onClick={onCancel}
-        className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-white transition cursor-pointer"
+        className="flex items-center gap-1.5 text-xs font-medium text-slate-400 hover:text-white transition cursor-pointer"
       >
         <ArrowLeft size={14} />
         <span>Back to Users</span>
@@ -97,20 +84,20 @@ export default function UpdateUserForm({
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <div>
-          <h1 className="text-2xl text-white tracking-wide">
+          <h1 className="text-base sm:text-lg 2xl:text-xl text-white tracking-tight">
             Update User
           </h1>
-          <p className="text-sm text-slate-400 mt-0.5">
+          <p className="text-[11px] 2xl:text-xs text-slate-400 mt-0.5">
             Modify account details, credentials, access role, and active status
           </p>
         </div>
 
         {formData.createdBy && (
-          <div className="text-[11px] text-slate-500 bg-[#0d121f] border border-[#1b253b] px-3 py-1.5 rounded-xl flex items-center gap-1.5 shrink-0">
-            <Info size={13} className="text-slate-400" />
+          <div className="text-[11px] text-slate-400 bg-[#10141e] border border-[#1e2638] px-2.5 py-1 rounded-lg flex items-center gap-1.5 shrink-0">
+            <Info size={12} className="text-slate-400" />
             <span>
               Managed by:{' '}
-              <span className="text-slate-300 font-semibold">
+              <span className="text-slate-200 font-semibold">
                 {formData.createdBy?.name || formData.createdBy?.email || 'System'}
               </span>
             </span>
@@ -120,35 +107,35 @@ export default function UpdateUserForm({
 
       <form
         onSubmit={onSubmit}
-        className="bg-[#0b0e18] border border-[#161f33] rounded-2xl p-6 sm:p-8 space-y-6 shadow-2xl"
+        className={`${FORM_CARD_CLASS} space-y-4`}
       >
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-xs">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 text-xs">
           {/* Full Name */}
           <Field label="Full Name" required hint="Display name in system">
-            <div className={shellClass}>
-              <UserIcon size={15} className="text-slate-500 shrink-0" />
+            <div className={FORM_SHELL_CLASS}>
+              <UserIcon size={14} className="text-slate-500 shrink-0" />
               <input
                 type="text"
                 required
                 value={formData.name || formData.username || ''}
                 onChange={set('name')}
                 placeholder="Enter user name"
-                className={inputClass}
+                className={FORM_INPUT_CLASS}
               />
             </div>
           </Field>
 
           {/* Email Address */}
           <Field label="Email Address" required hint="Used for system login">
-            <div className={shellClass}>
-              <Mail size={15} className="text-slate-500 shrink-0" />
+            <div className={FORM_SHELL_CLASS}>
+              <Mail size={14} className="text-slate-500 shrink-0" />
               <input
                 type="email"
                 required
                 value={formData.email || ''}
                 onChange={set('email')}
                 placeholder="user@playout.com"
-                className={inputClass}
+                className={FORM_INPUT_CLASS}
               />
             </div>
           </Field>
@@ -158,15 +145,15 @@ export default function UpdateUserForm({
             label="New Password"
             hint="Leave blank to keep existing password"
           >
-            <div className={shellClass}>
-              <Lock size={15} className="text-slate-500 shrink-0" />
+            <div className={FORM_SHELL_CLASS}>
+              <Lock size={14} className="text-slate-500 shrink-0" />
               <input
                 type={showPassword ? 'text' : 'password'}
                 minLength={6}
                 value={formData.password || ''}
                 onChange={set('password')}
                 placeholder="Leave blank to keep current password"
-                className={inputClass}
+                className={FORM_INPUT_CLASS}
               />
               <button
                 type="button"
@@ -185,13 +172,13 @@ export default function UpdateUserForm({
             required
             hint={isAdmin ? 'Admins cannot elevate users' : 'Select permission tier'}
           >
-            <div className={shellClass}>
-              <Shield size={15} className="text-slate-500 shrink-0" />
+            <div className={FORM_SHELL_CLASS}>
+              <Shield size={14} className="text-slate-500 shrink-0" />
               <select
                 value={selectedRole}
                 onChange={set('role')}
                 disabled={isAdmin}
-                className="w-full bg-transparent text-slate-100 focus:outline-none text-lg cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
+                className="w-full bg-transparent text-slate-100 focus:outline-none text-xs cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
               >
                 <option value="user" className="bg-[#0b0e18] text-slate-200">
                   User
@@ -228,8 +215,8 @@ export default function UpdateUserForm({
         </div> */}
 
         {/* Account Status Switch (isActive) */}
-        <div className="pt-2 border-t border-[#161f33]">
-          <label className="flex items-center justify-between p-3.5 rounded-xl bg-[#090d16] border border-[#1a2337] cursor-pointer hover:border-slate-600 transition">
+        <div className="pt-3 border-t border-[#1a2234]">
+          <label className="flex items-center justify-between p-2.5 rounded-lg bg-[#090d16] border border-[#1c2538] cursor-pointer hover:border-slate-600 transition">
             <div className="flex flex-col">
               <div className="flex items-center gap-2">
                 <span className="font-bold text-slate-200 text-xs">Account Status</span>
@@ -262,17 +249,17 @@ export default function UpdateUserForm({
         </div>
 
         {/* Action Buttons */}
-        <div className="pt-4 border-t border-[#161f33] flex items-center justify-end gap-3">
+        <div className="pt-3 border-t border-[#1a2234] flex items-center justify-end gap-2.5">
           <button
             type="button"
             onClick={onCancel}
-            className="px-5 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:bg-[#161f33] transition cursor-pointer"
+            className={FORM_BTN_CANCEL}
           >
             Cancel
           </button>
           <button
             type="submit"
-            className="px-6 py-2 rounded-xl text-xs font-extrabold bg-[#00bcd4] hover:bg-[#06b6d4] text-black shadow-lg shadow-cyan-500/20 transition cursor-pointer flex items-center gap-2"
+            className={FORM_BTN_PRIMARY}
           >
             <UserCheck size={14} />
             <span>Save Changes</span>

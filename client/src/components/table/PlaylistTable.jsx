@@ -19,6 +19,7 @@ import {
 import ConfirmDeleteModal from '../modals/ConfirmDeleteModal.jsx';
 import PlaylistSettingsModal from '../modals/PlaylistSettingsModal.jsx';
 import PlaylistSelector from '../playlist/PlaylistSelector.jsx';
+import TableScrollContainer from './TableScrollContainer.jsx';
 import { usePlaylist, PLAYLIST_TYPE_CONFIG } from '../../hooks/usePlaylist.js';
 
 const PLAYLIST_ROW_GRID = 'grid grid-cols-[22px_26px_minmax(150px,1fr)_52px_52px_72px_96px] xl:grid-cols-[24px_30px_minmax(170px,1fr)_58px_58px_78px_104px] 2xl:grid-cols-[30px_36px_minmax(220px,1fr)_70px_70px_88px_116px] items-center gap-1.5 2xl:gap-2';
@@ -225,8 +226,8 @@ export default function PlaylistTable({ channelId, onPlayFromIndex }) {
       )}
 
       {/* Playlist Grid Table with Horizontal Scaling & Scrolling Container */}
-      <div className="flex-1 overflow-x-auto overflow-y-auto scrollbar-thin scrollbar-thumb-[#1e2738] scrollbar-track-transparent min-h-0">
-        <div className="min-w-[540px]">
+      <TableScrollContainer allowVerticalScroll className="flex-1">
+        <div className="w-full min-w-[532px] xl:min-w-[584px] 2xl:min-w-[712px]">
           {/* Grid Header */}
           <div className={`px-3 py-1.5 2xl:px-4 2xl:py-2 bg-[#141822] text-slate-400 uppercase tracking-wider text-[9px] 2xl:text-[10px] font-bold sticky top-0 z-10 border-b border-[#202736] ${PLAYLIST_ROW_GRID}`}>
             <div className="text-center"></div>
@@ -415,7 +416,7 @@ export default function PlaylistTable({ channelId, onPlayFromIndex }) {
             )}
           </div>
         </div>
-      </div>
+      </TableScrollContainer>
 
       {/* Playlist Settings / Schedule Modal */}
       <PlaylistSettingsModal

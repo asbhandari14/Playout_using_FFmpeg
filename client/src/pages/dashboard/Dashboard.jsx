@@ -60,40 +60,43 @@ export default function Dashboard({ initialSection = 'channels', initialSubView 
   const { type: deleteType, item: deleteItem } = deleteModal.state;
 
   return (
-    <div className="min-h-screen bg-[#07090e] text-slate-100 flex flex-col font-sans select-none overflow-x-hidden">
+    <div className="h-screen bg-[#0a0d13] text-slate-100 flex flex-col font-sans select-none overflow-hidden">
       {/* Dashboard Header */}
       <DashboardHeader
         currentUser={currentUser}
         isProfileMenuOpen={nav.isProfileMenuOpen}
         onToggleProfileMenu={nav.toggleProfileMenu}
+        onToggleSidebar={nav.toggleSidebar}
         onLogoClick={() => nav.goToSection('channels')}
         onOpenControlRoom={actions.openControlRoom}
         onLogout={actions.logout}
       />
 
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden min-h-0 relative">
         {/* Dashboard Sidebar */}
         <DashboardSidebar
           currentUser={currentUser}
           isOpen={nav.isSidebarOpen}
+          onClose={() => nav.setIsSidebarOpen(false)}
           activeSection={activeSection}
           onNavigate={nav.goToSection}
         />
 
-        <main className="flex-1 overflow-y-auto bg-[#07090e] p-4 sm:p-6 lg:p-8">
-          {/* Notification alerts */}
-          {alerts.success && (
-            <div className="mb-4 p-3 bg-emerald-950/60 border border-emerald-800 rounded-xl text-emerald-300 text-xs flex items-center gap-2">
-              <CheckCircle2 size={16} />
-              <span>{alerts.success}</span>
-            </div>
-          )}
-          {alerts.error && (
-            <div className="mb-4 p-3 bg-rose-950/60 border border-rose-800 rounded-xl text-rose-300 text-xs flex items-center gap-2">
-              <AlertCircle size={16} />
-              <span>{alerts.error}</span>
-            </div>
-          )}
+        <main className="flex-1 overflow-y-auto bg-[#0a0d13] p-3 sm:p-4 lg:p-5 2xl:p-6 min-w-0">
+          <div className="max-w-[1600px] mx-auto w-full">
+            {/* Notification alerts */}
+            {alerts.success && (
+              <div className="mb-3 px-3 py-2 bg-emerald-950/60 border border-emerald-800 rounded-lg text-emerald-300 text-xs flex items-center gap-2">
+                <CheckCircle2 size={14} />
+                <span>{alerts.success}</span>
+              </div>
+            )}
+            {alerts.error && (
+              <div className="mb-3 px-3 py-2 bg-rose-950/60 border border-rose-800 rounded-lg text-rose-300 text-xs flex items-center gap-2">
+                <AlertCircle size={14} />
+                <span>{alerts.error}</span>
+              </div>
+            )}
 
           {/* 1. Channels */}
           {(activeSection === 'channels' || activeSection === 'dashboard') &&
@@ -381,6 +384,7 @@ export default function Dashboard({ initialSection = 'channels', initialSubView 
                 onOpenControlRoom={() => actions.openChannelStudio(channels[0]?._id)}
               />
             )}
+          </div>
         </main>
       </div>
 

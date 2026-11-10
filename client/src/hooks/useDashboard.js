@@ -59,7 +59,9 @@ export default function useDashboard(initialSection = 'channels', initialSubView
   const [activeSection, setActiveSection] = useState(initialSection);
   // subView: 'list' | 'create' | 'edit'
   const [subView, setSubView] = useState(initialSubView);
-  const [isSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth >= 1024 : true
+  );
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
 
   // ---------- Misc UI state ----------
@@ -219,8 +221,12 @@ export default function useDashboard(initialSection = 'channels', initialSubView
     setActiveSection(section);
     setSubView('list');
     setSearchQuery('');
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+      setIsSidebarOpen(false);
+    }
   };
 
+  const toggleSidebar = () => setIsSidebarOpen((prev) => !prev);
   const toggleProfileMenu = () => setIsProfileMenuOpen((prev) => !prev);
 
   const openChannelStudio = (channelId) => navigate(`/channels/${channelId}`);
@@ -658,6 +664,8 @@ export default function useDashboard(initialSection = 'channels', initialSubView
       subView,
       setSubView,
       isSidebarOpen,
+      setIsSidebarOpen,
+      toggleSidebar,
       isProfileMenuOpen,
       toggleProfileMenu,
       goToSection

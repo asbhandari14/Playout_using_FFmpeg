@@ -41,4 +41,32 @@
   ::-webkit-scrollbar-thumb:hover {
     background: #3b82f6;
   }
+
+  /* Auto-hiding horizontal table scrollbar (shown briefly only during horizontal scroll) */
+  .table-scroll-x {
+    scrollbar-width: none;
+  }
+  .table-scroll-x.table-scroll-x--keep-y {
+    scrollbar-width: thin;
+  }
+  .table-scroll-x.is-scrolling-x {
+    scrollbar-width: thin;
+    scrollbar-color: #3b4b6b transparent;
+  }
+  .table-scroll-x::-webkit-scrollbar:horizontal {
+    height: 4px;
+  }
+  .table-scroll-x::-webkit-scrollbar-track:horizontal {
+    background: transparent;
+  }
+  .table-scroll-x::-webkit-scrollbar-thumb:horizontal {
+    background: transparent;
+    border-radius: 9999px;
+  }
+  .table-scroll-x.is-scrolling-x::-webkit-scrollbar-thumb:horizontal {
+    background: #3b4b6b;
+  }
+  .table-scroll-x.is-scrolling-x::-webkit-scrollbar-thumb:horizontal:hover {
+    background: #00bcd4;
+  }
 }

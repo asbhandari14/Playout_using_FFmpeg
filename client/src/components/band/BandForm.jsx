@@ -228,29 +228,29 @@ export default function BandForm({
   const canSwitchChannel = (currentUser?.role === 'super_admin' || currentUser?.role === 'admin') && channels.length > 1;
 
   return (
-    <div className="space-y-5 select-none">
+    <div className="space-y-3.5 select-none font-sans">
       {/* Top back navigation button */}
       <button
         type="button"
         onClick={onCancel}
-        className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-white transition cursor-pointer font-mono"
+        className="flex items-center gap-1.5 text-xs font-medium text-slate-400 hover:text-white transition cursor-pointer"
       >
         <ArrowLeft size={14} />
         <span>Back to {isLBand ? 'L-Bands' : 'Ashton Bands'}</span>
       </button>
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
         <div>
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-cyan-950/80 border border-cyan-800/60 flex items-center justify-center text-cyan-400 shadow-lg shadow-cyan-500/10">
-              {isLBand ? <PanelBottom size={18} /> : <CreditCard size={18} />}
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-cyan-950/80 border border-cyan-800/60 flex items-center justify-center text-cyan-400">
+              {isLBand ? <PanelBottom size={15} /> : <CreditCard size={15} />}
             </div>
-            <h1 className="text-2xl font-bold text-white tracking-wide font-mono">
+            <h1 className="text-base sm:text-lg 2xl:text-xl font-bold text-white tracking-tight">
               {isEdit ? `Update ${isLBand ? 'L-Band' : 'Ashton Band'}` : `Create New ${isLBand ? 'L-Band' : 'Ashton Band'}`}
             </h1>
           </div>
-          <p className="text-xs text-slate-400 mt-1 font-mono">
+          <p className="text-[11px] 2xl:text-xs text-slate-400 mt-0.5">
             {isLBand
               ? 'Configure L-Band graphic overlay, transparent cutout scaling, and playout recurrence'
               : 'Configure lower-third Ashton Band banner graphic, video squeeze, and playout recurrence'}
@@ -258,7 +258,7 @@ export default function BandForm({
         </div>
 
         {canSwitchChannel && !isEdit && (
-          <div className="flex items-center gap-2 bg-[#0b0e18] border border-[#1a2337] px-3 py-1.5 rounded-xl font-mono text-xs">
+          <div className="flex items-center gap-1.5 bg-[#10141e] border border-[#1e2638] px-2.5 py-1.5 rounded-lg text-xs">
             <Tv size={14} className="text-[#00bcd4]" />
             <span className="text-slate-400">Channel:</span>
             <select
@@ -277,19 +277,19 @@ export default function BandForm({
       </div>
 
       {/* Main 2-Column Grid: Left = Preview, Right = Form */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
         {/* ================= LEFT COLUMN: LIVE VISUAL PREVIEW ================= */}
-        <div className="lg:col-span-5 space-y-4 lg:sticky lg:top-6">
-          <div className="bg-[#0b0e18] border border-[#161f33] rounded-2xl p-5 shadow-2xl space-y-4">
+        <div className="lg:col-span-5 space-y-3 lg:sticky lg:top-4">
+          <div className="bg-[#10141e] border border-[#1e2638] rounded-xl 2xl:rounded-2xl p-4 shadow-xl space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-300 font-mono flex items-center gap-2">
-                <Eye size={15} className="text-cyan-400" />
+              <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                <Eye size={14} className="text-cyan-400" />
                 <span>16:9 Broadcast Playout Preview</span>
               </span>
               <button
                 type="button"
                 onClick={() => setIsSimulatingAir((prev) => !prev)}
-                className={`text-[10px] font-mono px-2.5 py-1 rounded-full border transition flex items-center gap-1.5 cursor-pointer ${
+                className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border transition flex items-center gap-1.5 cursor-pointer ${
                   isSimulatingAir
                     ? 'bg-emerald-950/80 text-emerald-300 border-emerald-800'
                     : 'bg-slate-800/60 text-slate-400 border-slate-700'
@@ -439,29 +439,29 @@ export default function BandForm({
         <div className="lg:col-span-7">
           <form
             onSubmit={handleSubmit}
-            className="bg-[#0b0e18] border border-[#161f33] rounded-2xl p-6 sm:p-7 shadow-2xl space-y-5 font-mono text-xs"
+            className="bg-[#10141e] border border-[#1e2638] rounded-xl 2xl:rounded-2xl p-4 sm:p-5 shadow-xl space-y-4 text-xs"
           >
             {/* Title / Name */}
             <div>
-              <label className="text-slate-300 text-sm font-bold block mb-1.5">
+              <label className="text-slate-300 text-xs font-semibold block mb-1">
                 Schedule Title <span className="text-cyan-400">*</span>
               </label>
-              <div className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-[#090d16] border border-[#1a2337] focus-within:border-[#00bcd4] transition">
+              <div className="flex items-center gap-2 px-3 py-1.5 2xl:py-2 rounded-lg bg-[#090d16] border border-[#1c2538] focus-within:border-[#00bcd4] transition">
                 <input
                   type="text"
                   required
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder={isLBand ? 'e.g. Nike Prime Time L-Band' : 'e.g. Breaking News Lower Third'}
-                  className="w-full bg-transparent text-slate-100 placeholder-slate-500 focus:outline-none text-sm font-mono"
+                  className="w-full bg-transparent text-slate-100 placeholder-slate-500 focus:outline-none text-xs"
                 />
               </div>
             </div>
 
             {/* Graphic Image Upload */}
             <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="text-slate-300 text-sm font-bold">
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-slate-300 text-xs font-semibold">
                   {isLBand ? 'L-Band Graphic Image' : 'Ashton Band Banner Image'}{' '}
                   {!isEdit && <span className="text-cyan-400">*</span>}
                 </label>
@@ -523,7 +523,7 @@ export default function BandForm({
 
             {/* Schedule Type (24/7, Weekly, Datewise) */}
             <div>
-              <label className="text-slate-300 text-sm font-bold block mb-1.5">Schedule Airing Pattern</label>
+              <label className="text-slate-300 text-xs font-semibold block mb-1">Schedule Airing Pattern</label>
               <div className="grid grid-cols-3 gap-2">
                 {[
                   { id: '24/7', label: '24/7 Daily', hint: 'Every day' },
@@ -600,50 +600,50 @@ export default function BandForm({
             )}
 
             {/* Time Window (Start Time & End Time) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               <div>
-                <label className="text-slate-300 text-sm font-bold block mb-1.5 flex items-center gap-1.5">
-                  <Clock size={14} className="text-cyan-400" />
+                <label className="text-slate-300 text-xs font-semibold mb-1 flex items-center gap-1.5">
+                  <Clock size={13} className="text-cyan-400" />
                   <span>Start Time *</span>
                 </label>
-                <div className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-[#090d16] border border-[#1a2337] focus-within:border-[#00bcd4] transition">
+                <div className="flex items-center gap-2 px-3 py-1.5 2xl:py-2 rounded-lg bg-[#090d16] border border-[#1c2538] focus-within:border-[#00bcd4] transition">
                   <input
                     type="time"
                     step="1"
                     required
                     value={dailyStartTime}
                     onChange={(e) => setDailyStartTime(e.target.value)}
-                    className="w-full bg-transparent text-slate-100 focus:outline-none text-sm font-mono"
+                    className="w-full bg-transparent text-slate-100 focus:outline-none text-xs font-mono"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="text-slate-300 text-sm font-bold block mb-1.5 flex items-center gap-1.5">
-                  <Clock size={14} className="text-cyan-400" />
+                <label className="text-slate-300 text-xs font-semibold mb-1 flex items-center gap-1.5">
+                  <Clock size={13} className="text-cyan-400" />
                   <span>End Time *</span>
                 </label>
-                <div className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-[#090d16] border border-[#1a2337] focus-within:border-[#00bcd4] transition">
+                <div className="flex items-center gap-2 px-3 py-1.5 2xl:py-2 rounded-lg bg-[#090d16] border border-[#1c2538] focus-within:border-[#00bcd4] transition">
                   <input
                     type="time"
                     step="1"
                     required
                     value={dailyEndTime}
                     onChange={(e) => setDailyEndTime(e.target.value)}
-                    className="w-full bg-transparent text-slate-100 focus:outline-none text-sm font-mono"
+                    className="w-full bg-transparent text-slate-100 focus:outline-none text-xs font-mono"
                   />
                 </div>
               </div>
             </div>
 
             {/* Duration & Gap */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               <div>
-                <label className="text-slate-300 text-sm font-bold block mb-1.5 flex items-center gap-1.5">
-                  <Timer size={14} className="text-emerald-400" />
+                <label className="text-slate-300 text-xs font-semibold mb-1 flex items-center gap-1.5">
+                  <Timer size={13} className="text-emerald-400" />
                   <span>Display Duration (seconds) *</span>
                 </label>
-                <div className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-[#090d16] border border-[#1a2337] focus-within:border-[#00bcd4] transition">
+                <div className="flex items-center gap-2 px-3 py-1.5 2xl:py-2 rounded-lg bg-[#090d16] border border-[#1c2538] focus-within:border-[#00bcd4] transition">
                   <input
                     type="number"
                     min="2"
@@ -651,7 +651,7 @@ export default function BandForm({
                     required
                     value={duration}
                     onChange={(e) => setDuration(Number(e.target.value))}
-                    className="w-full bg-transparent text-slate-100 focus:outline-none text-sm font-mono"
+                    className="w-full bg-transparent text-slate-100 focus:outline-none text-xs font-mono"
                     placeholder="e.g. 5"
                   />
                   <span className="text-slate-500 font-bold">sec</span>
@@ -662,11 +662,11 @@ export default function BandForm({
               </div>
 
               <div>
-                <label className="text-slate-300 text-sm font-bold block mb-1.5 flex items-center gap-1.5">
-                  <Clock size={14} className="text-amber-400" />
+                <label className="text-slate-300 text-xs font-semibold mb-1 flex items-center gap-1.5">
+                  <Clock size={13} className="text-amber-400" />
                   <span>Playout Gap / Interval (minutes) *</span>
                 </label>
-                <div className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-[#090d16] border border-[#1a2337] focus-within:border-[#00bcd4] transition">
+                <div className="flex items-center gap-2 px-3 py-1.5 2xl:py-2 rounded-lg bg-[#090d16] border border-[#1c2538] focus-within:border-[#00bcd4] transition">
                   <input
                     type="number"
                     min="0"
@@ -674,7 +674,7 @@ export default function BandForm({
                     required
                     value={gapMinutes}
                     onChange={(e) => setGapMinutes(Number(e.target.value))}
-                    className="w-full bg-transparent text-slate-100 focus:outline-none text-sm font-mono"
+                    className="w-full bg-transparent text-slate-100 focus:outline-none text-xs font-mono"
                     placeholder="e.g. 20"
                   />
                   <span className="text-slate-500 font-bold">min</span>
@@ -726,18 +726,18 @@ export default function BandForm({
             </div>
 
             {/* Form Actions */}
-            <div className="flex items-center justify-end gap-3 pt-4 border-t border-[#161f33]">
+            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-[#1a2234]">
               <button
                 type="button"
                 onClick={onCancel}
-                className="px-5 py-2.5 rounded-xl border border-[#1b253b] text-slate-300 hover:text-white hover:bg-[#121929] transition font-semibold cursor-pointer"
+                className="px-4 py-1.5 2xl:py-2 rounded-lg border border-[#1e2638] text-xs font-semibold text-slate-300 hover:text-white hover:bg-[#161e2e] transition cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="px-6 py-2.5 rounded-xl bg-[#00bcd4] hover:bg-[#06b6d4] text-black font-extrabold shadow-lg shadow-cyan-500/20 transition cursor-pointer disabled:opacity-50 flex items-center gap-2"
+                className="px-4 py-1.5 2xl:py-2 rounded-lg text-xs font-bold bg-[#00bcd4] hover:bg-[#06b6d4] text-black shadow-md shadow-cyan-500/20 transition cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
               >
                 {isSubmitting ? (
                   <>

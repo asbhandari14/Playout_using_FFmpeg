@@ -59,22 +59,22 @@ export default function ConfirmDeleteModal({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header with Danger Accent */}
-        <div className="px-6 pt-6 pb-4 flex items-start justify-between">
-          <div className="flex items-center space-x-3.5">
+        <div className="px-5 pt-5 pb-3 flex items-start justify-between">
+          <div className="flex items-center space-x-3">
             <div
-              className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 shadow-md ${
+              className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-md ${
                 danger
                   ? 'bg-rose-500/10 border border-rose-500/30 text-rose-400'
                   : 'bg-amber-500/10 border border-amber-500/30 text-amber-400'
               }`}
             >
-              {danger ? <Trash2 size={22} /> : <AlertTriangle size={22} />}
+              {danger ? <Trash2 size={18} /> : <AlertTriangle size={18} />}
             </div>
             <div>
-              <h3 className="text-base font-extrabold text-white tracking-wide">
+              <h3 className="text-sm font-bold text-white tracking-wide">
                 {title}
               </h3>
-              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mt-0.5">
+              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mt-0.5">
                 Confirmation Required
               </p>
             </div>
@@ -86,14 +86,14 @@ export default function ConfirmDeleteModal({
             className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-[#1f2838] transition disabled:opacity-40 cursor-pointer"
             title="Cancel and close"
           >
-            <X size={18} />
+            <X size={16} />
           </button>
         </div>
 
         {/* Content Body */}
-        <div className="px-6 py-2 space-y-3">
+        <div className="px-5 py-2 space-y-2.5">
           {itemName ? (
-            <div className="p-3 rounded-xl bg-[#0d1017] border border-[#1e2738] flex items-center gap-2.5">
+            <div className="p-2.5 rounded-lg bg-[#0d1017] border border-[#1e2738] flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />
               <span className="text-xs font-mono font-bold text-slate-200 truncate">
                 {itemName}
@@ -111,12 +111,12 @@ export default function ConfirmDeleteModal({
         </div>
 
         {/* Action Buttons */}
-        <div className="px-6 py-5 bg-[#0e121a] border-t border-[#1c2434] flex items-center justify-end space-x-3 mt-3">
+        <div className="px-5 py-3.5 bg-[#0e121a] border-t border-[#1c2434] flex items-center justify-end space-x-2.5 mt-2">
           <button
             type="button"
             onClick={handleClose}
             disabled={isLoading}
-            className="px-4 py-2.5 rounded-xl bg-[#1a2130] hover:bg-[#232c3f] border border-[#27344c] text-xs font-bold text-slate-300 hover:text-white transition disabled:opacity-50 cursor-pointer"
+            className="px-3.5 py-2 rounded-lg bg-[#1a2130] hover:bg-[#232c3f] border border-[#27344c] text-xs font-semibold text-slate-300 hover:text-white transition disabled:opacity-50 cursor-pointer"
           >
             {cancelText}
           </button>
@@ -125,7 +125,7 @@ export default function ConfirmDeleteModal({
             type="button"
             onClick={handleConfirm}
             disabled={isLoading}
-            className={`px-5 py-2.5 rounded-xl font-extrabold text-xs tracking-wider uppercase transition flex items-center gap-2 shadow-lg cursor-pointer ${
+            className={`px-4 py-2 rounded-lg font-bold text-xs tracking-wide uppercase transition flex items-center gap-1.5 shadow-lg cursor-pointer ${
               danger
                 ? 'bg-rose-600 hover:bg-rose-500 text-white shadow-rose-950/50 hover:shadow-rose-900/60'
                 : 'bg-amber-600 hover:bg-amber-500 text-white shadow-amber-950/50'

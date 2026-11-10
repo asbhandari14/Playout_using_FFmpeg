@@ -533,24 +533,24 @@ export default function PlaylistBuilder({
   return (
     <div className="space-y-4 select-none">
       {/* Top Navigation & Type Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#0d111a] border border-[#1b2336] p-4 rounded-2xl shadow-lg">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-[#10141e] border border-[#1e2638] px-3.5 py-2.5 2xl:p-4 rounded-xl 2xl:rounded-2xl shadow-lg">
+        <div className="flex items-center gap-2.5">
           <button
             type="button"
             onClick={onCancel}
-            className="p-2 rounded-xl bg-[#141a27] hover:bg-[#1a2336] text-slate-300 hover:text-white transition cursor-pointer border border-[#202b42] flex items-center gap-1.5 text-xs font-semibold"
+            className="px-2.5 py-1.5 rounded-lg bg-[#141a27] hover:bg-[#1a2336] text-slate-300 hover:text-white transition cursor-pointer border border-[#202b42] flex items-center gap-1.5 text-xs font-medium shrink-0"
           >
-            <ArrowLeft size={15} />
-            <span>Back to Playlists</span>
+            <ArrowLeft size={14} />
+            <span>Back</span>
           </button>
 
           <div>
             <div className="flex items-center gap-2">
-              <span className={`w-2.5 h-2.5 rounded-full ${typeConfig.dotColor} animate-ping`} />
-              <h1 className="text-lg font-black text-white tracking-wide">
+              <span className={`w-2 h-2 rounded-full ${typeConfig.dotColor} animate-ping`} />
+              <h1 className="text-base 2xl:text-lg font-bold text-white tracking-tight">
                 {mode === 'edit' ? `Edit ${typeConfig.title}` : `Create ${typeConfig.title}`}
               </h1>
-              <span className={`font-mono text-[10px] font-bold px-2.5 py-0.5 rounded border uppercase tracking-wider ${typeConfig.accentBg} ${typeConfig.accentText} ${typeConfig.accentBorder}`}>
+              <span className={`font-mono text-[9.5px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider ${typeConfig.accentBg} ${typeConfig.accentText} ${typeConfig.accentBorder}`}>
                 {typeConfig.badge}
               </span>
             </div>
@@ -565,7 +565,7 @@ export default function PlaylistBuilder({
           <button
             type="button"
             onClick={onCancel}
-            className="px-3.5 py-1.5 rounded-xl border border-[#20293d] hover:bg-[#161c2a] text-slate-300 hover:text-white text-xs font-semibold transition cursor-pointer"
+            className="px-3 py-1.5 rounded-lg border border-[#20293d] hover:bg-[#161c2a] text-slate-300 hover:text-white text-xs font-semibold transition cursor-pointer"
           >
             Cancel
           </button>
@@ -573,7 +573,7 @@ export default function PlaylistBuilder({
             type="button"
             onClick={handleFormSubmit}
             disabled={isSubmitting}
-            className={`px-4 py-1.5 rounded-xl text-xs flex items-center gap-1.5 shadow-lg transition cursor-pointer disabled:opacity-50 ${typeConfig.buttonClass}`}
+            className={`px-3.5 py-1.5 rounded-lg text-xs flex items-center gap-1.5 shadow-md transition cursor-pointer disabled:opacity-50 ${typeConfig.buttonClass}`}
           >
             <TypeIcon size={14} />
             <span>{isSubmitting ? 'Saving...' : mode === 'edit' ? 'Save Changes' : `Create ${typeConfig.shortLabel}`}</span>
@@ -582,7 +582,7 @@ export default function PlaylistBuilder({
       </div>
 
       {/* Main 3-Column Responsive Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:h-[calc(100vh-170px)] lg:min-h-[620px]">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 2xl:gap-4 lg:h-[calc(100vh-145px)] lg:min-h-[480px]">
         {/* ========================================================
             COLUMN 1: UPLOADED VIDEOS (Left, 4 cols)
             ======================================================== */}
