@@ -19,7 +19,7 @@ export default function Login() {
     <div className="min-h-screen bg-[#090b0e] flex flex-col justify-center items-center px-4 relative overflow-hidden">
       <LoginBackground />
 
-      <div className="w-full max-w-md z-10">
+      <div className="w-full max-w-sm z-10">
         {/* Login Header */}
         <LoginHeader />
 

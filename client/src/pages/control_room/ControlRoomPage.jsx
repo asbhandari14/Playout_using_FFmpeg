@@ -142,7 +142,7 @@ export default function ControlRoomPage() {
   };
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-[#0c0e12] overflow-hidden select-none">
+    <div className="min-h-screen lg:h-screen w-full flex flex-col bg-[#0c0e12] overflow-x-hidden lg:overflow-hidden select-none">
       {/* Top Header */}
       <BroadcastHeader
         channel={currentChannel}
@@ -156,10 +156,10 @@ export default function ControlRoomPage() {
       />
 
       {/* Main 3-Column Studio Layout */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex flex-col lg:flex-row lg:overflow-hidden min-h-0">
 
-        {/* LEFT PANEL: Assets Library (approx 22% width / 300px min) */}
-        <div className="w-75 xl:w-85 shrink-0 h-full flex flex-col">
+        {/* LEFT PANEL: Assets Library */}
+        <div className="order-2 lg:order-1 w-full lg:w-[215px] xl:w-[235px] 2xl:w-[280px] min-[1800px]:w-[320px] shrink-0 h-[380px] lg:h-full flex flex-col border-t lg:border-t-0 border-[#202634]">
           <AssetLibrary
             channelId={channelId}
             onAddToPlaylist={handleAddToPlaylist}
@@ -167,7 +167,7 @@ export default function ControlRoomPage() {
         </div>
 
         {/* CENTER PANEL: Playout Production Deck (Video Section + Broadcast Window Table) */}
-        <div className="flex-1 h-full flex flex-col overflow-hidden min-w-125">
+        <div className="order-1 lg:order-2 flex-1 lg:h-full flex flex-col lg:overflow-hidden min-w-0">
           {/* Top of center: Local Preview + Live PGM Players */}
           <VideoSection
             channel={currentChannel}
@@ -185,8 +185,8 @@ export default function ControlRoomPage() {
           />
         </div>
 
-        {/* RIGHT PANEL: Live Controls (Logo & Ticker Tabs, approx 24% width / 320px min) */}
-        <div className="w-77.5 xl:w-87.5 shrink-0 h-full flex flex-col">
+        {/* RIGHT PANEL: Live Controls (Logo, Bug, Ticker & Timer Tabs) */}
+        <div className="order-3 w-full lg:w-[235px] xl:w-[255px] 2xl:w-[300px] min-[1800px]:w-[340px] shrink-0 lg:h-full flex flex-col border-t lg:border-t-0 border-[#202634]">
           <LiveControls
             channel={currentChannel}
             currentOnAirSchedule={currentOnAirSchedule}

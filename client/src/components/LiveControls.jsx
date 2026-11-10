@@ -502,23 +502,23 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
   };
 
   return (
-    <div className="h-full flex flex-col bg-[#12151b] border-l border-[#202634] select-none text-slate-200">
+    <div className="h-full flex flex-col bg-[#12151b] border-l border-[#202634] select-none text-slate-200 overflow-hidden">
       {/* Top Header */}
-      <div className="px-4 py-3 border-b border-[#202634] flex items-center justify-between bg-[#151922]">
-        <div className="flex items-center gap-2">
-          <Sliders size={15} className="text-blue-500" />
-          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-200 m-0">
+      <div className="px-3 py-2 2xl:px-4 2xl:py-2.5 border-b border-[#202634] flex items-center justify-between bg-[#151922] shrink-0">
+        <div className="flex items-center gap-1.5 2xl:gap-2">
+          <Sliders size={13} className="text-blue-500" />
+          <h2 className="text-[11px] 2xl:text-xs font-bold uppercase tracking-wider text-slate-200 m-0">
             Live Controls
           </h2>
         </div>
       </div>
 
       {/* Pill Tabs: LOGO | BUG | TICKER | TIMER */}
-      <div className="p-3 border-b border-[#1d2331]">
-        <div className="grid grid-cols-4 bg-[#0b0e14] p-1 rounded-xl border border-[#222938]">
+      <div className="p-2 2xl:p-3 border-b border-[#1d2331] shrink-0">
+        <div className="grid grid-cols-4 bg-[#0b0e14] p-0.5 2xl:p-1 rounded-lg 2xl:rounded-xl border border-[#222938]">
           <button
             onClick={() => setActiveTab('logo')}
-            className={`py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition ${activeTab === 'logo'
+            className={`py-1 2xl:py-1.5 rounded-md 2xl:rounded-lg text-[10px] 2xl:text-xs font-bold uppercase tracking-wider transition ${activeTab === 'logo'
               ? 'bg-[#2563eb] text-white shadow-sm'
               : 'text-slate-400 hover:text-slate-200'
               }`}
@@ -527,7 +527,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
           </button>
           <button
             onClick={() => setActiveTab('bug')}
-            className={`py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition ${activeTab === 'bug'
+            className={`py-1 2xl:py-1.5 rounded-md 2xl:rounded-lg text-[10px] 2xl:text-xs font-bold uppercase tracking-wider transition ${activeTab === 'bug'
               ? 'bg-[#2563eb] text-white shadow-sm'
               : 'text-slate-400 hover:text-slate-200'
               }`}
@@ -536,7 +536,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
           </button>
           <button
             onClick={() => setActiveTab('ticker')}
-            className={`py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition ${activeTab === 'ticker'
+            className={`py-1 2xl:py-1.5 rounded-md 2xl:rounded-lg text-[10px] 2xl:text-xs font-bold uppercase tracking-wider transition ${activeTab === 'ticker'
               ? 'bg-[#2563eb] text-white shadow-sm'
               : 'text-slate-400 hover:text-slate-200'
               }`}
@@ -545,7 +545,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
           </button>
           <button
             onClick={() => setActiveTab('timer')}
-            className={`py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition ${activeTab === 'timer'
+            className={`py-1 2xl:py-1.5 rounded-md 2xl:rounded-lg text-[10px] 2xl:text-xs font-bold uppercase tracking-wider transition ${activeTab === 'timer'
               ? 'bg-[#2563eb] text-white shadow-sm'
               : 'text-slate-400 hover:text-slate-200'
               }`}
@@ -558,47 +558,31 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
       {/* Feedback Toast */}
       {alert && (
         <div
-          className={`mx-3 mt-2 p-2.5 rounded-xl border text-xs flex items-center gap-2 animate-fadeIn ${alert.type === 'success'
+          className={`mx-2.5 mt-2 p-2 rounded-lg border text-[11px] 2xl:text-xs flex items-center gap-1.5 animate-fadeIn shrink-0 ${alert.type === 'success'
             ? 'bg-emerald-950/70 border-emerald-800 text-emerald-300'
             : 'bg-red-950/70 border-red-800 text-red-300'
             }`}
         >
-          {alert.type === 'success' ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
-          <span>{alert.message}</span>
+          {alert.type === 'success' ? <CheckCircle2 size={13} /> : <AlertCircle size={13} />}
+          <span className="leading-tight">{alert.message}</span>
         </div>
       )}
 
       {/* Body content */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-5">
+      <div className="flex-1 overflow-y-auto p-2.5 2xl:p-4 space-y-2.5 2xl:space-y-4 min-h-0">
         {/* ================= LOGO TAB ================= */}
         {activeTab === 'logo' && (
-          <div className="space-y-5">
-            {/* {currentOnAirSchedule && (
-              <div className="p-3 rounded-2xl bg-amber-950/40 border border-amber-500/40 text-amber-200 flex items-start gap-2.5">
-                <Sparkles size={16} className="text-amber-400 shrink-0 mt-0.5 animate-pulse" />
-                <div className="text-xs">
-                  <span className="font-bold text-amber-300 block">
-                    Schedule Active: "{currentOnAirSchedule.title}"
-                  </span>
-                  <span className="text-[10px] text-amber-200/80 leading-relaxed block mt-0.5">
-                    {logoShowDuringSchedule
-                      ? 'Main Logo remains visible on air during this scheduled broadcast.'
-                      : 'Main Logo is hidden during this ad because "Show Logo During Ad" is off.'}
-                  </span>
-                </div>
-              </div>
-            )} */}
-
+          <div className="space-y-2.5 2xl:space-y-4">
             {/* Box: Channel Branding */}
-            <div className="bg-[#151a24] border border-[#232c3d] rounded-2xl p-4 space-y-4">
-              <div className="flex items-center gap-2 text-slate-300 text-xs font-bold uppercase tracking-wider">
-                <ImageIcon size={14} className="text-blue-400" />
+            <div className="bg-[#151a24] border border-[#232c3d] rounded-xl 2xl:rounded-2xl p-2.5 2xl:p-3.5 space-y-2 2xl:space-y-3">
+              <div className="flex items-center gap-1.5 2xl:gap-2 text-slate-300 text-[10.5px] 2xl:text-xs font-bold uppercase tracking-wider">
+                <ImageIcon size={12} className="text-blue-400" />
                 <span>Channel Branding</span>
               </div>
 
               {/* Logo preview + Browse button */}
-              <div className="flex items-center gap-3">
-                <div className="w-14 h-14 rounded-xl bg-[#090c12] border border-[#222938] overflow-hidden flex items-center justify-center p-1.5 shrink-0">
+              <div className="flex items-center gap-2.5 2xl:gap-3">
+                <div className="w-10 h-10 2xl:w-13 2xl:h-13 rounded-lg 2xl:rounded-xl bg-[#090c12] border border-[#222938] overflow-hidden flex items-center justify-center p-1 shrink-0">
                   {logoAssetPath ? (
                     <img
                       src={`/${logoAssetPath}`}
@@ -606,11 +590,11 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                       className="w-full h-full object-contain"
                     />
                   ) : (
-                    <ImageIcon size={22} className="text-slate-600" />
+                    <ImageIcon size={18} className="text-slate-600" />
                   )}
                 </div>
 
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
                   <input
                     ref={logoInputRef}
                     type="file"
@@ -620,12 +604,12 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                   />
                   <button
                     onClick={() => logoInputRef.current?.click()}
-                    className="px-3.5 py-1.5 rounded-lg bg-[#202736] hover:bg-[#2b354a] text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition border border-[#2b364c]"
+                    className="px-2.5 py-1 2xl:px-3.5 2xl:py-1.5 rounded-md 2xl:rounded-lg bg-[#202736] hover:bg-[#2b354a] text-slate-200 text-[11px] 2xl:text-xs font-semibold flex items-center gap-1.5 transition border border-[#2b364c]"
                   >
-                    <Upload size={13} />
+                    <Upload size={12} />
                     <span>Browse</span>
                   </button>
-                  <p className="text-[10px] text-slate-500 mt-1">
+                  <p className="text-[9px] 2xl:text-[10px] text-slate-500 mt-1 leading-tight">
                     Transparent PNG (Optimized for 720p 25fps)
                   </p>
                 </div>
@@ -633,8 +617,8 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
             </div>
 
             {/* SHOW LOGO ON AIR Toggle */}
-            <div className="flex items-center justify-between p-3 bg-[#151a24] border border-[#232c3d] rounded-xl">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-200">
+            <div className="flex items-center justify-between p-2.5 2xl:p-3 bg-[#151a24] border border-[#232c3d] rounded-lg 2xl:rounded-xl">
+              <span className="text-[10.5px] 2xl:text-xs font-bold uppercase tracking-wider text-slate-200">
                 Show Logo On Air
               </span>
 
@@ -644,23 +628,23 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                   setLogoEnabled(next);
                   handleUpdateLogo({ enabled: next });
                 }}
-                className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors duration-300 ${logoEnabled ? 'bg-blue-600' : 'bg-slate-700'
+                className={`w-9 h-5 2xl:w-11 2xl:h-6 flex items-center rounded-full p-0.5 2xl:p-1 transition-colors duration-300 shrink-0 ${logoEnabled ? 'bg-blue-600' : 'bg-slate-700'
                   }`}
               >
                 <div
-                  className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-300 ${logoEnabled ? 'translate-x-5' : 'translate-x-0'
+                  className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-300 ${logoEnabled ? 'translate-x-4 2xl:translate-x-5' : 'translate-x-0'
                     }`}
                 />
               </button>
             </div>
 
             {/* SHOW LOGO DURING AD Toggle */}
-            <div className="flex items-center justify-between p-3 bg-[#151a24] border border-[#232c3d] rounded-xl">
-              <div className="space-y-0.5">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-200 block">
+            <div className="flex items-center justify-between gap-2 p-2.5 2xl:p-3 bg-[#151a24] border border-[#232c3d] rounded-lg 2xl:rounded-xl">
+              <div className="space-y-0.5 min-w-0">
+                <span className="text-[10.5px] 2xl:text-xs font-bold uppercase tracking-wider text-slate-200 block">
                   Show Logo during Ad
                 </span>
-                <span className="text-[10px] text-slate-400">
+                <span className="text-[9px] 2xl:text-[10px] text-slate-400 leading-tight block">
                   Keep main channel logo visible when scheduled ad plays
                 </span>
               </div>
@@ -672,36 +656,36 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                   setLogoShowDuringSchedule(next);
                   handleUpdateLogo({ showDuringSchedule: next });
                 }}
-                className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors duration-300 ${logoShowDuringSchedule ? 'bg-blue-600' : 'bg-slate-700'
+                className={`w-9 h-5 2xl:w-11 2xl:h-6 flex items-center rounded-full p-0.5 2xl:p-1 transition-colors duration-300 shrink-0 ${logoShowDuringSchedule ? 'bg-blue-600' : 'bg-slate-700'
                   }`}
               >
                 <div
-                  className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-300 ${logoShowDuringSchedule ? 'translate-x-5' : 'translate-x-0'
+                  className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-300 ${logoShowDuringSchedule ? 'translate-x-4 2xl:translate-x-5' : 'translate-x-0'
                     }`}
                 />
               </button>
             </div>
 
             {/* Position Box (5 buttons) */}
-            <div className="bg-[#151a24] border border-[#232c3d] rounded-2xl p-4">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-3">
+            <div className="bg-[#151a24] border border-[#232c3d] rounded-xl 2xl:rounded-2xl p-2.5 2xl:p-3.5">
+              <span className="text-[10px] 2xl:text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-2">
                 Logo Position
               </span>
 
-              <div className="relative aspect-video bg-[#090c12] border border-[#222938] rounded-xl flex items-center justify-center p-3">
+              <div className="relative aspect-video max-h-[115px] xl:max-h-[125px] 2xl:max-h-[155px] w-full mx-auto bg-[#090c12] border border-[#222938] rounded-lg 2xl:rounded-xl flex items-center justify-center p-2">
                 {/* Top-Left */}
                 <button
                   onClick={() => {
                     setLogoPosition('top-left');
                     handleUpdateLogo({ position: 'top-left' });
                   }}
-                  className={`absolute top-2.5 left-2.5 w-7 h-7 rounded-lg flex items-center justify-center transition border ${logoPosition === 'top-left'
+                  className={`absolute top-2 left-2 w-6 h-6 2xl:w-7 2xl:h-7 rounded-md 2xl:rounded-lg flex items-center justify-center transition border ${logoPosition === 'top-left'
                     ? 'bg-blue-600 border-blue-400 text-white shadow-md'
                     : 'bg-[#141822] border-[#222a3a] text-slate-400 hover:text-white'
                     }`}
                   title="Top Left"
                 >
-                  <CornerUpLeft size={13} />
+                  <CornerUpLeft size={12} />
                 </button>
 
                 {/* Top-Right */}
@@ -710,13 +694,13 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                     setLogoPosition('top-right');
                     handleUpdateLogo({ position: 'top-right' });
                   }}
-                  className={`absolute top-2.5 right-2.5 w-7 h-7 rounded-lg flex items-center justify-center transition border ${logoPosition === 'top-right'
+                  className={`absolute top-2 right-2 w-6 h-6 2xl:w-7 2xl:h-7 rounded-md 2xl:rounded-lg flex items-center justify-center transition border ${logoPosition === 'top-right'
                     ? 'bg-blue-600 border-blue-400 text-white shadow-md'
                     : 'bg-[#141822] border-[#222a3a] text-slate-400 hover:text-white'
                     }`}
                   title="Top Right"
                 >
-                  <CornerUpRight size={13} />
+                  <CornerUpRight size={12} />
                 </button>
 
                 {/* Center */}
@@ -725,13 +709,13 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                     setLogoPosition('center');
                     handleUpdateLogo({ position: 'center' });
                   }}
-                  className={`w-7 h-7 rounded-lg flex items-center justify-center transition border ${logoPosition === 'center'
+                  className={`w-6 h-6 2xl:w-7 2xl:h-7 rounded-md 2xl:rounded-lg flex items-center justify-center transition border ${logoPosition === 'center'
                     ? 'bg-blue-600 border-blue-400 text-white shadow-md'
                     : 'bg-[#141822] border-[#222a3a] text-slate-400 hover:text-white'
                     }`}
                   title="Center"
                 >
-                  <Circle size={13} />
+                  <Circle size={12} />
                 </button>
 
                 {/* Bottom-Left */}
@@ -740,13 +724,13 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                     setLogoPosition('bottom-left');
                     handleUpdateLogo({ position: 'bottom-left' });
                   }}
-                  className={`absolute bottom-2.5 left-2.5 w-7 h-7 rounded-lg flex items-center justify-center transition border ${logoPosition === 'bottom-left'
+                  className={`absolute bottom-2 left-2 w-6 h-6 2xl:w-7 2xl:h-7 rounded-md 2xl:rounded-lg flex items-center justify-center transition border ${logoPosition === 'bottom-left'
                     ? 'bg-blue-600 border-blue-400 text-white shadow-md'
                     : 'bg-[#141822] border-[#222a3a] text-slate-400 hover:text-white'
                     }`}
                   title="Bottom Left"
                 >
-                  <CornerDownLeft size={13} />
+                  <CornerDownLeft size={12} />
                 </button>
 
                 {/* Bottom-Right */}
@@ -755,23 +739,23 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                     setLogoPosition('bottom-right');
                     handleUpdateLogo({ position: 'bottom-right' });
                   }}
-                  className={`absolute bottom-2.5 right-2.5 w-7 h-7 rounded-lg flex items-center justify-center transition border ${logoPosition === 'bottom-right'
+                  className={`absolute bottom-2 right-2 w-6 h-6 2xl:w-7 2xl:h-7 rounded-md 2xl:rounded-lg flex items-center justify-center transition border ${logoPosition === 'bottom-right'
                     ? 'bg-blue-600 border-blue-400 text-white shadow-md'
                     : 'bg-[#141822] border-[#222a3a] text-slate-400 hover:text-white'
                     }`}
                   title="Bottom Right"
                 >
-                  <CornerDownRight size={13} />
+                  <CornerDownRight size={12} />
                 </button>
               </div>
             </div>
 
             {/* Sliders: SIZE, MARGIN X, MARGIN Y */}
-            <div className="space-y-4 bg-[#151a24] border border-[#232c3d] rounded-2xl p-4">
+            <div className="space-y-2.5 2xl:space-y-3.5 bg-[#151a24] border border-[#232c3d] rounded-xl 2xl:rounded-2xl p-2.5 2xl:p-3.5">
               {/* SIZE */}
               <div>
-                <div className="flex items-center justify-between text-xs font-semibold text-slate-300 mb-1">
-                  <span className="uppercase tracking-wider text-[10px]">Size</span>
+                <div className="flex items-center justify-between text-[10px] 2xl:text-xs font-semibold text-slate-300 mb-1">
+                  <span className="uppercase tracking-wider text-[9.5px] 2xl:text-[10px]">Size</span>
                   <span className="font-mono text-blue-400">{logoSizePercent}%</span>
                 </div>
                 <input
@@ -788,8 +772,8 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
 
               {/* MARGIN X */}
               <div>
-                <div className="flex items-center justify-between text-xs font-semibold text-slate-300 mb-1">
-                  <span className="uppercase tracking-wider text-[10px]">Margin X</span>
+                <div className="flex items-center justify-between text-[10px] 2xl:text-xs font-semibold text-slate-300 mb-1">
+                  <span className="uppercase tracking-wider text-[9.5px] 2xl:text-[10px]">Margin X</span>
                   <span className="font-mono text-blue-400">{logoMarginX}%</span>
                 </div>
                 <input
@@ -806,8 +790,8 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
 
               {/* MARGIN Y */}
               <div>
-                <div className="flex items-center justify-between text-xs font-semibold text-slate-300 mb-1">
-                  <span className="uppercase tracking-wider text-[10px]">Margin Y</span>
+                <div className="flex items-center justify-between text-[10px] 2xl:text-xs font-semibold text-slate-300 mb-1">
+                  <span className="uppercase tracking-wider text-[9.5px] 2xl:text-[10px]">Margin Y</span>
                   <span className="font-mono text-blue-400">{logoMarginY}%</span>
                 </div>
                 <input
@@ -827,16 +811,16 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
 
         {/* ================= BUG TAB ================= */}
         {activeTab === 'bug' && (
-          <div className="space-y-5">
+          <div className="space-y-2.5 2xl:space-y-4">
             {/* Active Schedule Notification */}
             {currentOnAirSchedule && (
-              <div className="p-3 rounded-2xl bg-amber-950/40 border border-amber-500/40 text-amber-200 flex items-start gap-2.5">
-                <Sparkles size={16} className="text-amber-400 shrink-0 mt-0.5 animate-pulse" />
-                <div className="text-xs">
+              <div className="p-2.5 2xl:p-3 rounded-xl 2xl:rounded-2xl bg-amber-950/40 border border-amber-500/40 text-amber-200 flex items-start gap-2">
+                <Sparkles size={14} className="text-amber-400 shrink-0 mt-0.5 animate-pulse" />
+                <div className="text-[11px] 2xl:text-xs">
                   <span className="font-bold text-amber-300 block">
                     Schedule Active: "{currentOnAirSchedule.title}"
                   </span>
-                  <span className="text-[10px] text-amber-200/80 leading-relaxed block mt-0.5">
+                  <span className="text-[9.5px] 2xl:text-[10px] text-amber-200/80 leading-relaxed block mt-0.5">
                     Station overlays (Ticker, Bug, Ashton, L-Band) are hidden during schedule playout and will restore automatically when the schedule ends.
                   </span>
                 </div>
@@ -844,26 +828,26 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
             )}
 
             {/* Box: Station Bug Upload */}
-            <div className="bg-[#151a24] border border-[#232c3d] rounded-2xl p-4 space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-slate-300 text-xs font-bold uppercase tracking-wider">
-                  <Sparkles size={14} className="text-amber-400" />
+            <div className="bg-[#151a24] border border-[#232c3d] rounded-xl 2xl:rounded-2xl p-2.5 2xl:p-3.5 space-y-2 2xl:space-y-3">
+              <div className="flex items-center justify-between gap-1">
+                <div className="flex items-center gap-1.5 text-slate-300 text-[10.5px] 2xl:text-xs font-bold uppercase tracking-wider">
+                  <Sparkles size={12} className="text-amber-400" />
                   <span>Station Bug Graphic</span>
                 </div>
                 {bugIsMov ? (
-                  <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 animate-pulse">
+                  <span className="text-[8.5px] 2xl:text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 animate-pulse">
                     MOV ANIMATED
                   </span>
                 ) : bugAssetPath ? (
-                  <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                  <span className="text-[8.5px] 2xl:text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
                     PNG STATIC
                   </span>
                 ) : null}
               </div>
 
               {/* Bug preview + Browse button */}
-              <div className="flex items-center gap-3">
-                <div className="w-14 h-14 rounded-xl bg-[#090c12] border border-[#222938] overflow-hidden flex items-center justify-center p-1.5 shrink-0 relative">
+              <div className="flex items-center gap-2.5 2xl:gap-3">
+                <div className="w-10 h-10 2xl:w-13 2xl:h-13 rounded-lg 2xl:rounded-xl bg-[#090c12] border border-[#222938] overflow-hidden flex items-center justify-center p-1 shrink-0 relative">
                   {bugAssetPath ? (
                     bugIsMov || bugAssetPath.toLowerCase().endsWith('.mov') ? (
                       <video
@@ -882,11 +866,11 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                       />
                     )
                   ) : (
-                    <Sparkles size={22} className="text-slate-600" />
+                    <Sparkles size={18} className="text-slate-600" />
                   )}
                 </div>
 
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
                   <input
                     ref={bugInputRef}
                     type="file"
@@ -894,25 +878,25 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                     className="hidden"
                     onChange={handleBugUpload}
                   />
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     <button
                       onClick={() => bugInputRef.current?.click()}
-                      className="px-3.5 py-1.5 rounded-lg bg-[#202736] hover:bg-[#2b354a] text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition border border-[#2b364c]"
+                      className="px-2.5 py-1 2xl:px-3.5 2xl:py-1.5 rounded-md 2xl:rounded-lg bg-[#202736] hover:bg-[#2b354a] text-slate-200 text-[11px] 2xl:text-xs font-semibold flex items-center gap-1.5 transition border border-[#2b364c]"
                     >
-                      <Upload size={13} />
+                      <Upload size={12} />
                       <span>Browse</span>
                     </button>
                     {bugAssetPath && (
                       <button
                         onClick={handleRemoveBug}
-                        className="p-1.5 rounded-lg bg-[#202736] hover:bg-red-950/60 text-slate-400 hover:text-red-400 border border-[#2b364c] transition"
+                        className="p-1 2xl:p-1.5 rounded-md 2xl:rounded-lg bg-[#202736] hover:bg-red-950/60 text-slate-400 hover:text-red-400 border border-[#2b364c] transition"
                         title="Remove Bug"
                       >
-                        <Trash2 size={13} />
+                        <Trash2 size={12} />
                       </button>
                     )}
                   </div>
-                  <p className="text-[10px] text-slate-500 mt-1">
+                  <p className="text-[9px] 2xl:text-[10px] text-slate-500 mt-1 leading-tight">
                     Supports PNG and MOV files only
                   </p>
                 </div>
@@ -920,8 +904,8 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
             </div>
 
             {/* SHOW BUG ON AIR Toggle */}
-            <div className="flex items-center justify-between p-3 bg-[#151a24] border border-[#232c3d] rounded-xl">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-200">
+            <div className="flex items-center justify-between p-2.5 2xl:p-3 bg-[#151a24] border border-[#232c3d] rounded-lg 2xl:rounded-xl">
+              <span className="text-[10.5px] 2xl:text-xs font-bold uppercase tracking-wider text-slate-200">
                 Show Bug On Air
               </span>
 
@@ -931,24 +915,24 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                   setBugEnabled(next);
                   handleUpdateBug({ enabled: next });
                 }}
-                className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors duration-300 ${bugEnabled ? 'bg-amber-500' : 'bg-slate-700'
+                className={`w-9 h-5 2xl:w-11 2xl:h-6 flex items-center rounded-full p-0.5 2xl:p-1 transition-colors duration-300 shrink-0 ${bugEnabled ? 'bg-amber-500' : 'bg-slate-700'
                   }`}
               >
                 <div
-                  className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-300 ${bugEnabled ? 'translate-x-5' : 'translate-x-0'
+                  className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-300 ${bugEnabled ? 'translate-x-4 2xl:translate-x-5' : 'translate-x-0'
                     }`}
                 />
               </button>
             </div>
 
             {/* Flexible Screen Positioning Pad */}
-            <div className="bg-[#151a24] border border-[#232c3d] rounded-2xl p-4 space-y-3">
+            <div className="bg-[#151a24] border border-[#232c3d] rounded-xl 2xl:rounded-2xl p-2.5 2xl:p-3.5 space-y-2 2xl:space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                  <Crosshair size={13} className="text-amber-400" />
+                <span className="text-[10px] 2xl:text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
+                  <Crosshair size={12} className="text-amber-400" />
                   <span>Free Screen Positioning</span>
                 </span>
-                <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                <span className="text-[9.5px] 2xl:text-[10px] font-mono text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
                   X: {bugPositionX}% · Y: {bugPositionY}%
                 </span>
               </div>
@@ -959,7 +943,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                 onPointerDown={handleBugPadPointerDown}
                 onPointerMove={handleBugPadPointerMove}
                 onPointerUp={handleBugPadPointerUp}
-                className="relative aspect-video bg-[#090c12] border border-[#222938] rounded-xl overflow-hidden cursor-crosshair select-none touch-none shadow-inner"
+                className="relative aspect-video max-h-[115px] xl:max-h-[125px] 2xl:max-h-[155px] w-full mx-auto bg-[#090c12] border border-[#222938] rounded-lg 2xl:rounded-xl overflow-hidden cursor-crosshair select-none touch-none shadow-inner"
                 title="Click or drag anywhere to place the bug"
               >
                 {/* Rule of thirds / Alignment guide lines */}
@@ -976,8 +960,8 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                     left: `${bugPositionX}%`,
                     top: `${bugPositionY}%`,
                     transform: `translate(-${bugPositionX}%, -${bugPositionY}%)`,
-                    width: `${Math.max(16, Math.min(64, Math.round(16 + (bugSizePercent * 0.9))))}px`,
-                    height: `${Math.max(16, Math.min(64, Math.round(16 + (bugSizePercent * 0.9))))}px`
+                    width: `${Math.max(14, Math.min(54, Math.round(14 + (bugSizePercent * 0.8))))}px`,
+                    height: `${Math.max(14, Math.min(54, Math.round(14 + (bugSizePercent * 0.8))))}px`
                   }}
                   className="absolute border-2 border-amber-400 bg-amber-500/30 rounded shadow-[0_0_12px_rgba(245,158,11,0.6)] flex items-center justify-center pointer-events-none transition-all duration-75 overflow-hidden"
                 >
@@ -999,18 +983,18 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                       />
                     )
                   ) : (
-                    <Sparkles size={12} className="text-amber-300" />
+                    <Sparkles size={11} className="text-amber-300" />
                   )}
                 </div>
 
                 {/* Drag hint overlay */}
-                <div className="absolute bottom-1 right-2 text-[9px] text-slate-500 pointer-events-none font-semibold">
+                <div className="absolute bottom-1 right-2 text-[8.5px] 2xl:text-[9px] text-slate-500 pointer-events-none font-semibold">
                   Click or drag anywhere
                 </div>
               </div>
 
               {/* Quick-Snap Preset Buttons */}
-              <div className="grid grid-cols-5 gap-1 pt-1">
+              <div className="grid grid-cols-5 gap-1 pt-0.5">
                 {[
                   { label: 'Top-L', x: 3, y: 3 },
                   { label: 'Top-R', x: 97, y: 3 },
@@ -1033,9 +1017,9 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                           positionY: preset.y
                         });
                       }}
-                      className={`py-1 rounded text-[10px] font-semibold border transition ${isActive
-                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-sm'
-                          : 'bg-[#121620] text-slate-400 hover:text-white border-[#222938]'
+                      className={`py-0.5 2xl:py-1 rounded text-[9.5px] 2xl:text-[10px] font-semibold border transition ${isActive
+                        ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-sm'
+                        : 'bg-[#121620] text-slate-400 hover:text-white border-[#222938]'
                         }`}
                       title={`Snap to ${preset.label}`}
                     >
@@ -1047,11 +1031,11 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
             </div>
 
             {/* Sliders: SIZE, POSITION X, POSITION Y */}
-            <div className="space-y-4 bg-[#151a24] border border-[#232c3d] rounded-2xl p-4">
-              {/* SIZE SLIDER: Scales both width and height proportionally */}
+            <div className="space-y-2.5 2xl:space-y-3.5 bg-[#151a24] border border-[#232c3d] rounded-xl 2xl:rounded-2xl p-2.5 2xl:p-3.5">
+              {/* SIZE SLIDER */}
               <div>
-                <div className="flex items-center justify-between text-xs font-semibold text-slate-300 mb-1">
-                  <span className="uppercase tracking-wider text-[10px]">
+                <div className="flex items-center justify-between text-[10px] 2xl:text-xs font-semibold text-slate-300 mb-1">
+                  <span className="uppercase tracking-wider text-[9.5px] 2xl:text-[10px]">
                     Bug Size (Proportional W × H)
                   </span>
                   <span className="font-mono text-amber-400">{bugSizePercent}%</span>
@@ -1066,16 +1050,12 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                   onTouchEnd={() => handleUpdateBug({ sizePercent: bugSizePercent })}
                   className="w-full accent-amber-500 cursor-pointer h-1.5 bg-[#090c12] rounded-lg"
                 />
-                {/* <p className="text-[10px] text-slate-400 mt-1">
-                  {bugIsGif ? '⚡ Animated GIF: ' : '🖼️ Static Image: '}
-                  Scales both width and height proportionally, maintaining original aspect ratio.
-                </p> */}
               </div>
 
               {/* HORIZONTAL POSITION X */}
               <div>
-                <div className="flex items-center justify-between text-xs font-semibold text-slate-300 mb-1">
-                  <span className="uppercase tracking-wider text-[10px]">Position X (Horizontal)</span>
+                <div className="flex items-center justify-between text-[10px] 2xl:text-xs font-semibold text-slate-300 mb-1">
+                  <span className="uppercase tracking-wider text-[9.5px] 2xl:text-[10px]">Position X (Horizontal)</span>
                   <span className="font-mono text-amber-400">{bugPositionX}%</span>
                 </div>
                 <input
@@ -1104,8 +1084,8 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
 
               {/* VERTICAL POSITION Y */}
               <div>
-                <div className="flex items-center justify-between text-xs font-semibold text-slate-300 mb-1">
-                  <span className="uppercase tracking-wider text-[10px]">Position Y (Vertical)</span>
+                <div className="flex items-center justify-between text-[10px] 2xl:text-xs font-semibold text-slate-300 mb-1">
+                  <span className="uppercase tracking-wider text-[9.5px] 2xl:text-[10px]">Position Y (Vertical)</span>
                   <span className="font-mono text-amber-400">{bugPositionY}%</span>
                 </div>
                 <input
@@ -1137,16 +1117,16 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
 
         {/* ================= TICKER TAB ================= */}
         {activeTab === 'ticker' && (
-          <div className="space-y-4">
+          <div className="space-y-2.5 2xl:space-y-3.5">
             {/* Active Schedule Notification */}
             {currentOnAirSchedule && (
-              <div className="p-3 rounded-2xl bg-amber-950/40 border border-amber-500/40 text-amber-200 flex items-start gap-2.5">
-                <Sparkles size={16} className="text-amber-400 shrink-0 mt-0.5 animate-pulse" />
-                <div className="text-xs">
+              <div className="p-2.5 2xl:p-3 rounded-xl 2xl:rounded-2xl bg-amber-950/40 border border-amber-500/40 text-amber-200 flex items-start gap-2">
+                <Sparkles size={14} className="text-amber-400 shrink-0 mt-0.5 animate-pulse" />
+                <div className="text-[11px] 2xl:text-xs">
                   <span className="font-bold text-amber-300 block">
                     Schedule Active: "{currentOnAirSchedule.title}"
                   </span>
-                  <span className="text-[10px] text-amber-200/80 leading-relaxed block mt-0.5">
+                  <span className="text-[9.5px] 2xl:text-[10px] text-amber-200/80 leading-relaxed block mt-0.5">
                     Station overlays (Ticker, Bug, Ashton, L-Band) are hidden during schedule playout and will restore automatically when the schedule ends.
                   </span>
                 </div>
@@ -1154,43 +1134,32 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
             )}
 
             {/* Header banner */}
-            <div className="bg-[#151a24] border border-[#232c3d] rounded-2xl p-4 space-y-3">
+            <div className="bg-[#151a24] border border-[#232c3d] rounded-xl 2xl:rounded-2xl p-2.5 2xl:p-3.5 space-y-2 2xl:space-y-3">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-slate-200 text-xs font-bold uppercase tracking-wider">
-                  <Type size={14} className="text-blue-400" />
+                <div className="flex items-center gap-1.5 text-slate-200 text-[10.5px] 2xl:text-xs font-bold uppercase tracking-wider">
+                  <Type size={13} className="text-blue-400" />
                   <span>Live Ticker</span>
-                  {/* <span
-                    className={`px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wider ${
-                      tickerEnabled
-                        ? 'bg-emerald-950 border border-emerald-600 text-emerald-400'
-                        : 'bg-slate-800 text-slate-400 border border-slate-700'
-                    }`}
-                  >
-                    {tickerEnabled ? '● ON AIR' : 'OFF AIR'}
-                  </span> */}
                 </div>
 
                 {/* Color pickers */}
-                <div className="flex items-center gap-2">
-                  <label className="flex items-center gap-1.5 cursor-pointer bg-[#0b0e14] px-2 py-1 rounded-lg border border-[#232b3c]" title="Background Color">
-                    <span className="text-[9px] uppercase font-bold text-slate-400">BG</span>
+                <div className="flex items-center gap-1.5">
+                  <label className="flex items-center gap-1 cursor-pointer bg-[#0b0e14] px-1.5 py-0.5 rounded-md border border-[#232b3c]" title="Background Color">
+                    <span className="text-[8.5px] uppercase font-bold text-slate-400">BG</span>
                     <input
                       type="color"
                       value={tickerBgColor.substring(0, 7)}
                       onChange={(e) => setTickerBgColor(e.target.value)}
-                      className="w-4 h-4 rounded border-0 cursor-pointer bg-transparent"
+                      className="w-3.5 h-3.5 rounded border-0 cursor-pointer bg-transparent"
                     />
-                    {/* <span className="text-[9px] font-mono text-slate-300 uppercase">{tickerBgColor.substring(0, 7)}</span> */}
                   </label>
-                  <label className="flex items-center gap-1.5 cursor-pointer bg-[#0b0e14] px-2 py-1 rounded-lg border border-[#232b3c]" title="Text Color">
-                    <span className="text-[9px] uppercase font-bold text-slate-400">TEXT</span>
+                  <label className="flex items-center gap-1 cursor-pointer bg-[#0b0e14] px-1.5 py-0.5 rounded-md border border-[#232b3c]" title="Text Color">
+                    <span className="text-[8.5px] uppercase font-bold text-slate-400">TEXT</span>
                     <input
                       type="color"
                       value={tickerTextColor.substring(0, 7)}
                       onChange={(e) => setTickerTextColor(e.target.value)}
-                      className="w-4 h-4 rounded border-0 cursor-pointer bg-transparent"
+                      className="w-3.5 h-3.5 rounded border-0 cursor-pointer bg-transparent"
                     />
-                    {/* <span className="text-[9px] font-mono text-slate-300 uppercase">{tickerTextColor.substring(0, 7)}</span> */}
                   </label>
                 </div>
               </div>
@@ -1198,59 +1167,39 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
               {/* Textarea for crawl text */}
               <div>
                 <textarea
-                  rows={3}
+                  rows={2}
                   value={tickerText}
                   onChange={(e) => setTickerText(e.target.value)}
                   placeholder="Enter Hindi or English ticker text..."
-                  className="w-full p-2.5 bg-[#090c12] border border-[#232a39] rounded-xl text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-blue-500 transition-all shadow-inner"
+                  className="w-full p-2 bg-[#090c12] border border-[#232a39] rounded-lg text-[11px] 2xl:text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-blue-500 transition-all shadow-inner"
                   style={{
                     backgroundColor: tickerBgColor.substring(0, 7),
                     color: tickerTextColor.substring(0, 7),
                     fontFamily: getCssFontFamily(tickerFontFamily),
                     fontWeight: 'bold',
-                    fontSize: `${Math.max(11, Math.round(tickerFontSize * 0.55))}px`,
-                    padding: `${Math.max(4, Math.round(tickerPaddingY * 0.4))}px 10px`,
+                    fontSize: `${Math.max(10, Math.round(tickerFontSize * 0.5))}px`,
+                    padding: `${Math.max(4, Math.round(tickerPaddingY * 0.35))}px 8px`,
                     width: `${tickerWidth}%`,
                     margin: tickerAlignment.toLowerCase() === 'center' ? '0 auto' : tickerAlignment.toLowerCase() === 'right' ? '0 0 0 auto' : '0 auto 0 0'
                   }}
                 />
               </div>
-
-              {/* Ticker Live Preview Strip */}
-              {/* <div className="bg-[#0b0e14] p-2 rounded-xl border border-[#232b3c] space-y-1">
-                <div className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Live Preview</div>
-                <div
-                  className="rounded-lg overflow-hidden font-bold truncate text-center transition-all shadow-inner border border-white/10"
-                  style={{
-                    backgroundColor: tickerBgColor.substring(0, 7),
-                    color: tickerTextColor.substring(0, 7),
-                    fontFamily: getCssFontFamily(tickerFontFamily),
-                    fontWeight: 'bold',
-                    fontSize: `${Math.max(11, Math.round(tickerFontSize * 0.55))}px`,
-                    padding: `${Math.max(4, Math.round(tickerPaddingY * 0.4))}px 10px`,
-                    width: `${tickerWidth}%`,
-                    margin: tickerAlignment.toLowerCase() === 'center' ? '0 auto' : tickerAlignment.toLowerCase() === 'right' ? '0 0 0 auto' : '0 auto 0 0'
-                  }}
-                >
-                  {tickerText || 'Welcome to Cloud Playout Live Broadcast'}
-                </div>
-              </div> */}
             </div>
 
             {/* Font select */}
             <div>
               <div className="flex items-center justify-between text-slate-400 mb-1">
-                <label className="text-[10px] font-bold uppercase tracking-wider">
+                <label className="text-[9.5px] 2xl:text-[10px] font-bold uppercase tracking-wider">
                   Font Family
                 </label>
-                <span className="text-[10px] text-blue-400 font-mono">
+                <span className="text-[9.5px] 2xl:text-[10px] text-blue-400 font-mono">
                   {tickerFontFamily}
                 </span>
               </div>
               <select
                 value={tickerFontFamily}
                 onChange={(e) => setTickerFontFamily(e.target.value)}
-                className="w-full bg-[#090c12] border border-[#232a39] text-xs text-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-blue-500"
+                className="w-full bg-[#090c12] border border-[#232a39] text-[11px] 2xl:text-xs text-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-blue-500"
               >
                 {['sans bold', 'sans'].includes(String(tickerFontFamily || '').toLowerCase()) && (
                   <option value={tickerFontFamily}>{tickerFontFamily} (Arial)</option>
@@ -1264,11 +1213,11 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
             </div>
 
             {/* Sliders: Font Size, Margin Bottom, Padding Y, Ticker Width, Ticker Position */}
-            <div className="space-y-3.5 bg-[#151a24] border border-[#232c3d] rounded-2xl p-4">
+            <div className="space-y-2.5 2xl:space-y-3 bg-[#151a24] border border-[#232c3d] rounded-xl 2xl:rounded-2xl p-2.5 2xl:p-3.5">
               {/* Font Size */}
               <div>
-                <div className="flex items-center justify-between text-xs font-semibold text-slate-300 mb-1">
-                  <span className="uppercase tracking-wider text-[10px]">Font Size</span>
+                <div className="flex items-center justify-between text-[10px] 2xl:text-xs font-semibold text-slate-300 mb-0.5">
+                  <span className="uppercase tracking-wider text-[9.5px] 2xl:text-[10px]">Font Size</span>
                   <span className="font-mono text-blue-400">{tickerFontSize}px</span>
                 </div>
                 <input
@@ -1283,8 +1232,8 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
 
               {/* Margin Bottom */}
               <div>
-                <div className="flex items-center justify-between text-xs font-semibold text-slate-300 mb-1">
-                  <span className="uppercase tracking-wider text-[10px]">Margin Bottom</span>
+                <div className="flex items-center justify-between text-[10px] 2xl:text-xs font-semibold text-slate-300 mb-0.5">
+                  <span className="uppercase tracking-wider text-[9.5px] 2xl:text-[10px]">Margin Bottom</span>
                   <span className="font-mono text-blue-400">{tickerMarginBottom}%</span>
                 </div>
                 <input
@@ -1295,15 +1244,15 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                   onChange={(e) => setTickerMarginBottom(Number(e.target.value))}
                   className="w-full accent-blue-600 cursor-pointer h-1.5 bg-[#090c12] rounded-lg"
                 />
-                <p className="text-[9px] text-slate-500 mt-0.5">
+                <p className="text-[8.5px] 2xl:text-[9px] text-slate-500 mt-0.5">
                   0% is flush at the very bottom edge of video
                 </p>
               </div>
 
               {/* Padding Y */}
               <div>
-                <div className="flex items-center justify-between text-xs font-semibold text-slate-300 mb-1">
-                  <span className="uppercase tracking-wider text-[10px]">Padding Y</span>
+                <div className="flex items-center justify-between text-[10px] 2xl:text-xs font-semibold text-slate-300 mb-0.5">
+                  <span className="uppercase tracking-wider text-[9.5px] 2xl:text-[10px]">Padding Y</span>
                   <span className="font-mono text-blue-400">{tickerPaddingY}px</span>
                 </div>
                 <input
@@ -1318,8 +1267,8 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
 
               {/* Ticker Width */}
               <div>
-                <div className="flex items-center justify-between text-xs font-semibold text-slate-300 mb-1">
-                  <span className="uppercase tracking-wider text-[10px]">Ticker Width</span>
+                <div className="flex items-center justify-between text-[10px] 2xl:text-xs font-semibold text-slate-300 mb-0.5">
+                  <span className="uppercase tracking-wider text-[9.5px] 2xl:text-[10px]">Ticker Width</span>
                   <span className="font-mono text-blue-400">{tickerWidth}%</span>
                 </div>
                 <input
@@ -1332,15 +1281,15 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                 />
               </div>
 
-              {/* Ticker Position (Appears directly below Ticker Width) */}
+              {/* Ticker Position */}
               <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                <label className="block text-[9.5px] 2xl:text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
                   Ticker Position
                 </label>
                 <select
                   value={tickerAlignment}
                   onChange={(e) => setTickerAlignment(e.target.value)}
-                  className="w-full bg-[#090c12] border border-[#232a39] text-xs text-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-blue-500"
+                  className="w-full bg-[#090c12] border border-[#232a39] text-[11px] 2xl:text-xs text-slate-200 rounded-lg px-2.5 py-1 focus:outline-none focus:border-blue-500"
                 >
                   <option value="Center">Center</option>
                   <option value="Left">Left</option>
@@ -1350,20 +1299,20 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
             </div>
 
             {/* Action Buttons */}
-            <div className="space-y-2 pt-2">
+            <div className="space-y-1.5 pt-1">
               <button
                 onClick={handlePushTicker}
-                className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition shadow-lg shadow-blue-600/30"
+                className="w-full py-2 rounded-lg 2xl:rounded-xl bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-bold text-[11px] 2xl:text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition shadow-lg shadow-blue-600/30"
               >
-                <Send size={14} />
+                <Send size={13} />
                 <span>Push Live to Air</span>
               </button>
 
               <button
                 onClick={handleRemoveTicker}
-                className="w-full py-2 rounded-xl bg-[#1b2230] hover:bg-red-950/40 text-slate-400 hover:text-red-400 font-semibold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition border border-[#263145]"
+                className="w-full py-1.5 2xl:py-2 rounded-lg 2xl:rounded-xl bg-[#1b2230] hover:bg-red-950/40 text-slate-400 hover:text-red-400 font-semibold text-[11px] 2xl:text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition border border-[#263145]"
               >
-                <Trash2 size={13} />
+                <Trash2 size={12} />
                 <span>Remove Ticker</span>
               </button>
             </div>
@@ -1372,15 +1321,15 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
 
         {/* ================= BACK IN TIMER TAB ================= */}
         {activeTab === 'timer' && (
-          <div className="space-y-5">
+          <div className="space-y-2.5 2xl:space-y-4">
             {currentOnAirSchedule && (
-              <div className="p-3 rounded-2xl bg-amber-950/40 border border-amber-500/40 text-amber-200 flex items-start gap-2.5">
-                <Sparkles size={16} className="text-amber-400 shrink-0 mt-0.5 animate-pulse" />
-                <div className="text-xs">
+              <div className="p-2.5 2xl:p-3 rounded-xl 2xl:rounded-2xl bg-amber-950/40 border border-amber-500/40 text-amber-200 flex items-start gap-2">
+                <Sparkles size={14} className="text-amber-400 shrink-0 mt-0.5 animate-pulse" />
+                <div className="text-[11px] 2xl:text-xs">
                   <span className="font-bold text-amber-300 block">
                     Schedule Active: "{currentOnAirSchedule.title}"
                   </span>
-                  <span className="text-[10px] text-amber-200/80 leading-relaxed block mt-0.5">
+                  <span className="text-[9.5px] 2xl:text-[10px] text-amber-200/80 leading-relaxed block mt-0.5">
                     {timerEnabled
                       ? 'Back In Timer is counting down live on the broadcast stream until the ad ends.'
                       : 'Back In Timer is disabled and will not show during ads.'}
@@ -1390,14 +1339,14 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
             )}
 
             {/* Live Timer Preview Box */}
-            <div className="bg-[#151a24] border border-[#232c3d] rounded-2xl p-4 space-y-3">
+            <div className="bg-[#151a24] border border-[#232c3d] rounded-xl 2xl:rounded-2xl p-2.5 2xl:p-3.5 space-y-2 2xl:space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                  <Clock size={13} className="text-blue-400" />
+                <span className="text-[10px] 2xl:text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                  <Clock size={12} className="text-blue-400" />
                   Live Preview
                 </span>
                 <span
-                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${timerEnabled
+                  className={`text-[9px] 2xl:text-[10px] font-bold px-2 py-0.5 rounded-full ${timerEnabled
                       ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
                       : 'bg-slate-800 text-slate-500'
                     }`}
@@ -1406,44 +1355,44 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                 </span>
               </div>
 
-              <div className="relative aspect-video bg-[#090c12] border border-[#222938] rounded-xl flex items-center justify-center p-3 overflow-hidden">
+              <div className="relative aspect-video max-h-[115px] xl:max-h-[125px] 2xl:max-h-[155px] w-full mx-auto bg-[#090c12] border border-[#222938] rounded-lg 2xl:rounded-xl flex items-center justify-center p-2 overflow-hidden">
                 <div
-                  className={`absolute px-3 py-1.5 rounded-md font-mono font-bold text-xs shadow-lg flex items-center gap-1.5 transition-all ${timerPosition === 'top-left'
-                      ? 'top-3 left-3'
+                  className={`absolute px-2 py-1 2xl:px-3 2xl:py-1.5 rounded-md font-mono font-bold text-[10px] 2xl:text-xs shadow-lg flex items-center gap-1 transition-all ${timerPosition === 'top-left'
+                      ? 'top-2 left-2'
                       : timerPosition === 'top-right'
-                        ? 'top-3 right-3'
+                        ? 'top-2 right-2'
                         : timerPosition === 'bottom-left'
-                          ? 'bottom-3 left-3'
+                          ? 'bottom-2 left-2'
                           : timerPosition === 'bottom-right'
-                            ? 'bottom-3 right-3'
-                            : 'top-3 left-3'
+                            ? 'bottom-2 right-2'
+                            : 'top-2 left-2'
                     }`}
                   style={{
                     backgroundColor: timerBgColor || '#000000cc',
                     color: timerFontColor || '#ffffff',
-                    fontSize: `${Math.max(10, Math.min(22, (timerFontSize / 24) * 12))}px`,
+                    fontSize: `${Math.max(9, Math.min(18, (timerFontSize / 24) * 11))}px`,
                     opacity: timerEnabled ? 1 : 0.4
                   }}
                 >
-                  <Clock size={12} className="opacity-80" />
+                  <Clock size={10} className="opacity-80" />
                   <span>
                     {timerLabel || 'BACK IN '}
                     {timerFormat === 'SS' ? '30s' : '00:30'}
                   </span>
                 </div>
-                <span className="text-[10px] text-slate-600 font-bold uppercase tracking-wider">
+                <span className="text-[9px] 2xl:text-[10px] text-slate-600 font-bold uppercase tracking-wider">
                   Ad Broadcast Frame (1280x720)
                 </span>
               </div>
             </div>
 
             {/* SINGLE TOGGLE: Show Back In Timer During Ad */}
-            <div className="flex items-center justify-between p-3.5 bg-[#151a24] border border-[#232c3d] rounded-xl">
-              <div>
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-200 block">
+            <div className="flex items-center justify-between gap-2 p-2.5 2xl:p-3 bg-[#151a24] border border-[#232c3d] rounded-lg 2xl:rounded-xl">
+              <div className="min-w-0">
+                <span className="text-[10.5px] 2xl:text-xs font-bold uppercase tracking-wider text-slate-200 block">
                   Show Timer During Ad
                 </span>
-                <span className="text-[10px] text-slate-400">
+                <span className="text-[9px] 2xl:text-[10px] text-slate-400 leading-tight block">
                   Display real-time countdown backward until the ad ends
                 </span>
               </div>
@@ -1456,25 +1405,25 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                   setTimerShowDuringSchedule(next);
                   handleUpdateTimer({ enabled: next, showDuringSchedule: next });
                 }}
-                className={`w-11 h-6 flex items-center rounded-full p-1 transition-colors duration-300 ${timerEnabled ? 'bg-blue-600' : 'bg-slate-700'
+                className={`w-9 h-5 2xl:w-11 2xl:h-6 flex items-center rounded-full p-0.5 2xl:p-1 transition-colors duration-300 shrink-0 ${timerEnabled ? 'bg-blue-600' : 'bg-slate-700'
                   }`}
               >
                 <div
-                  className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-300 ${timerEnabled ? 'translate-x-5' : 'translate-x-0'
+                  className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-300 ${timerEnabled ? 'translate-x-4 2xl:translate-x-5' : 'translate-x-0'
                     }`}
                 />
               </button>
             </div>
 
             {/* Configuration Box: Label, Format, Position */}
-            <div className="bg-[#151a24] border border-[#232c3d] rounded-2xl p-4 space-y-4">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
+            <div className="bg-[#151a24] border border-[#232c3d] rounded-xl 2xl:rounded-2xl p-2.5 2xl:p-3.5 space-y-2.5 2xl:space-y-3.5">
+              <span className="text-[10px] 2xl:text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
                 Timer Customization
               </span>
 
               {/* Text Label */}
               <div>
-                <label className="text-[11px] text-slate-400 font-medium block mb-1.5">
+                <label className="text-[10px] 2xl:text-[11px] text-slate-400 font-medium block mb-1">
                   Text Prefix Label
                 </label>
                 <input
@@ -1482,23 +1431,23 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                   value={timerLabel}
                   onChange={(e) => setTimerLabel(e.target.value)}
                   placeholder="BACK IN "
-                  className="w-full bg-[#090c12] border border-[#232a39] text-xs text-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 font-mono"
+                  className="w-full bg-[#090c12] border border-[#232a39] text-[11px] 2xl:text-xs text-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-blue-500 font-mono"
                 />
               </div>
 
               {/* Format Selection */}
               <div>
-                <label className="text-[11px] text-slate-400 font-medium block mb-1.5">
+                <label className="text-[10px] 2xl:text-[11px] text-slate-400 font-medium block mb-1">
                   Countdown Format
                 </label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-1.5 2xl:gap-2">
                   <button
                     type="button"
                     onClick={() => {
                       setTimerFormat('MM:SS');
                       handleUpdateTimer({ format: 'MM:SS' });
                     }}
-                    className={`py-2 rounded-lg border text-xs font-bold transition flex items-center justify-center gap-1.5 ${timerFormat === 'MM:SS'
+                    className={`py-1.5 2xl:py-2 rounded-lg border text-[10.5px] 2xl:text-xs font-bold transition flex items-center justify-center ${timerFormat === 'MM:SS'
                         ? 'bg-blue-600 border-blue-400 text-white shadow-md'
                         : 'bg-[#090c12] border-[#222938] text-slate-400 hover:text-white'
                       }`}
@@ -1511,7 +1460,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                       setTimerFormat('SS');
                       handleUpdateTimer({ format: 'SS' });
                     }}
-                    className={`py-2 rounded-lg border text-xs font-bold transition flex items-center justify-center gap-1.5 ${timerFormat === 'SS'
+                    className={`py-1.5 2xl:py-2 rounded-lg border text-[10.5px] 2xl:text-xs font-bold transition flex items-center justify-center ${timerFormat === 'SS'
                         ? 'bg-blue-600 border-blue-400 text-white shadow-md'
                         : 'bg-[#090c12] border-[#222938] text-slate-400 hover:text-white'
                       }`}
@@ -1523,10 +1472,10 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
 
               {/* Position Presets */}
               <div>
-                <label className="text-[11px] text-slate-400 font-medium block mb-1.5">
+                <label className="text-[10px] 2xl:text-[11px] text-slate-400 font-medium block mb-1">
                   Screen Position
                 </label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-1.5 2xl:gap-2">
                   {[
                     { id: 'top-left', label: 'Top Left' },
                     { id: 'top-right', label: 'Top Right' },
@@ -1540,7 +1489,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                         setTimerPosition(p.id);
                         handleUpdateTimer({ position: p.id });
                       }}
-                      className={`py-2 px-3 rounded-lg border text-xs font-bold transition flex items-center justify-center ${timerPosition === p.id
+                      className={`py-1.5 2xl:py-2 px-2 rounded-lg border text-[10.5px] 2xl:text-xs font-bold transition flex items-center justify-center ${timerPosition === p.id
                           ? 'bg-blue-600 border-blue-400 text-white shadow-md'
                           : 'bg-[#090c12] border-[#222938] text-slate-400 hover:text-white'
                         }`}
@@ -1552,9 +1501,9 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
               </div>
 
               {/* Font Size & Colors */}
-              <div className="grid grid-cols-2 gap-3 pt-1">
+              <div className="grid grid-cols-2 gap-2.5 pt-0.5">
                 <div>
-                  <label className="text-[11px] text-slate-400 font-medium block mb-1">
+                  <label className="text-[10px] 2xl:text-[11px] text-slate-400 font-medium block mb-1">
                     Font Size ({timerFontSize}px)
                   </label>
                   <input
@@ -1563,28 +1512,28 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                     max="48"
                     value={timerFontSize}
                     onChange={(e) => setTimerFontSize(Number(e.target.value))}
-                    className="w-full accent-blue-600 cursor-pointer"
+                    className="w-full accent-blue-600 cursor-pointer h-1.5"
                   />
                 </div>
 
                 <div>
-                  <label className="text-[11px] text-slate-400 font-medium block mb-1">
+                  <label className="text-[10px] 2xl:text-[11px] text-slate-400 font-medium block mb-1">
                     Font Color
                   </label>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     <input
                       type="color"
                       value={timerFontColor}
                       onChange={(e) => setTimerFontColor(e.target.value)}
-                      className="w-8 h-8 rounded border border-slate-700 cursor-pointer bg-transparent"
+                      className="w-7 h-7 rounded border border-slate-700 cursor-pointer bg-transparent"
                     />
-                    <span className="text-xs text-slate-300 font-mono">{timerFontColor}</span>
+                    <span className="text-[11px] text-slate-300 font-mono">{timerFontColor}</span>
                   </div>
                 </div>
               </div>
 
               {/* Save Button */}
-              <div className="pt-2">
+              <div className="pt-1">
                 <button
                   type="button"
                   onClick={() =>
@@ -1596,9 +1545,9 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                       fontColor: timerFontColor
                     })
                   }
-                  className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition shadow-lg shadow-blue-600/30"
+                  className="w-full py-2 rounded-lg 2xl:rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] 2xl:text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition shadow-lg shadow-blue-600/30"
                 >
-                  <Send size={14} />
+                  <Send size={13} />
                   <span>Save Timer Settings</span>
                 </button>
               </div>

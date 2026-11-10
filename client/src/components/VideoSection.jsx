@@ -185,19 +185,19 @@ export default function VideoSection({ channel, selectedAsset, isLive = false })
   }, [isLive, isChannelOnline, hlsUrl]);
 
   return (
-    <div className="flex flex-col bg-[#0f1218] border-b border-[#1f2635]">
+    <div className="flex flex-col bg-[#0f1218] border-b border-[#1f2635] shrink-0">
       {/* Header with status badge */}
-      <div className="px-4 py-2.5 bg-[#12161f] border-b border-[#1f2635] flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Film size={15} className="text-blue-500" />
-          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-200 m-0">
+      <div className="px-3 py-1.5 2xl:px-4 2xl:py-2 bg-[#12161f] border-b border-[#1f2635] flex items-center justify-between">
+        <div className="flex items-center gap-1.5 2xl:gap-2">
+          <Film size={13} className="text-blue-500" />
+          <h2 className="text-[11px] 2xl:text-xs font-bold uppercase tracking-wider text-slate-200 m-0">
             Playout Production Deck
           </h2>
         </div>
 
         {/* Live on air badge */}
         <div
-          className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 transition ${isLive && isChannelOnline
+          className={`px-2.5 py-0.5 2xl:px-3 2xl:py-1 rounded-full text-[9px] 2xl:text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 transition ${isLive && isChannelOnline
             ? 'bg-red-500/10 border border-red-500/40 text-red-400 shadow-sm'
             : isLive
               ? 'bg-amber-500/10 border border-amber-500/40 text-amber-400 shadow-sm'
@@ -223,19 +223,19 @@ export default function VideoSection({ channel, selectedAsset, isLive = false })
       </div>
 
       {/* Two players side by side */}
-      <div className="p-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div className="p-2 2xl:p-3 grid grid-cols-1 md:grid-cols-2 gap-2 2xl:gap-3">
         {/* Left: LOCAL PREVIEW */}
-        <div className="bg-[#141822] border border-[#232b3c] rounded-xl overflow-hidden flex flex-col shadow-lg">
-          <div className="px-3 py-1.5 bg-[#161b26] border-b border-[#232b3c] flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-slate-300">
+        <div className="bg-[#141822] border border-[#232b3c] rounded-lg 2xl:rounded-xl overflow-hidden flex flex-col shadow-lg">
+          <div className="px-2.5 py-1 2xl:px-3 2xl:py-1.5 bg-[#161b26] border-b border-[#232b3c] flex items-center justify-between text-[10px] 2xl:text-[11px] font-bold uppercase tracking-wider text-slate-300">
             <span>Local Preview</span>
             {selectedAsset && (
-              <span className="text-[10px] font-normal text-slate-400 truncate max-w-[180px]">
+              <span className="text-[9.5px] 2xl:text-[10px] font-normal text-slate-400 truncate max-w-[160px] 2xl:max-w-[220px]">
                 {selectedAsset.originalName}
               </span>
             )}
           </div>
 
-          <div className="relative aspect-video bg-black flex items-center justify-center overflow-hidden group">
+          <div className="relative w-full aspect-video max-h-[195px] xl:max-h-[215px] 2xl:max-h-[275px] min-[1800px]:max-h-[340px] bg-black flex items-center justify-center overflow-hidden group">
             {selectedAsset?.filePath ? (
               <video
                 ref={localVideoRef}
@@ -246,10 +246,10 @@ export default function VideoSection({ channel, selectedAsset, isLive = false })
                 poster={selectedAsset.thumbnailPath ? `/${selectedAsset.thumbnailPath}` : undefined}
               />
             ) : (
-              <div className="text-center p-4 text-slate-500 text-xs flex flex-col items-center">
-                <Film size={26} className="text-slate-600 mb-1.5" />
+              <div className="text-center p-3 text-slate-500 text-[11px] 2xl:text-xs flex flex-col items-center">
+                <Film size={22} className="text-slate-600 mb-1" />
                 <span>Select any video from Assets Library</span>
-                <span className="text-[10px] text-slate-600">to preview locally before broadcast</span>
+                <span className="text-[9.5px] 2xl:text-[10px] text-slate-600">to preview locally before broadcast</span>
               </div>
             )}
           </div>
@@ -257,22 +257,22 @@ export default function VideoSection({ channel, selectedAsset, isLive = false })
 
         {/* Right: LIVE PROGRAM (PGM) */}
         <div
-          className={`bg-[#141822] border rounded-xl overflow-hidden flex flex-col shadow-lg transition ${isLive && isChannelOnline
+          className={`bg-[#141822] border rounded-lg 2xl:rounded-xl overflow-hidden flex flex-col shadow-lg transition ${isLive && isChannelOnline
             ? 'border-red-600/70 shadow-red-950/20'
             : isLive
               ? 'border-amber-600/50 shadow-amber-950/20'
               : 'border-[#232b3c]'
             }`}
         >
-          <div className="px-3 py-1.5 bg-[#161b26] border-b border-[#232b3c] flex items-center justify-between text-[11px] font-bold uppercase tracking-wider">
+          <div className="px-2.5 py-1 2xl:px-3 2xl:py-1.5 bg-[#161b26] border-b border-[#232b3c] flex items-center justify-between text-[10px] 2xl:text-[11px] font-bold uppercase tracking-wider">
             <div className="flex items-center gap-1.5 text-red-500">
-              <Radio size={13} className={isLive && isChannelOnline ? 'animate-pulse text-red-500' : isLive ? 'animate-pulse text-amber-500' : 'text-slate-500'} />
+              <Radio size={12} className={isLive && isChannelOnline ? 'animate-pulse text-red-500' : isLive ? 'animate-pulse text-amber-500' : 'text-slate-500'} />
               <span className="text-slate-100">Live Program (PGM)</span>
             </div>
 
             <div className="flex items-center gap-1.5">
               <span
-                className={`text-[9px] px-2 py-0.5 rounded font-bold uppercase ${isLive && isChannelOnline
+                className={`text-[8.5px] 2xl:text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ${isLive && isChannelOnline
                   ? 'bg-red-950/80 text-red-400 border border-red-800 animate-pulse'
                   : isLive
                     ? 'bg-amber-950/80 text-amber-400 border border-amber-800 animate-pulse'
@@ -284,7 +284,7 @@ export default function VideoSection({ channel, selectedAsset, isLive = false })
             </div>
           </div>
 
-          <div className="relative aspect-video bg-black flex items-center justify-center overflow-hidden">
+          <div className="relative w-full aspect-video max-h-[195px] xl:max-h-[215px] 2xl:max-h-[275px] min-[1800px]:max-h-[340px] bg-black flex items-center justify-center overflow-hidden">
             {/* The live video element stays permanently mounted in the DOM to avoid GPU/Direct3D decoder rebuilds and green/black flashes */}
             <video
               ref={liveVideoRef}
@@ -306,18 +306,18 @@ export default function VideoSection({ channel, selectedAsset, isLive = false })
                 className="absolute bottom-2 right-2 p-1.5 rounded-lg bg-black/70 hover:bg-black/90 text-white backdrop-blur transition z-10"
                 title={liveMuted ? 'Unmute Audio' : 'Mute Audio'}
               >
-                {liveMuted ? <VolumeX size={15} /> : <Volume2 size={15} />}
+                {liveMuted ? <VolumeX size={14} /> : <Volume2 size={14} />}
               </button>
             )}
 
             {/* Transient HLS syncing overlay */}
             {isLive && isChannelOnline && hlsError && (
-              <div className="absolute inset-0 bg-black/75 flex flex-col items-center justify-center text-center p-4 z-10">
-                <Radio size={24} className="text-amber-500 animate-pulse mb-2" />
-                <span className="text-xs font-semibold text-slate-200">
+              <div className="absolute inset-0 bg-black/75 flex flex-col items-center justify-center text-center p-3 z-10">
+                <Radio size={20} className="text-amber-500 animate-pulse mb-1.5" />
+                <span className="text-[11px] 2xl:text-xs font-semibold text-slate-200">
                   Syncing RTMP / HLS Stream...
                 </span>
-                <span className="text-[10px] text-slate-400 mt-1">
+                <span className="text-[9.5px] 2xl:text-[10px] text-slate-400 mt-0.5">
                   Buffering initial live segments
                 </span>
               </div>
@@ -325,12 +325,12 @@ export default function VideoSection({ channel, selectedAsset, isLive = false })
 
             {/* Connecting screen */}
             {isLive && !isChannelOnline && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-4 bg-black/90 z-10">
-                <div className="w-10 h-10 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 mb-2">
-                  <Radio size={20} className="animate-pulse text-amber-400" />
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-3 bg-black/90 z-10">
+                <div className="w-8 h-8 2xl:w-10 2xl:h-10 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 mb-1.5">
+                  <Radio size={17} className="animate-pulse text-amber-400" />
                 </div>
-                <span className="font-semibold text-slate-200">Checking Live Stream Availability...</span>
-                <span className="text-[10px] text-amber-400/90 mt-1 flex items-center gap-1.5">
+                <span className="text-[11px] 2xl:text-xs font-semibold text-slate-200">Checking Live Stream Availability...</span>
+                <span className="text-[9.5px] 2xl:text-[10px] text-amber-400/90 mt-1 flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping"></span>
                   Polling HLS feed on Flussonic Media Server ({checkingOnline ? 'Querying...' : 'Waiting for broadcast'})
                 </span>
@@ -339,12 +339,12 @@ export default function VideoSection({ channel, selectedAsset, isLive = false })
 
             {/* Playout Standby / Offline screen */}
             {!isLive && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-4 bg-[#0a0d14] z-10">
-                <div className="w-9 h-9 rounded-full bg-red-950/20 border border-red-900/30 flex items-center justify-center text-red-400 mb-2">
-                  <Radio size={18} />
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-3 bg-[#0a0d14] z-10">
+                <div className="w-8 h-8 2xl:w-9 2xl:h-9 rounded-full bg-red-950/20 border border-red-900/30 flex items-center justify-center text-red-400 mb-1.5">
+                  <Radio size={16} />
                 </div>
-                <span className="font-semibold text-slate-300">Live Stream Offline</span>
-                <span className="text-[10px] text-slate-500 mt-0.5">
+                <span className="text-[11px] 2xl:text-xs font-semibold text-slate-300">Live Stream Offline</span>
+                <span className="text-[9.5px] 2xl:text-[10px] text-slate-500 mt-0.5">
                   Click 'START LIVE' above to push playout feed to Flussonic RTMP
                 </span>
               </div>

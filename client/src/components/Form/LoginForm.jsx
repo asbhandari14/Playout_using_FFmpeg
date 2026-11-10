@@ -2,9 +2,9 @@ import React, { useState } from 'react';
 import { Lock, Mail, AlertCircle, Eye, EyeOff, } from 'lucide-react';
 
 const inputClass =
-  'w-full pl-9 pr-3 py-2.5 bg-[#0b0e14] border border-[#252c3c] rounded-xl text-slate-100 text-lg placeholder-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition';
+  'w-full pl-9 pr-3 py-2 bg-[#0b0e14] border border-[#252c3c] rounded-lg text-slate-100 text-sm font-light placeholder-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition';
 const labelClass =
-  'block text-sm text-slate-300 mb-1.5 uppercase tracking-wider';
+  'block text-xs text-slate-300 mb-1.5 uppercase tracking-wider';
 const iconWrapClass =
   'absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500';
 
@@ -71,7 +71,7 @@ export default function LoginForm({
             <button
               type="button"
               onClick={() => setShowPassword((prev) => !prev)}
-              className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-slate-200 transition"
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-slate-200 transition cursor-pointer"
               aria-label={showPassword ? 'Hide password' : 'Show password'}
               title={showPassword ? 'Hide password' : 'Show password'}
             >
@@ -88,7 +88,7 @@ export default function LoginForm({
         <button
           type="submit"
           disabled={loading}
-          className="w-full py-3 bg-[#2563eb] hover:bg-blue-600 active:bg-blue-700 disabled:opacity-50 text-white rounded-xl text-lg transition shadow-lg shadow-blue-600/20 flex items-center justify-center space-x-2 mt-8"
+          className="w-full py-1.5 bg-[#2563eb] hover:bg-blue-600 active:bg-blue-700 disabled:opacity-50 text-white rounded-xl text-base transition shadow-lg shadow-blue-600/20 flex items-center justify-center space-x-2 mt-8 cursor-pointer"
         >
           {loading ? (
             <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
