@@ -8,6 +8,7 @@ import {
   renderTickerImage,
   normalizeAndTrimLogo,
   scaleAndSaveLogo,
+  clearStreamBrandingFile,
   analyzeAndNormalizeLBand,
   analyzeAndNormalizeAshton
 } from '../services/streaming/brandingAssets.js';
@@ -159,22 +160,55 @@ export const updateLogoBranding = async (req, res, next) => {
 export const removeLogo = async (req, res, next) => {
   try {
     const { channelId } = req.params;
-    const updatedChannel = await Channel.findByIdAndUpdate(
-      channelId,
-      { $set: { 'branding.logo.enabled': false } },
-      { new: true }
-    );
-    if (!updatedChannel) {
+    const channel = await Channel.findById(channelId);
+    if (!channel) {
       return res.status(404).json({ message: 'Channel not found' });
     }
 
-    const currentLogo = updatedChannel.branding?.logo || {};
+    const existingLogoPath = channel.branding?.logo?.assetPath;
+    if (existingLogoPath) {
+      const fullOldPath = path.resolve(SERVER_ROOT, existingLogoPath);
+      if (fs.existsSync(fullOldPath)) {
+        try {
+          fs.unlinkSync(fullOldPath);
+        } catch (e) {
+          console.warn('[Branding] Failed to unlink deleted logo:', e.message);
+        }
+      }
+    }
 
-    // LIVE ZMQ CONTROL: Disable logo overlay without restart
+    // Reset active stream logo.png to a 1x1 transparent PNG so running FFmpeg stays safe
+    const targetLogoFile = path.join(STREAMS_DIR, String(channelId), 'logo.png');
+    clearStreamBrandingFile(targetLogoFile);
+
+    const updateSet = {
+      'branding.logo.assetPath': '',
+      'branding.logo.enabled': false
+    };
+    if (channel.branding?.preScheduleBranding?.logo) {
+      updateSet['branding.preScheduleBranding.logo.enabled'] = false;
+      updateSet['branding.preScheduleBranding.logo.suppressed'] = false;
+    }
+
+    const updatedChannel = await Channel.findByIdAndUpdate(
+      channelId,
+      { $set: updateSet },
+      { new: true }
+    );
+
+    const currentLogo = updatedChannel?.branding?.logo || { assetPath: '', enabled: false };
+
+    // LIVE ZMQ CONTROL: Disable logo overlay and clear in-memory branding without restart
     const stream = streamManager.getStream(channelId);
     if (stream?.encoder?.isRunning) {
       if (stream.encoder.channel?.branding?.logo) {
+        stream.encoder.channel.branding.logo.assetPath = '';
         stream.encoder.channel.branding.logo.enabled = false;
+      }
+      stream.encoder.logoAspectRatio = 1.0;
+      if (stream.feeder?.scheduleBrandingSnapshot?.logo) {
+        stream.feeder.scheduleBrandingSnapshot.logo.enabled = false;
+        stream.feeder.scheduleBrandingSnapshot.logo.suppressed = false;
       }
       await stream.encoder.setLogoEnabled(false);
     }
@@ -189,7 +223,7 @@ export const removeLogo = async (req, res, next) => {
     await calculateChannelStorage(channelId);
 
     return res.status(200).json({
-      message: 'Logo disabled from live air via ZMQ',
+      message: 'Logo deleted successfully',
       logo: currentLogo
     });
   } catch (error) {

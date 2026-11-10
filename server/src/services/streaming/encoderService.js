@@ -489,8 +489,8 @@ export class EncoderService {
 
     const logoPos = this.getLogoPositionExpressions(
       bLogo.position || 'top-right',
-      bLogo.marginX || 2,
-      bLogo.marginY || 2
+      bLogo.marginX !== undefined && bLogo.marginX !== null ? bLogo.marginX : 2,
+      bLogo.marginY !== undefined && bLogo.marginY !== null ? bLogo.marginY : 2
     );
     const tickPos = this.getTickerPositionExpressions(
       bTick.marginBottom !== undefined ? bTick.marginBottom : 0,
@@ -525,7 +525,7 @@ export class EncoderService {
     const bAshton = this.channel.branding?.ashton || {};
     const bBug = this.channel.branding?.bug || {};
 
-    const logoEnabled = bLogo.enabled ? 1 : 0;
+    const logoEnabled = bLogo.enabled && bLogo.assetPath ? 1 : 0;
     const tickEnabled = bTick.enabled ? 1 : 0;
     const lbandEnabled = bLband.enabled ? 1 : 0;
     const canvasW = this.canvasWidth;

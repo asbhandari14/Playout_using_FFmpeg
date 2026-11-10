@@ -128,12 +128,12 @@ export async function getCurrentlyPlayingHandler(req, res, next) {
           startedAt: liveInfo.startedAt,
           zmqPort: liveInfo.zmqPort,
           branding: {
-            logo: channel.branding?.logo?.enabled ? channel.branding.logo : { enabled: false },
-            bug: channel.branding?.bug?.enabled ? channel.branding.bug : { enabled: false },
-            ticker: channel.branding?.ticker?.enabled ? channel.branding.ticker : { enabled: false },
-            lband: channel.branding?.lband?.enabled ? channel.branding.lband : { enabled: false },
-            ashton: channel.branding?.ashton?.enabled ? channel.branding.ashton : { enabled: false },
-            backInTimer: channel.branding?.backInTimer?.enabled ? channel.branding.backInTimer : { enabled: false }
+            logo: channel.branding?.logo || { enabled: false },
+            bug: channel.branding?.bug || { enabled: false },
+            ticker: channel.branding?.ticker || { enabled: false },
+            lband: channel.branding?.lband || { enabled: false },
+            ashton: channel.branding?.ashton || { enabled: false },
+            backInTimer: channel.branding?.backInTimer || { enabled: false }
           }
         });
       }

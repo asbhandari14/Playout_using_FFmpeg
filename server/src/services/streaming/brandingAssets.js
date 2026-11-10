@@ -121,6 +121,15 @@ export const safeWriteFile = async (filePath, buffer, retries = 5, delayMs = 50)
   return safeWriteFileSync(filePath, buffer, retries, delayMs);
 };
 
+/**
+ * Atomically replace a branding file in the active stream folder with a 1x1 transparent PNG.
+ */
+export const clearStreamBrandingFile = (filePath) => {
+  if (!filePath || !fs.existsSync(filePath)) return false;
+  safeWriteFileSync(filePath, Buffer.from(TRANSPARENT_PNG_BASE64, 'base64'));
+  return true;
+};
+
 
 /**
  * Maps user-selected font families to system font stacks recognized by librsvg on Windows/Linux,

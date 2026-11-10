@@ -76,10 +76,22 @@ const channelSlice = createSlice({
     },
     updateCurrentChannelBranding: (state, action) => {
       if (state.currentChannel) {
-        state.currentChannel.branding = {
-          ...state.currentChannel.branding,
-          ...action.payload
-        };
+        const prevBranding = state.currentChannel.branding || {};
+        const nextBranding = { ...prevBranding };
+        Object.entries(action.payload || {}).forEach(([key, val]) => {
+          if (
+            val &&
+            typeof val === 'object' &&
+            !Array.isArray(val) &&
+            prevBranding[key] &&
+            typeof prevBranding[key] === 'object'
+          ) {
+            nextBranding[key] = { ...prevBranding[key], ...val };
+          } else {
+            nextBranding[key] = val;
+          }
+        });
+        state.currentChannel.branding = nextBranding;
       }
     },
     updateChannelStatus: (state, action) => {

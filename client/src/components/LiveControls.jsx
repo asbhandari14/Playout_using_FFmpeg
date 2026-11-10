@@ -1,6 +1,7 @@
 import { toast } from 'react-hot-toast';
 import React, { useState, useRef, useEffect } from 'react';
 import api from '../api/axios.js';
+import ConfirmDeleteModal from './modals/ConfirmDeleteModal.jsx';
 import {
   Sliders,
   Image as ImageIcon,
@@ -98,8 +99,10 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
   const [timerFontColor, setTimerFontColor] = useState('#ffffff');
   const [timerBgColor, setTimerBgColor] = useState('#000000cc');
 
-  // Toast alert
+  // Toast alert & confirmation modal
   const [alert, setAlert] = useState(null);
+  const [isDeleteLogoModalOpen, setIsDeleteLogoModalOpen] = useState(false);
+  const [isDeletingLogo, setIsDeletingLogo] = useState(false);
 
   useEffect(() => {
     if (channel?.branding) {
@@ -107,9 +110,9 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
       setLogoAssetPath(bLogo.assetPath || '');
       setLogoEnabled(!!bLogo.enabled);
       setLogoPosition(bLogo.position || 'top-right');
-      setLogoSizePercent(bLogo.sizePercent !== undefined ? bLogo.sizePercent : 10);
-      setLogoMarginX(bLogo.marginX || 2);
-      setLogoMarginY(bLogo.marginY || 2);
+      setLogoSizePercent(bLogo.sizePercent !== undefined && bLogo.sizePercent !== null ? bLogo.sizePercent : 10);
+      setLogoMarginX(bLogo.marginX !== undefined && bLogo.marginX !== null ? bLogo.marginX : 2);
+      setLogoMarginY(bLogo.marginY !== undefined && bLogo.marginY !== null ? bLogo.marginY : 2);
       setLogoShowDuringSchedule(bLogo.showDuringSchedule !== false);
 
       const bBug = channel.branding.bug || {};
@@ -208,6 +211,28 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
       if (onBrandingUpdated) onBrandingUpdated({ type: 'logo', data: res.data.logo });
     } catch (err) {
       showAlert('error', err.response?.data?.message || 'Failed to upload logo');
+    } finally {
+      if (e.target) e.target.value = '';
+    }
+  };
+
+  // Delete uploaded channel logo
+  const handleDeleteLogo = async () => {
+    if (!channel?._id || !logoAssetPath || isDeletingLogo) return;
+    setIsDeletingLogo(true);
+    try {
+      const res = await api.delete(`/channels/${channel._id}/logo`);
+      const deletedLogo = res.data?.logo || { assetPath: '', enabled: false };
+      setLogoAssetPath('');
+      setLogoEnabled(false);
+      if (logoInputRef.current) logoInputRef.current.value = '';
+      setIsDeleteLogoModalOpen(false);
+      showAlert('success', res.data?.message || 'Channel logo deleted');
+      if (onBrandingUpdated) onBrandingUpdated({ type: 'logo', data: deletedLogo });
+    } catch (err) {
+      showAlert('error', err.response?.data?.message || 'Failed to delete logo');
+    } finally {
+      setIsDeletingLogo(false);
     }
   };
 
@@ -250,6 +275,8 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
       if (channel?.branding?.logo) {
         setLogoPosition(channel.branding.logo.position || 'top-right');
         setLogoEnabled(!!channel.branding.logo.enabled);
+        setLogoMarginX(channel.branding.logo.marginX ?? 2);
+        setLogoMarginY(channel.branding.logo.marginY ?? 2);
       }
       showAlert('error', 'Failed to update logo overlay');
     }
@@ -580,7 +607,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                 <span>Channel Branding</span>
               </div>
 
-              {/* Logo preview + Browse button */}
+              {/* Logo preview + Browse + Delete button */}
               <div className="flex items-center gap-2.5 2xl:gap-3">
                 <div className="w-10 h-10 2xl:w-13 2xl:h-13 rounded-lg 2xl:rounded-xl bg-[#090c12] border border-[#222938] overflow-hidden flex items-center justify-center p-1 shrink-0">
                   {logoAssetPath ? (
@@ -602,13 +629,26 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                     className="hidden"
                     onChange={handleLogoUpload}
                   />
-                  <button
-                    onClick={() => logoInputRef.current?.click()}
-                    className="px-2.5 py-1 2xl:px-3.5 2xl:py-1.5 rounded-md 2xl:rounded-lg bg-[#202736] hover:bg-[#2b354a] text-slate-200 text-[11px] 2xl:text-xs font-semibold flex items-center gap-1.5 transition border border-[#2b364c]"
-                  >
-                    <Upload size={12} />
-                    <span>Browse</span>
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => logoInputRef.current?.click()}
+                      className="px-2.5 py-1 2xl:px-3.5 2xl:py-1.5 rounded-md 2xl:rounded-lg bg-[#202736] hover:bg-[#2b354a] text-slate-200 text-[11px] 2xl:text-xs font-semibold flex items-center gap-1.5 transition border border-[#2b364c]"
+                    >
+                      <Upload size={12} />
+                      <span>Browse</span>
+                    </button>
+                    {logoAssetPath && (
+                      <button
+                        type="button"
+                        onClick={() => setIsDeleteLogoModalOpen(true)}
+                        className="p-1.5 2xl:p-2 rounded-md 2xl:rounded-lg bg-[#202736] hover:bg-red-950/60 text-slate-400 hover:text-red-400 border border-[#2b364c] flex items-center justify-center transition"
+                        title="Delete Logo"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    )}
+                  </div>
                   <p className="text-[9px] 2xl:text-[10px] text-slate-500 mt-1 leading-tight">
                     Transparent PNG (Optimized for 720p 25fps)
                   </p>
@@ -623,8 +663,13 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
               </span>
 
               <button
+                type="button"
                 onClick={() => {
                   const next = !logoEnabled;
+                  if (next && !logoAssetPath) {
+                    showAlert('error', 'Please upload a logo image first');
+                    return;
+                  }
                   setLogoEnabled(next);
                   handleUpdateLogo({ enabled: next });
                 }}
@@ -782,8 +827,8 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                   max="15"
                   value={logoMarginX}
                   onChange={(e) => setLogoMarginX(Number(e.target.value))}
-                  onMouseUp={() => handleUpdateLogo({ marginX: logoMarginX })}
-                  onTouchEnd={() => handleUpdateLogo({ marginX: logoMarginX })}
+                  onMouseUp={(e) => handleUpdateLogo({ marginX: Number(e.currentTarget.value) })}
+                  onTouchEnd={(e) => handleUpdateLogo({ marginX: Number(e.currentTarget.value) })}
                   className="w-full accent-blue-600 cursor-pointer h-1.5 bg-[#090c12] rounded-lg"
                 />
               </div>
@@ -800,8 +845,8 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                   max="15"
                   value={logoMarginY}
                   onChange={(e) => setLogoMarginY(Number(e.target.value))}
-                  onMouseUp={() => handleUpdateLogo({ marginY: logoMarginY })}
-                  onTouchEnd={() => handleUpdateLogo({ marginY: logoMarginY })}
+                  onMouseUp={(e) => handleUpdateLogo({ marginY: Number(e.currentTarget.value) })}
+                  onTouchEnd={(e) => handleUpdateLogo({ marginY: Number(e.currentTarget.value) })}
                   className="w-full accent-blue-600 cursor-pointer h-1.5 bg-[#090c12] rounded-lg"
                 />
               </div>
@@ -1555,6 +1600,18 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
           </div>
         )}
       </div>
+
+      {/* Confirm Delete Channel Logo Modal */}
+      <ConfirmDeleteModal
+        isOpen={isDeleteLogoModalOpen}
+        onClose={() => !isDeletingLogo && setIsDeleteLogoModalOpen(false)}
+        onConfirm={handleDeleteLogo}
+        title="Delete Channel Logo"
+        itemName={logoAssetPath ? logoAssetPath.split('/').pop() : 'Channel Logo'}
+        message="Are you sure you want to delete this channel logo? It will be removed from air and deleted from channel storage."
+        confirmText="Delete Logo"
+        isLoading={isDeletingLogo}
+      />
     </div>
   );
 }
