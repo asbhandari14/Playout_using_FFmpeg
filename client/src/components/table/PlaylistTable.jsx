@@ -141,17 +141,6 @@ export default function PlaylistTable({ channelId, onPlayFromIndex }) {
       }}
       onDrop={(e) => handleDrop(e, items.length)}
     >
-      {/* Multi-tier Playlist Tabs Selector */}
-      <PlaylistSelector
-        playlists={sortedPlaylists}
-        currentPlaylist={currentPlaylist}
-        activeOnAirPlaylist={activeOnAirPlaylist}
-        activeStatusMap={activeStatusMap}
-        onSelectPlaylist={handleSelectPlaylist}
-        onOpenSettings={handleOpenEditSettings}
-        onCreateNew={handleOpenCreateNew}
-      />
-
       {/* Broadcast Window Header with Priority & Schedule Info */}
       <div className="px-3 py-1.5 2xl:px-4 2xl:py-2 bg-[#141822] border-b border-[#202736] flex flex-wrap items-center justify-between gap-1.5 2xl:gap-2 shrink-0">
         <div className="flex flex-wrap items-center gap-1.5 2xl:gap-2.5 min-w-0">
@@ -161,43 +150,39 @@ export default function PlaylistTable({ channelId, onPlayFromIndex }) {
               {currentPlaylist?.name || 'Broadcast Window'}
             </h3>
 
-            {/* Priority Badge */}
-            <span
-              className={`font-mono text-[9px] 2xl:text-[10px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-wider shrink-0 ${
-                currentTypeConfig.colorClass
-              }`}
-            >
-              Priority {currentPlaylist?.priority || currentTypeConfig.priority}: {currentTypeConfig.shortLabel}
-            </span>
-
             {/* On-Air badge if currently live */}
             {isOnAir && (
-              <span className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[8.5px] 2xl:text-[9px] font-black uppercase tracking-wider bg-rose-600 text-white animate-pulse shrink-0">
-                <span className="w-1.5 h-1.5 rounded-full bg-white"></span>
-                ON AIR NOW
+              <span className="w-1.5 h-1.5 rounded-full animate-ping bg-red-600">
               </span>
             )}
           </div>
 
           {/* Schedule Info Text */}
-          <div className="hidden md:flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#0c0e14] border border-[#232b3c] text-[10px] 2xl:text-[11px] text-slate-400 font-medium shrink-0">
+          {/* <div className="hidden md:flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#0c0e14] border border-[#232b3c] text-[10px] 2xl:text-[11px] text-slate-400 font-medium shrink-0">
             <Calendar size={11} className="text-slate-500" />
             <span>{scheduleSummary}</span>
-          </div>
+          </div> */}
 
           {/* Time range indicator */}
-          <div className="px-2 py-0.5 rounded-md 2xl:rounded-lg bg-[#0c0e14] border border-[#232b3c] font-mono text-[10px] 2xl:text-[11px] font-semibold text-sky-400 shrink-0">
+          {/* <div className="px-2 py-0.5 rounded-md 2xl:rounded-lg bg-[#0c0e14] border border-[#232b3c] font-mono text-[10px] 2xl:text-[11px] font-semibold text-sky-400 shrink-0">
             00:00:00 &rarr; {totalDurationFormatted}
-          </div>
+          </div> */}
         </div>
 
         {/* Action buttons */}
-        <div className="flex items-center gap-1.5 2xl:gap-2 shrink-0">
+        <div className="flex flex-wrap items-center gap-1.5 2xl:gap-2 shrink-0">
           {saveSuccess && (
             <span className="text-[10.5px] 2xl:text-[11px] text-emerald-400 font-medium flex items-center gap-1">
               <CheckCircle2 size={12} /> Saved
             </span>
           )}
+
+          <PlaylistSelector
+            playlists={sortedPlaylists}
+            currentPlaylist={currentPlaylist}
+            activeOnAirPlaylist={activeOnAirPlaylist}
+            onSelectPlaylist={handleSelectPlaylist}
+          />
 
           <button
             onClick={handleSaveCurrent}

@@ -255,24 +255,33 @@ const playlistSlice = createSlice({
       .addCase(fetchPlaylists.fulfilled, (state, action) => {
         state.loading = false;
         state.playlists = action.payload || [];
-        // If current playlist is not set or not in list, default to first or matching
-        if (!state.currentPlaylist && state.playlists.length > 0) {
-          state.currentPlaylist = state.playlists[0];
-          state.items = state.playlists[0].items || [];
-          state.totalDuration = state.playlists[0].totalDuration || 0;
-          state.totalDurationFormatted = state.playlists[0].totalDurationFormatted || '00:00:00';
-          state.loop = state.playlists[0].loop !== undefined ? state.playlists[0].loop : true;
-        } else if (state.currentPlaylist) {
-          const fresh = state.playlists.find((p) => p._id === state.currentPlaylist._id);
-          if (fresh) {
-            state.currentPlaylist = fresh;
-            if (!state.hasUnsavedChanges) {
-              state.items = fresh.items || [];
-              state.totalDuration = fresh.totalDuration || 0;
-              state.totalDurationFormatted = fresh.totalDurationFormatted || '00:00:00';
-              state.loop = fresh.loop !== undefined ? fresh.loop : true;
-            }
+        // If current playlist is not set or not in list, fall back to the default playlist
+        const fresh = state.currentPlaylist
+          ? state.playlists.find((p) => p._id === state.currentPlaylist._id)
+          : null;
+
+        if (fresh) {
+          state.currentPlaylist = fresh;
+          if (!state.hasUnsavedChanges) {
+            state.items = fresh.items || [];
+            state.totalDuration = fresh.totalDuration || 0;
+            state.totalDurationFormatted = fresh.totalDurationFormatted || '00:00:00';
+            state.loop = fresh.loop !== undefined ? fresh.loop : true;
           }
+        } else if (state.playlists.length > 0) {
+          const defaultPlaylist =
+            state.playlists.find((p) => p.type === 'default') || state.playlists[0];
+          state.currentPlaylist = defaultPlaylist;
+          state.items = defaultPlaylist.items || [];
+          state.totalDuration = defaultPlaylist.totalDuration || 0;
+          state.totalDurationFormatted = defaultPlaylist.totalDurationFormatted || '00:00:00';
+          state.loop = defaultPlaylist.loop !== undefined ? defaultPlaylist.loop : true;
+          state.hasUnsavedChanges = false;
+        } else {
+          state.currentPlaylist = null;
+          state.items = [];
+          state.totalDuration = 0;
+          state.totalDurationFormatted = '00:00:00';
         }
       })
       .addCase(fetchPlaylists.rejected, (state, action) => {
@@ -337,7 +346,8 @@ const playlistSlice = createSlice({
         const deletedId = action.payload;
         state.playlists = state.playlists.filter((p) => p._id !== deletedId);
         if (state.currentPlaylist?._id === deletedId) {
-          const fallback = state.playlists[0] || null;
+          const fallback =
+            state.playlists.find((p) => p.type === 'default') || state.playlists[0] || null;
           state.currentPlaylist = fallback;
           state.items = fallback?.items || [];
           state.totalDuration = fallback?.totalDuration || 0;
