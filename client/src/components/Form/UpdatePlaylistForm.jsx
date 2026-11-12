@@ -9,6 +9,7 @@ import {
   Timer
 } from 'lucide-react';
 import { PLAYLIST_TYPE_CONFIG, DAYS_OF_WEEK } from '../../hooks/usePlaylist.js';
+import { ToggleSwitch } from './FormPrimitives.jsx';
 
 const shellClass =
   'flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-[#090d16] border border-[#1a2337] focus-within:border-[#00bcd4] transition';
@@ -294,74 +295,68 @@ export default function UpdatePlaylistForm({
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
               {/* Logo */}
-              <label className={`flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer transition ${
+              <label className={`flex items-center justify-between gap-2.5 p-2.5 rounded-lg border cursor-pointer transition ${
                 formData.showLogo !== false
                   ? 'bg-[#00bcd4]/10 border-[#00bcd4]/40 text-slate-200'
-                  : 'bg-[#0d121d] border-[#182133] text-slate-400 opacity-60'
+                  : 'bg-[#0d121d] border-[#182133] text-slate-400 opacity-75'
               }`}>
-                <input
-                  type="checkbox"
-                  checked={formData.showLogo !== false}
-                  onChange={handleCheckbox('showLogo')}
-                  className="mt-0.5 rounded bg-[#101726] border-slate-700 text-[#00bcd4] focus:ring-0"
-                />
                 <div className="flex flex-col">
                   <span className="text-xs font-semibold">Channel Logo</span>
                   <span className="text-[10px] opacity-70">Show main station logo</span>
                 </div>
+                <ToggleSwitch
+                  size="sm"
+                  checked={formData.showLogo !== false}
+                  onChange={handleCheckbox('showLogo')}
+                  ariaLabel="Channel Logo"
+                />
               </label>
 
               {/* Bug */}
-              <label className={`flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer transition ${
+              <label className={`flex items-center justify-between gap-2.5 p-2.5 rounded-lg border cursor-pointer transition ${
                 formData.showBug !== false
                   ? 'bg-[#00bcd4]/10 border-[#00bcd4]/40 text-slate-200'
-                  : 'bg-[#0d121d] border-[#182133] text-slate-400 opacity-60'
+                  : 'bg-[#0d121d] border-[#182133] text-slate-400 opacity-75'
               }`}>
-                <input
-                  type="checkbox"
-                  checked={formData.showBug !== false}
-                  onChange={handleCheckbox('showBug')}
-                  className="mt-0.5 rounded bg-[#101726] border-slate-700 text-[#00bcd4] focus:ring-0"
-                />
                 <div className="flex flex-col">
                   <span className="text-xs font-semibold">Station Bug</span>
                   <span className="text-[10px] opacity-70">Show watermark / animated bug</span>
                 </div>
+                <ToggleSwitch
+                  size="sm"
+                  checked={formData.showBug !== false}
+                  onChange={handleCheckbox('showBug')}
+                  ariaLabel="Station Bug"
+                />
               </label>
 
               {/* Ticker */}
-              <label className={`flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer transition ${
+              <label className={`flex items-center justify-between gap-2.5 p-2.5 rounded-lg border cursor-pointer transition ${
                 formData.showTicker !== false
                   ? 'bg-[#00bcd4]/10 border-[#00bcd4]/40 text-slate-200'
-                  : 'bg-[#0d121d] border-[#182133] text-slate-400 opacity-60'
+                  : 'bg-[#0d121d] border-[#182133] text-slate-400 opacity-75'
               }`}>
-                <input
-                  type="checkbox"
-                  checked={formData.showTicker !== false}
-                  onChange={handleCheckbox('showTicker')}
-                  className="mt-0.5 rounded bg-[#101726] border-slate-700 text-[#00bcd4] focus:ring-0"
-                />
                 <div className="flex flex-col">
                   <span className="text-xs font-semibold">News Ticker</span>
                   <span className="text-[10px] opacity-70">Show running bottom ticker</span>
                 </div>
+                <ToggleSwitch
+                  size="sm"
+                  checked={formData.showTicker !== false}
+                  onChange={handleCheckbox('showTicker')}
+                  ariaLabel="News Ticker"
+                />
               </label>
             </div>
 
             {/* Advertisement-Only: Back-In Countdown Timer */}
             {selectedType === 'advertisement' && (
               <div className="pt-2 border-t border-[#141b2a]">
-                <label className={`flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer transition ${
+                <label className={`flex items-center justify-between gap-2.5 p-2.5 rounded-lg border cursor-pointer transition ${
                   formData.showBackInTimer === true
                     ? 'bg-amber-500/15 border-amber-500/50 text-amber-200'
-                    : 'bg-[#0d121d] border-[#182133] text-slate-400 opacity-60'
+                    : 'bg-[#0d121d] border-[#182133] text-slate-400 opacity-75'
                 }`}>
-                  <input
-                    type="checkbox"
-                    checked={formData.showBackInTimer === true}
-                    onChange={handleCheckbox('showBackInTimer')}
-                    className="mt-0.5 rounded bg-[#101726] border-slate-700 text-amber-500 focus:ring-0"
-                  />
                   <div className="flex flex-col">
                     <span className="text-xs font-semibold text-amber-300 flex items-center gap-1.5">
                       <Timer size={13} />
@@ -371,29 +366,35 @@ export default function UpdatePlaylistForm({
                       Display live countdown overlay (e.g. "BACK IN 00:30") during this advertisement playlist
                     </span>
                   </div>
+                  <ToggleSwitch
+                    size="sm"
+                    checked={formData.showBackInTimer === true}
+                    onChange={handleCheckbox('showBackInTimer')}
+                    ariaLabel="Show Back-In Countdown Timer"
+                  />
                 </label>
               </div>
             )}
           </div>
 
           {/* Toggles */}
-          <div className="md:col-span-2 flex items-center justify-between p-3.5 rounded-xl bg-[#090d16] border border-[#1a2337]">
+          <div className="md:col-span-2 flex flex-wrap items-center justify-between gap-4 p-3.5 rounded-xl bg-[#090d16] border border-[#1a2337]">
             <label className="flex items-center gap-2.5 cursor-pointer">
-              <input
-                type="checkbox"
+              <ToggleSwitch
+                size="sm"
                 checked={formData.loop !== false}
                 onChange={handleCheckbox('loop')}
-                className="rounded bg-[#101726] border-slate-700 text-[#00bcd4] focus:ring-0"
+                ariaLabel="Loop Playback"
               />
               <span className="font-semibold text-slate-200">Loop Playback</span>
             </label>
 
             <label className="flex items-center gap-2.5 cursor-pointer">
-              <input
-                type="checkbox"
+              <ToggleSwitch
+                size="sm"
                 checked={formData.isActive !== false}
                 onChange={handleCheckbox('isActive')}
-                className="rounded bg-[#101726] border-slate-700 text-[#00bcd4] focus:ring-0"
+                ariaLabel="Enable Playlist (Active)"
               />
               <span className="font-semibold text-slate-200">Enable Playlist (Active)</span>
             </label>

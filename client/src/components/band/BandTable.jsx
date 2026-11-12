@@ -98,7 +98,7 @@ export default function BandTable({
   };
 
   return (
-    <div className="space-y-3.5 2xl:space-y-4 select-none font-sans">
+    <div className="space-y-3.5 2xl:space-y-4 select-none font-mono">
       {/* Top Header & Dual Primary Buttons */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5">
         <div>

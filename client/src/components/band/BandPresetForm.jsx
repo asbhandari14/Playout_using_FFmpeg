@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import BandPreviewScreen from './BandPreviewScreen.jsx';
+import { ToggleSwitch } from '../form/FormPrimitives.jsx';
 import {
   resolveMediaUrl,
   sanitizeVideoWindow,
@@ -198,7 +199,7 @@ export default function BandPresetForm({
   const ashtonVideoH = Math.max(20, 720 - (Number(ashtonHeight) || 160));
 
   return (
-    <div className="space-y-3.5 select-none font-sans">
+    <div className="space-y-3.5 select-none font-mono">
       <button
         type="button"
         onClick={onCancel}
@@ -483,15 +484,11 @@ export default function BandPresetForm({
                         Push video up above the banner so lower-third content is never covered
                       </span>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setAshtonSqueeze((prev) => !prev)}
-                      className={`w-11 h-6 rounded-full transition p-1 flex items-center cursor-pointer shrink-0 ${
-                        ashtonSqueeze ? 'bg-[#00bcd4] justify-end' : 'bg-slate-700 justify-start'
-                      }`}
-                    >
-                      <span className="w-4 h-4 rounded-full bg-black shadow-md" />
-                    </button>
+                    <ToggleSwitch
+                      checked={ashtonSqueeze}
+                      onChange={(e) => setAshtonSqueeze(e.target.checked)}
+                      ariaLabel="Squeeze Program Video"
+                    />
                   </div>
 
                   {/* Banner Height & resulting Video Window */}

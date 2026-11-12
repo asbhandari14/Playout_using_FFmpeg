@@ -1,6 +1,7 @@
 import { toast } from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
 import api from '../../api/axios.js';
+import { ToggleSwitch } from '../form/FormPrimitives.jsx';
 import {
   X,
   Calendar,
@@ -814,12 +815,12 @@ export default function ScheduleModal({
                 {/* Optional Date Range Window */}
                 <div className="pt-2 border-t border-[#1e2638]">
                   <div className="flex items-center justify-between mb-2">
-                    <label className="flex items-center space-x-2 cursor-pointer select-none">
-                      <input
-                        type="checkbox"
+                    <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                      <ToggleSwitch
+                        size="sm"
                         checked={hasDateRange}
                         onChange={(e) => setHasDateRange(e.target.checked)}
-                        className="rounded bg-[#0a0d14] border-[#252f44] text-amber-500 focus:ring-amber-500/20"
+                        ariaLabel="Set Active Calendar Date Range"
                       />
                       <span className="text-xs font-bold text-slate-300">
                         Set Active Calendar Date Range (Optional)

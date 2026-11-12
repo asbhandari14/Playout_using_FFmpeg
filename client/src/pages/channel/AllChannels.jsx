@@ -18,7 +18,7 @@ export default function AllChannels() {
   } = useChannel();
 
   return (
-    <div className="min-h-screen bg-[#0a0d13] text-slate-100 flex flex-col font-sans select-none">
+    <div className="min-h-screen bg-[#0a0d13] text-slate-100 flex flex-col font-mono select-none">
       {/* Top Header - No navigation links */}
       <DashboardHeader
         currentUser={currentUser}

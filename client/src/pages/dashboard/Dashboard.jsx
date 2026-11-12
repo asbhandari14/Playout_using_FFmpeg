@@ -60,7 +60,7 @@ export default function Dashboard({ initialSection = 'channels', initialSubView 
   const { type: deleteType, item: deleteItem } = deleteModal.state;
 
   return (
-    <div className="h-screen bg-[#0a0d13] text-slate-100 flex flex-col font-sans select-none overflow-hidden">
+    <div className="h-screen bg-[#0a0d13] text-slate-100 flex flex-col font-mono select-none overflow-hidden">
       {/* Dashboard Header */}
       <DashboardHeader
         currentUser={currentUser}

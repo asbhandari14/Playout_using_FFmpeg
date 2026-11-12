@@ -33,3 +33,47 @@ export function FormField({ label, hint, required, className = '', children }) {
   );
 }
 
+export function ToggleSwitch({
+  checked = false,
+  onChange,
+  name,
+  disabled = false,
+  size = 'md',
+  className = '',
+  ariaLabel
+}) {
+  const trackSize = size === 'sm' ? 'w-8 h-[18px]' : 'w-10 h-[22px]';
+  const thumbSize = size === 'sm' ? 'w-3.5 h-3.5' : 'w-4 h-4';
+  const translateOn = size === 'sm' ? 'translate-x-3.5' : 'translate-x-[18px]';
+
+  return (
+    <span
+      className={`relative inline-flex items-center shrink-0 ${trackSize} ${
+        disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'
+      } ${className}`}
+    >
+      <input
+        type="checkbox"
+        name={name}
+        checked={Boolean(checked)}
+        disabled={disabled}
+        onChange={onChange}
+        aria-label={ariaLabel || name}
+        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed z-10 m-0"
+      />
+      <span
+        aria-hidden="true"
+        className={`w-full h-full rounded-full transition-colors duration-200 flex items-center p-[3px] ${
+          checked ? 'bg-[#1d5eff] shadow-inner shadow-blue-900/40' : 'bg-[#2a3346]'
+        }`}
+      >
+        <span
+          className={`${thumbSize} rounded-full bg-white shadow-sm transform transition-transform duration-200 ${
+            checked ? translateOn : 'translate-x-0'
+          }`}
+        />
+      </span>
+    </span>
+  );
+}
+

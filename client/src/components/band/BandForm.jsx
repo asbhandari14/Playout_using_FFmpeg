@@ -18,6 +18,7 @@ import {
 import { toast } from 'react-hot-toast';
 import BandPreviewScreen from './BandPreviewScreen.jsx';
 import { resolveMediaUrl } from '../../utils/bandGeometry.js';
+import { ToggleSwitch } from '../form/FormPrimitives.jsx';
 
 const DAYS_MAP = [
   { day: 0, label: 'Sun', full: 'Sunday' },
@@ -290,7 +291,7 @@ export default function BandForm({
   const activeChannelName = channels.find((c) => c._id === channelId)?.name || channel?.name || 'Live Playout';
 
   return (
-    <div className="space-y-3.5 select-none font-sans">
+    <div className="space-y-3.5 select-none font-mono">
       <button
         type="button"
         onClick={onCancel}
@@ -711,8 +712,8 @@ export default function BandForm({
               </span>
             </div>
 
-            {/* Enable Schedule Button / Switch */}
-            <div className="p-3.5 bg-[#090d16] border border-[#1a2337] rounded-xl flex items-center justify-between gap-4">
+            {/* Enable Schedule Switch */}
+            <label className="p-3.5 bg-[#090d16] border border-[#1a2337] rounded-xl flex items-center justify-between gap-4 cursor-pointer">
               <div className="flex items-center gap-2.5">
                 <Power size={16} className={enabled ? 'text-emerald-400' : 'text-slate-500'} />
                 <div>
@@ -724,19 +725,17 @@ export default function BandForm({
                   </span>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setEnabled((prev) => !prev)}
-                className={`px-3.5 py-1.5 rounded-full text-[11px] font-bold border transition flex items-center gap-1.5 cursor-pointer shrink-0 ${
-                  enabled
-                    ? 'bg-emerald-500 text-black border-emerald-400 shadow-sm shadow-emerald-500/30'
-                    : 'bg-slate-800 text-slate-300 border-slate-600 hover:text-white'
-                }`}
-              >
-                <span className={`w-2 h-2 rounded-full ${enabled ? 'bg-black animate-pulse' : 'bg-slate-400'}`} />
-                <span>{enabled ? 'Enabled' : 'Disabled'}</span>
-              </button>
-            </div>
+              <div className="flex items-center gap-2.5 shrink-0">
+                <span className={`text-[11px] font-bold ${enabled ? 'text-emerald-400' : 'text-slate-400'}`}>
+                  {enabled ? 'Enabled' : 'Disabled'}
+                </span>
+                <ToggleSwitch
+                  checked={enabled}
+                  onChange={(e) => setEnabled(e.target.checked)}
+                  ariaLabel="Enable Schedule"
+                />
+              </div>
+            </label>
 
             {/* Form Actions */}
             <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-[#1a2234]">

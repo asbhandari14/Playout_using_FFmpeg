@@ -32,6 +32,7 @@ import {
 import api from '../../api/axios.js';
 import { formatBytes } from '../../hooks/useStorageCalc.js';
 import { DAYS_OF_WEEK } from '../../hooks/usePlaylist.js';
+import { ToggleSwitch } from '../../components/form/FormPrimitives.jsx';
 
 const shellClass =
   'flex items-center gap-2.5 px-3 py-2 rounded-xl bg-[#090d16] border border-[#1a2337] focus-within:border-cyan-500 transition';
@@ -586,7 +587,7 @@ export default function PlaylistBuilder({
             className={`px-3.5 py-1.5 rounded-lg text-xs flex items-center gap-1.5 shadow-md transition cursor-pointer disabled:opacity-50 ${typeConfig.buttonClass}`}
           >
             <TypeIcon size={14} />
-            <span>{isSubmitting ? 'Saving...' : mode === 'edit' ? 'Save Changes' : `Create ${typeConfig.shortLabel}`}</span>
+            <span>{isSubmitting ? 'Saving...' : mode === 'edit' ? 'Save Changes' : `Create`}</span>
           </button>
         </div>
       </div>
@@ -659,8 +660,8 @@ export default function PlaylistBuilder({
           {uploadAlert && (
             <div
               className={`p-2 px-3 text-[11px] border-b flex items-center gap-2 ${uploadAlert.type === 'success'
-                  ? 'bg-emerald-950/40 border-emerald-800 text-emerald-300'
-                  : 'bg-rose-950/40 border-rose-800 text-rose-300'
+                ? 'bg-emerald-950/40 border-emerald-800 text-emerald-300'
+                : 'bg-rose-950/40 border-rose-800 text-rose-300'
                 }`}
             >
               <CheckCircle2 size={13} />
@@ -697,8 +698,8 @@ export default function PlaylistBuilder({
                   type="button"
                   onClick={() => setSelectedCategory(cat)}
                   className={`px-2 py-0.5 rounded-md text-[10px] font-semibold transition shrink-0 cursor-pointer ${selectedCategory === cat
-                      ? `${typeConfig.accentBg} ${typeConfig.accentText} border ${typeConfig.accentBorder}`
-                      : 'bg-[#121826] text-slate-400 hover:text-slate-200 border border-[#1c2539]'
+                    ? `${typeConfig.accentBg} ${typeConfig.accentText} border ${typeConfig.accentBorder}`
+                    : 'bg-[#121826] text-slate-400 hover:text-slate-200 border border-[#1c2539]'
                     }`}
                 >
                   {cat}
@@ -744,7 +745,7 @@ export default function PlaylistBuilder({
                       <div
                         onClick={() => setPreviewVideo(video)}
                         title="Click to preview video"
-                        className="relative w-14 h-10 bg-black/60 border border-[#222c42] overflow-hidden shrink-0 cursor-pointer group/thumb"
+                        className="relative w-11 h-8 bg-black/60 border border-[#222c42] overflow-hidden shrink-0 cursor-pointer group/thumb"
                       >
                         {video.thumbnailPath ? (
                           <img
@@ -765,7 +766,7 @@ export default function PlaylistBuilder({
                           <Play size={12} className="text-white fill-white" />
                         </div>
                         {/* Duration pill */}
-                        <span className="absolute bottom-0.5 right-0.5 bg-black/80 font-mono text-[9px] text-cyan-300 font-semibold px-1 rounded">
+                        <span className="absolute bottom-0.5 right-0.5 bg-black/80 font-mono text-[8px] text-cyan-300 font-semibold px-1 rounded">
                           {video.durationFormatted || '00:00'}
                         </span>
                       </div>
@@ -781,7 +782,7 @@ export default function PlaylistBuilder({
                         <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-slate-400 font-mono">
                           {/* <span>{video.resolution || '1280x720'}</span> */}
                           <span>•</span>
-                          <span className='text-xs'>{formatBytes(video.size, 1)}</span>
+                          <span className='text-[10px]'>{formatBytes(video.size, 1)}</span>
                           {/* {video.category && (
                             <>
                               <span>•</span>
@@ -801,14 +802,14 @@ export default function PlaylistBuilder({
 
                     {/* Action buttons */}
                     <div className="flex items-center gap-1 shrink-0">
-                      <button
+                      {/* <button
                         type="button"
                         onClick={() => setPreviewVideo(video)}
                         title="Preview video"
                         className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-[#1a2336] transition cursor-pointer"
                       >
                         <Eye size={13} />
-                      </button>
+                      </button> */}
 
                       <button
                         type="button"
@@ -845,8 +846,8 @@ export default function PlaylistBuilder({
           onDragLeave={() => setIsDropZoneActive(false)}
           onDrop={(e) => handleDropAsset(e, playlistItems.length)}
           className={`lg:col-span-5 h-full flex flex-col bg-[#0b0e17] border rounded-2xl overflow-hidden shadow-2xl transition-all ${isDropZoneActive
-              ? typeConfig.dropHighlight
-              : 'border-[#182032]'
+            ? typeConfig.dropHighlight
+            : 'border-[#182032]'
             }`}
         >
           {/* Column 2 Header */}
@@ -860,16 +861,16 @@ export default function PlaylistBuilder({
                   <h2 className="text-xs font-bold uppercase tracking-wider text-white">
                     {typeConfig.title}
                   </h2>
-                  <span className={`font-mono text-[9px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider ${typeConfig.tagBadge}`}>
+                  {/* <span className={`font-mono text-[9px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider ${typeConfig.tagBadge}`}>
                     {typeConfig.badgeSmall}
-                  </span>
+                  </span> */}
                 </div>
               </div>
             </div>
 
             {/* Total Duration & Clear */}
             <div className="flex items-center gap-2">
-              <div className="px-2.5 py-1 rounded-lg bg-[#090d16] border border-[#1d263b] text-right font-mono">
+              <div className="px-2.5 py-1 flex gap-2 rounded-lg bg-[#090d16] border border-[#1d263b] text-right font-mono">
                 <span className="text-[10px] text-slate-400 block -mb-0.5">Runtime:</span>
                 <span className={`text-xs font-bold ${typeConfig.accentText}`}>
                   {totalRuntimeFormatted}
@@ -905,8 +906,8 @@ export default function PlaylistBuilder({
             {playlistItems.length === 0 ? (
               <div
                 className={`h-full min-h-[300px] flex flex-col items-center justify-center border-2 border-dashed rounded-xl p-6 text-center transition ${isDropZoneActive
-                    ? `${typeConfig.accentBorder} ${typeConfig.accentBg}`
-                    : 'border-[#1e273a] text-slate-500'
+                  ? `${typeConfig.accentBorder} ${typeConfig.accentBg}`
+                  : 'border-[#1e273a] text-slate-500'
                   }`}
               >
                 <div className={`w-12 h-12 rounded-2xl ${typeConfig.accentBg} border ${typeConfig.accentBorder} flex items-center justify-center ${typeConfig.accentText} mb-3 shadow-lg`}>
@@ -939,8 +940,8 @@ export default function PlaylistBuilder({
                     onDragLeave={() => setDragOverIndex(null)}
                     onDrop={(e) => handleDropAsset(e, index)}
                     className={`px-3 py-2 rounded-xl border grid grid-cols-[28px_24px_1fr_65px_65px_70px] items-center gap-2 text-xs transition group ${isDragOver
-                        ? typeConfig.dragOverRow
-                        : `border-[#1a2336] bg-[#0e1320] hover:bg-[#12192a]`
+                      ? typeConfig.dragOverRow
+                      : `border-[#1a2336] bg-[#0e1320] hover:bg-[#12192a]`
                       }`}
                   >
                     {/* Index # */}
@@ -1166,121 +1167,121 @@ export default function PlaylistBuilder({
               </div>
             ) : (
               <>
-            <div className="pt-2 border-t border-[#182032]">
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-slate-300 font-semibold flex items-center gap-1.5">
-                  <Calendar size={13} className="text-cyan-400" />
-                  <span>Schedule Trigger</span>
-                </label>
-              </div>
+                <div className="pt-2 border-t border-[#182032]">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-slate-300 font-semibold flex items-center gap-1.5">
+                      <Calendar size={13} className="text-cyan-400" />
+                      <span>Schedule Trigger</span>
+                    </label>
+                  </div>
 
-              <div className="grid grid-cols-3 gap-1.5">
-                {[
-                  { id: 'none', label: 'None (24x7)', desc: 'Continuous' },
-                  { id: 'date', label: 'Date Range', desc: 'Date window' },
-                  { id: 'weekly', label: 'Weekly', desc: 'Specific days' }
-                ].map((opt) => (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    onClick={() => setFormData((prev) => ({ ...prev, scheduleOption: opt.id }))}
-                    className={`p-2 rounded-xl border text-center transition flex flex-col items-center justify-center cursor-pointer ${(formData.scheduleOption || 'none') === opt.id
-                        ? `${typeConfig.accentBg} ${typeConfig.accentBorder} ${typeConfig.accentText} font-bold`
-                        : 'bg-[#090d16] border-[#1a2337] text-slate-400 hover:border-slate-600'
-                      }`}
-                  >
-                    <span className="text-[11px]">{opt.label}</span>
-                    <span className="text-[9px] opacity-70 mt-0.5">{opt.desc}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Date Range Fields (when scheduleOption === 'date') */}
-            {formData.scheduleOption === 'date' && (
-              <div className="space-y-2 p-2.5 rounded-xl bg-[#090d16] border border-[#1a2337]">
-                <div>
-                  <label className="text-slate-400 text-[10px] block mb-1">Start Date</label>
-                  <input
-                    type="date"
-                    value={formData.startDate || ''}
-                    onChange={handleFieldChange('startDate')}
-                    className="w-full bg-[#0e1320] border border-[#1c2539] rounded-lg px-2 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-cyan-400 font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="text-slate-400 text-[10px] block mb-1">End Date</label>
-                  <input
-                    type="date"
-                    value={formData.endDate || ''}
-                    onChange={handleFieldChange('endDate')}
-                    className="w-full bg-[#0e1320] border border-[#1c2539] rounded-lg px-2 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-cyan-400 font-mono"
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Weekly Days of Week (when scheduleOption === 'weekly') */}
-            {formData.scheduleOption === 'weekly' && (
-              <div className="p-2.5 rounded-xl bg-[#090d16] border border-[#1a2337] space-y-1.5">
-                <label className="text-slate-400 text-[10px] block font-semibold">Active Days of Week</label>
-                <div className="grid grid-cols-7 gap-1">
-                  {DAYS_OF_WEEK.map((d) => {
-                    const isSelected = Array.isArray(formData.daysOfWeek) && formData.daysOfWeek.includes(d.value);
-                    return (
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {[
+                      { id: 'none', label: 'None (24x7)', desc: 'Continuous' },
+                      { id: 'date', label: 'Date Range', desc: 'Date window' },
+                      { id: 'weekly', label: 'Weekly', desc: 'Specific days' }
+                    ].map((opt) => (
                       <button
-                        key={d.value}
+                        key={opt.id}
                         type="button"
-                        onClick={() => handleToggleDayOfWeek(d.value)}
-                        className={`py-1 rounded text-[10px] font-bold transition cursor-pointer ${isSelected
-                            ? `${typeConfig.accentBg} ${typeConfig.accentText} border ${typeConfig.accentBorder} font-black`
-                            : 'bg-[#111624] text-slate-400 border border-[#1a2337] hover:border-slate-500'
+                        onClick={() => setFormData((prev) => ({ ...prev, scheduleOption: opt.id }))}
+                        className={`p-2 rounded-xl border text-center transition flex flex-col items-center justify-center cursor-pointer ${(formData.scheduleOption || 'none') === opt.id
+                          ? `${typeConfig.accentBg} ${typeConfig.accentBorder} ${typeConfig.accentText} font-bold`
+                          : 'bg-[#090d16] border-[#1a2337] text-slate-400 hover:border-slate-600'
                           }`}
                       >
-                        {d.label}
+                        <span className="text-[11px]">{opt.label}</span>
+                        <span className="text-[9px] opacity-70 mt-0.5">{opt.desc}</span>
                       </button>
-                    );
-                  })}
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
 
-            {/* Daily Playout Time Window */}
-            <div className="pt-2 border-t border-[#182032] space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-slate-300 font-semibold flex items-center gap-1.5">
-                  <Clock size={13} className="text-cyan-400" />
-                  <span>Daily Time Window</span>
-                </label>
-                <span className="text-[10px] text-slate-500">Optional slot</span>
-              </div>
+                {/* Date Range Fields (when scheduleOption === 'date') */}
+                {formData.scheduleOption === 'date' && (
+                  <div className="space-y-2 p-2.5 rounded-xl bg-[#090d16] border border-[#1a2337]">
+                    <div>
+                      <label className="text-slate-400 text-[10px] block mb-1">Start Date</label>
+                      <input
+                        type="date"
+                        value={formData.startDate || ''}
+                        onChange={handleFieldChange('startDate')}
+                        className="w-full bg-[#0e1320] border border-[#1c2539] rounded-lg px-2 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-cyan-400 font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-slate-400 text-[10px] block mb-1">End Date</label>
+                      <input
+                        type="date"
+                        value={formData.endDate || ''}
+                        onChange={handleFieldChange('endDate')}
+                        className="w-full bg-[#0e1320] border border-[#1c2539] rounded-lg px-2 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-cyan-400 font-mono"
+                      />
+                    </div>
+                  </div>
+                )}
 
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-slate-400 text-[10px] block mb-1">Start (HH:mm)</label>
-                  <input
-                    type="time"
-                    step="1"
-                    value={formData.startTime || ''}
-                    onChange={handleFieldChange('startTime')}
-                    className="w-full bg-[#090d16] border border-[#1a2337] rounded-lg px-2 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-cyan-400 font-mono"
-                  />
+                {/* Weekly Days of Week (when scheduleOption === 'weekly') */}
+                {formData.scheduleOption === 'weekly' && (
+                  <div className="p-2.5 rounded-xl bg-[#090d16] border border-[#1a2337] space-y-1.5">
+                    <label className="text-slate-400 text-[10px] block font-semibold">Active Days of Week</label>
+                    <div className="grid grid-cols-7 gap-1">
+                      {DAYS_OF_WEEK.map((d) => {
+                        const isSelected = Array.isArray(formData.daysOfWeek) && formData.daysOfWeek.includes(d.value);
+                        return (
+                          <button
+                            key={d.value}
+                            type="button"
+                            onClick={() => handleToggleDayOfWeek(d.value)}
+                            className={`py-1 rounded text-[10px] font-bold transition cursor-pointer ${isSelected
+                              ? `${typeConfig.accentBg} ${typeConfig.accentText} border ${typeConfig.accentBorder} font-black`
+                              : 'bg-[#111624] text-slate-400 border border-[#1a2337] hover:border-slate-500'
+                              }`}
+                          >
+                            {d.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Daily Playout Time Window */}
+                <div className="pt-2 border-t border-[#182032] space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-slate-300 font-semibold flex items-center gap-1.5">
+                      <Clock size={13} className="text-cyan-400" />
+                      <span>Daily Time Window</span>
+                    </label>
+                    <span className="text-[10px] text-slate-500">Optional slot</span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-slate-400 text-[10px] block mb-1">Start (HH:mm)</label>
+                      <input
+                        type="time"
+                        step="1"
+                        value={formData.startTime || ''}
+                        onChange={handleFieldChange('startTime')}
+                        className="w-full bg-[#090d16] border border-[#1a2337] rounded-lg px-2 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-cyan-400 font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-slate-400 text-[10px] block mb-1">End (HH:mm)</label>
+                      <input
+                        type="time"
+                        step="1"
+                        value={formData.endTime || ''}
+                        onChange={handleFieldChange('endTime')}
+                        className="w-full bg-[#090d16] border border-[#1a2337] rounded-lg px-2 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-cyan-400 font-mono"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-[9px] text-slate-500 leading-tight">
+                    Leave empty for continuous 24-hour playback while armed.
+                  </p>
                 </div>
-                <div>
-                  <label className="text-slate-400 text-[10px] block mb-1">End (HH:mm)</label>
-                  <input
-                    type="time"
-                    step="1"
-                    value={formData.endTime || ''}
-                    onChange={handleFieldChange('endTime')}
-                    className="w-full bg-[#090d16] border border-[#1a2337] rounded-lg px-2 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-cyan-400 font-mono"
-                  />
-                </div>
-              </div>
-              <p className="text-[9px] text-slate-500 leading-tight">
-                Leave empty for continuous 24-hour playback while armed.
-              </p>
-            </div>
               </>
             )}
 
@@ -1297,60 +1298,60 @@ export default function PlaylistBuilder({
               <div className="space-y-1.5">
                 {/* Logo Toggle */}
                 <label className={`flex items-center justify-between p-2 rounded-xl border cursor-pointer transition ${formData.showLogo !== false
-                    ? 'bg-[#00bcd4]/10 border-[#00bcd4]/40 text-slate-200'
-                    : 'bg-[#090d16] border-[#1a2337] text-slate-400 opacity-60'
+                  ? 'bg-[#00bcd4]/10 border-[#00bcd4]/40 text-slate-200'
+                  : 'bg-[#090d16] border-[#1a2337] text-slate-400 opacity-75'
                   }`}>
                   <div className="flex flex-col">
                     <span className="font-semibold text-xs">Channel Logo</span>
                     <span className="text-[9px] opacity-70">Show main station logo</span>
                   </div>
-                  <input
-                    type="checkbox"
+                  <ToggleSwitch
+                    size="sm"
                     checked={formData.showLogo !== false}
                     onChange={handleCheckboxChange('showLogo')}
-                    className="rounded w-4 h-4 text-cyan-500 bg-[#121929] border-[#222c42] focus:ring-0 cursor-pointer"
+                    ariaLabel="Channel Logo"
                   />
                 </label>
 
                 {/* Bug Toggle */}
                 <label className={`flex items-center justify-between p-2 rounded-xl border cursor-pointer transition ${formData.showBug !== false
-                    ? 'bg-[#00bcd4]/10 border-[#00bcd4]/40 text-slate-200'
-                    : 'bg-[#090d16] border-[#1a2337] text-slate-400 opacity-60'
+                  ? 'bg-[#00bcd4]/10 border-[#00bcd4]/40 text-slate-200'
+                  : 'bg-[#090d16] border-[#1a2337] text-slate-400 opacity-75'
                   }`}>
                   <div className="flex flex-col">
                     <span className="font-semibold text-xs">Station Bug</span>
                     <span className="text-[9px] opacity-70">Show watermark / animated bug</span>
                   </div>
-                  <input
-                    type="checkbox"
+                  <ToggleSwitch
+                    size="sm"
                     checked={formData.showBug !== false}
                     onChange={handleCheckboxChange('showBug')}
-                    className="rounded w-4 h-4 text-cyan-500 bg-[#121929] border-[#222c42] focus:ring-0 cursor-pointer"
+                    ariaLabel="Station Bug"
                   />
                 </label>
 
                 {/* Ticker Toggle */}
                 <label className={`flex items-center justify-between p-2 rounded-xl border cursor-pointer transition ${formData.showTicker !== false
-                    ? 'bg-[#00bcd4]/10 border-[#00bcd4]/40 text-slate-200'
-                    : 'bg-[#090d16] border-[#1a2337] text-slate-400 opacity-60'
+                  ? 'bg-[#00bcd4]/10 border-[#00bcd4]/40 text-slate-200'
+                  : 'bg-[#090d16] border-[#1a2337] text-slate-400 opacity-75'
                   }`}>
                   <div className="flex flex-col">
                     <span className="font-semibold text-xs">Bottom Ticker</span>
                     <span className="text-[9px] opacity-70">Show running news ticker</span>
                   </div>
-                  <input
-                    type="checkbox"
+                  <ToggleSwitch
+                    size="sm"
                     checked={formData.showTicker !== false}
                     onChange={handleCheckboxChange('showTicker')}
-                    className="rounded w-4 h-4 text-cyan-500 bg-[#121929] border-[#222c42] focus:ring-0 cursor-pointer"
+                    ariaLabel="Bottom Ticker"
                   />
                 </label>
 
                 {/* Advertisement Only: Back-In Countdown Timer */}
                 {activeType === 'advertisement' && (
                   <label className={`flex items-center justify-between p-2 rounded-xl border cursor-pointer transition ${formData.showBackInTimer === true
-                      ? 'bg-amber-500/15 border-amber-500/50 text-amber-200'
-                      : 'bg-[#090d16] border-[#1a2337] text-slate-400 opacity-60'
+                    ? 'bg-amber-500/15 border-amber-500/50 text-amber-200'
+                    : 'bg-[#090d16] border-[#1a2337] text-slate-400 opacity-75'
                     }`}>
                     <div className="flex flex-col">
                       <span className="font-semibold text-xs text-amber-300 flex items-center gap-1">
@@ -1359,11 +1360,11 @@ export default function PlaylistBuilder({
                       </span>
                       <span className="text-[9px] opacity-80">Show "BACK IN 00:30" countdown during ad</span>
                     </div>
-                    <input
-                      type="checkbox"
+                    <ToggleSwitch
+                      size="sm"
                       checked={formData.showBackInTimer === true}
                       onChange={handleCheckboxChange('showBackInTimer')}
-                      className="rounded w-4 h-4 text-amber-500 bg-[#121929] border-[#222c42] focus:ring-0 cursor-pointer"
+                      ariaLabel="Back-In Timer"
                     />
                   </label>
                 )}
@@ -1379,12 +1380,12 @@ export default function PlaylistBuilder({
                   </span>
                   <span className="text-[9px] text-slate-500">Loop sequence continuously</span>
                 </div>
-                <input
-                  type="checkbox"
+                <ToggleSwitch
+                  size="sm"
                   checked={isDefaultPlaylist ? true : formData.loop !== false}
                   disabled={isDefaultPlaylist}
                   onChange={handleCheckboxChange('loop')}
-                  className="rounded w-4 h-4 text-cyan-500 bg-[#121929] border-[#222c42] focus:ring-0"
+                  ariaLabel="Loop Playback"
                 />
               </label>
 
@@ -1396,12 +1397,12 @@ export default function PlaylistBuilder({
                   </span>
                   <span className="text-[9px] text-slate-400">Arm playlist for scheduled playout</span>
                 </div>
-                <input
-                  type="checkbox"
+                <ToggleSwitch
+                  size="sm"
                   checked={isDefaultPlaylist ? true : formData.isActive !== false}
                   disabled={isDefaultPlaylist}
                   onChange={handleCheckboxChange('isActive')}
-                  className="rounded w-4 h-4 text-cyan-500 bg-[#121929] border-slate-700 focus:ring-0"
+                  ariaLabel={`Enable ${typeConfig.shortLabel}`}
                 />
               </label>
             </div>
@@ -1429,10 +1430,10 @@ export default function PlaylistBuilder({
                 </span>
               </div>
             </div>
-          </form>
+          </form >
 
           {/* Column 3 Footer Action Buttons */}
-          <div className="p-3 border-t border-[#182032] bg-[#0e121e] flex items-center gap-2">
+          < div className="p-3 border-t border-[#182032] bg-[#0e121e] flex items-center gap-2" >
             <button
               type="button"
               onClick={onCancel}
@@ -1447,67 +1448,69 @@ export default function PlaylistBuilder({
               className={`flex-1 py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-lg transition cursor-pointer disabled:opacity-50 ${typeConfig.buttonClass}`}
             >
               <TypeIcon size={14} />
-              <span>{isSubmitting ? 'Saving...' : mode === 'edit' ? 'Save Changes' : `Create ${typeConfig.shortLabel}`}</span>
+              <span>{isSubmitting ? 'Saving...' : mode === 'edit' ? 'Save Changes' : `Create`}</span>
             </button>
-          </div>
-        </div>
-      </div>
+          </div >
+        </div >
+      </div >
 
       {/* ========================================================
           VIDEO PREVIEW MODAL
           ======================================================== */}
-      {previewVideo && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm">
-          <div className="w-full max-w-2xl bg-[#0f131c] border border-[#212c44] rounded-2xl shadow-2xl overflow-hidden flex flex-col">
-            <div className="p-4 border-b border-[#212c44] flex items-center justify-between bg-[#121722]">
-              <div className="flex items-center gap-2">
-                <Play size={16} className={`${typeConfig.accentText} fill-current`} />
-                <h3 className="text-xs font-bold text-white truncate max-w-md">
-                  {previewVideo.originalName || 'Video Preview'}
-                </h3>
+      {
+        previewVideo && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm">
+            <div className="w-full max-w-2xl bg-[#0f131c] border border-[#212c44] rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+              <div className="p-4 border-b border-[#212c44] flex items-center justify-between bg-[#121722]">
+                <div className="flex items-center gap-2">
+                  <Play size={16} className={`${typeConfig.accentText} fill-current`} />
+                  <h3 className="text-xs font-bold text-white truncate max-w-md">
+                    {previewVideo.originalName || 'Video Preview'}
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPreviewVideo(null)}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-[#20293d] transition cursor-pointer"
+                >
+                  <X size={16} />
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => setPreviewVideo(null)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-[#20293d] transition cursor-pointer"
-              >
-                <X size={16} />
-              </button>
-            </div>
 
-            <div className="p-4 bg-black flex items-center justify-center">
-              <video
-                controls
-                autoPlay
-                src={`/${previewVideo.filePath}`}
-                className="w-full max-h-[380px] rounded-lg shadow-lg"
-              />
-            </div>
-
-            <div className="p-3.5 px-4 border-t border-[#212c44] bg-[#121722] flex items-center justify-between text-xs">
-              <div className="flex items-center gap-3 text-slate-400 font-mono text-[11px]">
-                <span>Duration: {previewVideo.durationFormatted || '00:00'}</span>
-                <span>•</span>
-                <span>Size: {formatBytes(previewVideo.size, 1)}</span>
-                <span>•</span>
-                <span>Resolution: {previewVideo.resolution || '1280x720'}</span>
+              <div className="p-4 bg-black flex items-center justify-center">
+                <video
+                  controls
+                  autoPlay
+                  src={`/${previewVideo.filePath}`}
+                  className="w-full max-h-[380px] rounded-lg shadow-lg"
+                />
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  handleAddVideo(previewVideo);
-                  setPreviewVideo(null);
-                }}
-                className="px-3.5 py-1.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-bold text-xs flex items-center gap-1.5 shadow transition cursor-pointer"
-              >
-                <Plus size={14} />
-                <span>Add to {typeConfig.shortLabel}</span>
-              </button>
+
+              <div className="p-3.5 px-4 border-t border-[#212c44] bg-[#121722] flex items-center justify-between text-xs">
+                <div className="flex items-center gap-3 text-slate-400 font-mono text-[11px]">
+                  <span>Duration: {previewVideo.durationFormatted || '00:00'}</span>
+                  <span>•</span>
+                  <span>Size: {formatBytes(previewVideo.size, 1)}</span>
+                  <span>•</span>
+                  <span>Resolution: {previewVideo.resolution || '1280x720'}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleAddVideo(previewVideo);
+                    setPreviewVideo(null);
+                  }}
+                  className="px-3.5 py-1.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-bold text-xs flex items-center gap-1.5 shadow transition cursor-pointer"
+                >
+                  <Plus size={14} />
+                  <span>Add to {typeConfig.shortLabel}</span>
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        )
+      }
+    </div >
   );
 }
 

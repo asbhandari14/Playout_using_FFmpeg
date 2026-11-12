@@ -16,7 +16,8 @@ import {
   FORM_INPUT_CLASS,
   FORM_BTN_CANCEL,
   FORM_BTN_PRIMARY,
-  FormField as Field
+  FormField as Field,
+  ToggleSwitch
 } from './FormPrimitives.jsx';
 
 export default function UpdateUserForm({
@@ -239,11 +240,11 @@ export default function UpdateUserForm({
                   : 'Account is suspended. The user will be unable to log in.'}
               </span>
             </div>
-            <input
-              type="checkbox"
+            <ToggleSwitch
+              size="sm"
               checked={formData.isActive !== false}
               onChange={setCheckbox('isActive')}
-              className="rounded w-4 h-4 text-cyan-500 bg-[#121929] border-[#222c42] focus:ring-0 cursor-pointer"
+              ariaLabel="User Active Status"
             />
           </label>
         </div>

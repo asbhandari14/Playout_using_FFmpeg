@@ -2,6 +2,7 @@ import { toast } from 'react-hot-toast';
 import React, { useState, useEffect } from 'react';
 import Modal from './Modal.jsx';
 import { PLAYLIST_TYPE_CONFIG, DAYS_OF_WEEK } from '../../hooks/usePlaylist.js';
+import { ToggleSwitch } from '../form/FormPrimitives.jsx';
 import { Calendar, Clock, AlertTriangle, Radio, Film, Layers, Trash2, Sparkles, Timer } from 'lucide-react';
 
 export default function PlaylistSettingsModal({
@@ -399,78 +400,71 @@ export default function PlaylistSettingsModal({
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             {/* Show Logo */}
-            <label className={`flex items-center gap-2 p-2 rounded border cursor-pointer transition ${
+            <label className={`flex items-center justify-between gap-2 p-2 rounded border cursor-pointer transition ${
               formData.showLogo !== false
                 ? 'bg-blue-950/20 border-blue-800/40 text-slate-200'
-                : 'bg-[#141822] border-[#232b3c] text-slate-400 opacity-60'
+                : 'bg-[#141822] border-[#232b3c] text-slate-400 opacity-75'
             }`}>
-              <input
-                type="checkbox"
-                name="showLogo"
-                checked={formData.showLogo !== false}
-                onChange={handleChange}
-                className="rounded bg-[#141822] border-slate-700 text-blue-600 focus:ring-0"
-              />
               <div className="flex flex-col">
                 <span className="font-semibold text-[11px]">Channel Logo</span>
                 <span className="text-[9px] opacity-70">Show logo</span>
               </div>
+              <ToggleSwitch
+                size="sm"
+                name="showLogo"
+                checked={formData.showLogo !== false}
+                onChange={handleChange}
+                ariaLabel="Channel Logo"
+              />
             </label>
 
             {/* Show Bug */}
-            <label className={`flex items-center gap-2 p-2 rounded border cursor-pointer transition ${
+            <label className={`flex items-center justify-between gap-2 p-2 rounded border cursor-pointer transition ${
               formData.showBug !== false
                 ? 'bg-blue-950/20 border-blue-800/40 text-slate-200'
-                : 'bg-[#141822] border-[#232b3c] text-slate-400 opacity-60'
+                : 'bg-[#141822] border-[#232b3c] text-slate-400 opacity-75'
             }`}>
-              <input
-                type="checkbox"
-                name="showBug"
-                checked={formData.showBug !== false}
-                onChange={handleChange}
-                className="rounded bg-[#141822] border-slate-700 text-blue-600 focus:ring-0"
-              />
               <div className="flex flex-col">
                 <span className="font-semibold text-[11px]">Station Bug</span>
                 <span className="text-[9px] opacity-70">Show bug</span>
               </div>
+              <ToggleSwitch
+                size="sm"
+                name="showBug"
+                checked={formData.showBug !== false}
+                onChange={handleChange}
+                ariaLabel="Station Bug"
+              />
             </label>
 
             {/* Show Ticker */}
-            <label className={`flex items-center gap-2 p-2 rounded border cursor-pointer transition ${
+            <label className={`flex items-center justify-between gap-2 p-2 rounded border cursor-pointer transition ${
               formData.showTicker !== false
                 ? 'bg-blue-950/20 border-blue-800/40 text-slate-200'
-                : 'bg-[#141822] border-[#232b3c] text-slate-400 opacity-60'
+                : 'bg-[#141822] border-[#232b3c] text-slate-400 opacity-75'
             }`}>
-              <input
-                type="checkbox"
-                name="showTicker"
-                checked={formData.showTicker !== false}
-                onChange={handleChange}
-                className="rounded bg-[#141822] border-slate-700 text-blue-600 focus:ring-0"
-              />
               <div className="flex flex-col">
                 <span className="font-semibold text-[11px]">Bottom Ticker</span>
                 <span className="text-[9px] opacity-70">Show ticker</span>
               </div>
+              <ToggleSwitch
+                size="sm"
+                name="showTicker"
+                checked={formData.showTicker !== false}
+                onChange={handleChange}
+                ariaLabel="Bottom Ticker"
+              />
             </label>
           </div>
 
           {/* Advertisement-Only: Show Back-In Timer */}
           {formData.type === 'advertisement' && (
             <div className="pt-2 border-t border-[#1b2333]">
-              <label className={`flex items-center gap-2 p-2 rounded border cursor-pointer transition ${
+              <label className={`flex items-center justify-between gap-2 p-2 rounded border cursor-pointer transition ${
                 formData.showBackInTimer === true
                   ? 'bg-amber-950/25 border-amber-600/50 text-amber-200'
-                  : 'bg-[#141822] border-[#232b3c] text-slate-400 opacity-60'
+                  : 'bg-[#141822] border-[#232b3c] text-slate-400 opacity-75'
               }`}>
-                <input
-                  type="checkbox"
-                  name="showBackInTimer"
-                  checked={formData.showBackInTimer === true}
-                  onChange={handleChange}
-                  className="rounded bg-[#141822] border-slate-700 text-amber-500 focus:ring-0"
-                />
                 <div className="flex flex-col">
                   <span className="font-semibold text-[11px] text-amber-300 flex items-center gap-1">
                     <Timer size={12} />
@@ -480,35 +474,42 @@ export default function PlaylistSettingsModal({
                     Display "BACK IN 00:30" countdown during advertisement break
                   </span>
                 </div>
+                <ToggleSwitch
+                  size="sm"
+                  name="showBackInTimer"
+                  checked={formData.showBackInTimer === true}
+                  onChange={handleChange}
+                  ariaLabel="Show Back-In Countdown Timer"
+                />
               </label>
             </div>
           )}
         </div>
 
         {/* Options: Loop & Active */}
-        <div className="flex items-center justify-between p-3 rounded-lg bg-[#0d1017] border border-[#232b3c]">
-          <label className={`flex items-center gap-2 ${isDefaultPlaylist ? 'opacity-80 cursor-not-allowed' : 'cursor-pointer'}`}>
-            <input
-              type="checkbox"
+        <div className="flex flex-wrap items-center justify-between gap-4 p-3 rounded-lg bg-[#0d1017] border border-[#232b3c]">
+          <label className={`flex items-center gap-2.5 ${isDefaultPlaylist ? 'opacity-80 cursor-not-allowed' : 'cursor-pointer'}`}>
+            <ToggleSwitch
+              size="sm"
               name="loop"
               checked={isDefaultPlaylist ? true : formData.loop}
               disabled={isDefaultPlaylist}
               onChange={handleChange}
-              className="rounded bg-[#141822] border-slate-700 text-blue-600 focus:ring-0"
+              ariaLabel="Loop Playback"
             />
             <span className="font-semibold text-slate-200">
               Loop Playback {isDefaultPlaylist && <span className="text-[10px] text-emerald-400 font-normal">(Required 24/7)</span>}
             </span>
           </label>
 
-          <label className={`flex items-center gap-2 ${isDefaultPlaylist ? 'opacity-80 cursor-not-allowed' : 'cursor-pointer'}`}>
-            <input
-              type="checkbox"
+          <label className={`flex items-center gap-2.5 ${isDefaultPlaylist ? 'opacity-80 cursor-not-allowed' : 'cursor-pointer'}`}>
+            <ToggleSwitch
+              size="sm"
               name="isActive"
               checked={isDefaultPlaylist ? true : formData.isActive}
               disabled={isDefaultPlaylist}
               onChange={handleChange}
-              className="rounded bg-[#141822] border-slate-700 text-blue-600 focus:ring-0"
+              ariaLabel="Enable Playlist (Active)"
             />
             <span className="font-semibold text-slate-200">
               Enable Playlist (Active) {isDefaultPlaylist && <span className="text-[10px] text-emerald-400 font-normal">(Required)</span>}
