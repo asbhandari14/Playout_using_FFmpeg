@@ -733,7 +733,9 @@ export class EncoderService {
     const ffmpegArgs = [
       '-y',
       '-fflags', '+genpts+discardcorrupt',
-      // Input 0: MPEG-TS stdin from Feeder
+      // Input 0: MPEG-TS stdin from Feeder (bounded probe so standardized feeder pipe starts immediately)
+      '-probesize', '1000000',
+      '-analyzeduration', '1500000',
       '-f', 'mpegts', '-i', 'pipe:0',
       // Input 1: Dynamic looping logo.png (live reloadable without stream restart)
       '-stream_loop', '-1', '-f', 'image2', '-framerate', String(fps), '-i', this.logoFile,
@@ -780,6 +782,8 @@ export class EncoderService {
     });
 
     this.isRunning = true;
+    this.hasFirstPts = false;
+    this._firstFrameWaiters = [];
     this.streamStartTime = Date.now();
     this.lastReportedPts = 0;
     this.lastReportedAt = Date.now();
@@ -809,6 +813,10 @@ export class EncoderService {
       if (timeMatch) {
         this.lastReportedPts = Number(timeMatch[1]) * 3600 + Number(timeMatch[2]) * 60 + Number(timeMatch[3]);
         this.lastReportedAt = Date.now();
+        if (!this.hasFirstPts) {
+          this.hasFirstPts = true;
+          this.resolveFirstFrameWaiters(true);
+        }
       }
 
       // Detect RTMP socket failure, broken connection, or slave drop during network outage
@@ -846,7 +854,8 @@ export class EncoderService {
     this.watchdogTimer = setInterval(() => {
       if (!this.isRunning || this.isStopping) return;
       const idleMs = Date.now() - (this.lastReportedAt || this.streamStartTime || Date.now());
-      if (idleMs > 15000) {
+      const stallThresholdMs = this.hasFirstPts ? 15000 : 30000;
+      if (idleMs > stallThresholdMs) {
         console.warn(`[Encoder:${streamKey}] Watchdog detected frozen PTS for ${(idleMs / 1000).toFixed(1)}s. Triggering auto-recovery.`);
         this.triggerFailure(`FFmpeg PTS stalled for ${(idleMs / 1000).toFixed(1)}s`);
       }
@@ -855,6 +864,7 @@ export class EncoderService {
     this.process.on('close', (code) => {
       console.log(`[Encoder] FFmpeg encoder exited with code ${code}`);
       this.isRunning = false;
+      this.resolveFirstFrameWaiters(false);
       if (this.watchdogTimer) {
         clearInterval(this.watchdogTimer);
         this.watchdogTimer = null;
@@ -922,21 +932,66 @@ export class EncoderService {
     });
   }
 
+  resolveFirstFrameWaiters(ok) {
+    if (!Array.isArray(this._firstFrameWaiters) || this._firstFrameWaiters.length === 0) return;
+    const waiters = this._firstFrameWaiters.splice(0);
+    for (const resolveWaiter of waiters) {
+      try {
+        resolveWaiter(ok);
+      } catch { }
+    }
+  }
+
+  /**
+   * Resolves once the encoder processes its first video/audio frame (meaning filter_complex ZMQ is ready),
+   * or false if the encoder stops/times out first.
+   */
+  waitForFirstFrame(timeoutMs = 15000) {
+    if (!this.isRunning || this.isStopping) return Promise.resolve(false);
+    if (this.hasFirstPts) return Promise.resolve(true);
+    return new Promise((resolve) => {
+      let settled = false;
+      let timer = null;
+      const finish = (ok) => {
+        if (settled) return;
+        settled = true;
+        if (timer) clearTimeout(timer);
+        if (Array.isArray(this._firstFrameWaiters)) {
+          this._firstFrameWaiters = this._firstFrameWaiters.filter((fn) => fn !== finish);
+        }
+        resolve(ok);
+      };
+      timer = setTimeout(() => finish(false), timeoutMs);
+      if (!Array.isArray(this._firstFrameWaiters)) {
+        this._firstFrameWaiters = [];
+      }
+      this._firstFrameWaiters.push(finish);
+    });
+  }
+
   /**
    * Send live runtime ZMQ command directly into FFmpeg filtergraph with strict serialization & timeout
    */
-  async sendZmqCommand(commandString, timeoutMs = 800) {
+  async sendZmqCommand(commandString, timeoutMs = 1500) {
     if (!this.isRunning) return null;
 
     const execute = async () => {
+      if (!this.hasFirstPts) {
+        const ready = await this.waitForFirstFrame(15000);
+        if (!ready) return null;
+      }
       if (!this.zmqSocket || !this.isRunning) {
         console.warn(`[Encoder ZMQ] Cannot send command '${commandString}', socket or encoder not running`);
         return null;
       }
       let timeoutHandle;
+      let sendPromise;
+      let receivePromise;
       try {
-        const sendPromise = this.zmqSocket.send(commandString);
-        const receivePromise = this.zmqSocket.receive();
+        sendPromise = this.zmqSocket.send(commandString);
+        sendPromise.catch(() => { });
+        receivePromise = this.zmqSocket.receive();
+        receivePromise.catch(() => { });
 
         const timeoutPromise = new Promise((_, reject) => {
           timeoutHandle = setTimeout(() => {
@@ -1013,7 +1068,7 @@ export class EncoderService {
   }
 
   // Live dynamic logo size scaling via ZMQ with zero stream restart
-  async setLogoSize(sizePercent) {
+  async setLogoSize(sizePercent, { reposition = true } = {}) {
     if (!this.channel) this.channel = {};
     if (!this.channel.branding) this.channel.branding = {};
     if (!this.channel.branding.logo) this.channel.branding.logo = {};
@@ -1049,7 +1104,7 @@ export class EncoderService {
     await this.sendZmqCommand(`scale@logo_scale h ${targetHeight}`);
 
     const bLogo = this.channel.branding.logo;
-    if (bLogo.enabled !== false) {
+    if (reposition && bLogo.enabled) {
       const expr = this.getLogoPositionExpressions(
         bLogo.position || 'top-right',
         bLogo.marginX !== undefined ? bLogo.marginX : 2,
@@ -1110,7 +1165,7 @@ export class EncoderService {
   // Live dynamic bug size scaling via ZMQ with zero stream restart:
   // - For animated GIF: increasing size increases HEIGHT ONLY, NOT width
   // - For static image: increasing size increases BOTH height and width proportionally
-  async setBugSize(sizePercent) {
+  async setBugSize(sizePercent, { reposition = true } = {}) {
     if (!this.channel) this.channel = {};
     if (!this.channel.branding) this.channel.branding = {};
     if (!this.channel.branding.bug) this.channel.branding.bug = {};
@@ -1155,7 +1210,7 @@ export class EncoderService {
     await this.sendZmqCommand(`scale@bug_scale h ${targetHeight}`);
 
     const bBug = this.channel.branding.bug;
-    if (bBug.enabled !== false) {
+    if (reposition && bBug.enabled) {
       const expr = this.getBugPositionExpressions(bBug);
       await this.sendZmqCommand(`overlay@bug x ${expr.x}`);
       await this.sendZmqCommand(`overlay@bug y ${expr.y}`);
@@ -1189,7 +1244,35 @@ export class EncoderService {
     }
   }
 
-  async setTickerPosition(marginBottom, speed, alignment, tickerMeta = null) {
+  getActiveTickerScaleHeight(bTick = null) {
+    const tickCfg = bTick || this.channel?.branding?.ticker || {};
+    const bLband = this.channel?.branding?.lband;
+    const isLbandActive = !!bLband?.enabled;
+    const bAshton = this.channel?.branding?.ashton;
+    const isAshtonActive = !!bAshton?.enabled;
+    const isAshtonSqueeze = isAshtonActive && bAshton?.squeeze !== false;
+
+    const canvasH = this.canvasHeight || 720;
+    const targetH = Number(bLband?.windowHeight) || 540;
+    let ashtonH = Number(bAshton?.height) || 160;
+    if (ashtonH % 2 !== 0) ashtonH -= 1;
+    const ashtonVidH = Math.max(20, canvasH - ashtonH);
+
+    const fontSize = Math.max(10, Math.min(80, Number(tickCfg.fontSize) || 26));
+    const rawPadY = Number(tickCfg.paddingY);
+    const paddingY = Math.max(0, Math.min(60, Number.isFinite(rawPadY) ? rawPadY : 12));
+    const tickBaseHeight = Math.round(fontSize + paddingY * 2);
+
+    let activeTickH = tickBaseHeight;
+    if (isLbandActive) {
+      activeTickH = Math.max(16, Math.round(tickBaseHeight * (targetH / canvasH)));
+    } else if (isAshtonSqueeze) {
+      activeTickH = Math.max(16, Math.round(tickBaseHeight * (ashtonVidH / canvasH)));
+    }
+    return activeTickH;
+  }
+
+  async setTickerPosition(marginBottom, speed, alignment, tickerMeta = null, { reposition = true } = {}) {
     if (tickerMeta) {
       this.tickerMeta = tickerMeta;
     }
@@ -1209,8 +1292,12 @@ export class EncoderService {
     if (expr.bar.width) {
       await this.sendZmqCommand(`crop@tick_crop w ${expr.bar.width}`);
     }
-    await this.sendZmqCommand(`overlay@tick x ${expr.bar.x}`);
-    await this.sendZmqCommand(`overlay@tick y ${expr.bar.y}`);
+    const activeTickH = this.getActiveTickerScaleHeight(this.channel.branding.ticker);
+    await this.sendZmqCommand(`scale@tick_scale h ${activeTickH}`).catch(() => { });
+    if (reposition) {
+      await this.sendZmqCommand(`overlay@tick x ${expr.bar.x}`);
+      await this.sendZmqCommand(`overlay@tick y ${expr.bar.y}`);
+    }
     return this.sendZmqCommand(`overlay@ticktext x ${expr.text.x}`);
   }
 
@@ -1232,25 +1319,7 @@ export class EncoderService {
     await this.sendZmqCommand(`overlay@tick x ${expr.bar.x}`);
     await this.sendZmqCommand(`overlay@tick y ${expr.bar.y}`);
 
-    const bLband = this.channel?.branding?.lband;
-    const isLbandActive = !!bLband?.enabled;
-    const bAshton = this.channel?.branding?.ashton;
-    const isAshtonActive = !!bAshton?.enabled;
-    const isAshtonSqueeze = isAshtonActive && bAshton?.squeeze !== false;
-
-    const canvasH = this.canvasHeight || 720;
-    const targetH = Number(bLband?.windowHeight) || 540;
-    let ashtonH = Number(bAshton?.height) || 160;
-    if (ashtonH % 2 !== 0) ashtonH -= 1;
-    const ashtonVidH = Math.max(20, canvasH - ashtonH);
-
-    const tickBaseHeight = Math.round(Number(bTick.fontSize || 26) + Number(bTick.paddingY || 12) * 2);
-    let activeTickH = tickBaseHeight;
-    if (isLbandActive) {
-      activeTickH = Math.max(16, Math.round(tickBaseHeight * (targetH / canvasH)));
-    } else if (isAshtonSqueeze) {
-      activeTickH = Math.max(16, Math.round(tickBaseHeight * (ashtonVidH / canvasH)));
-    }
+    const activeTickH = this.getActiveTickerScaleHeight(bTick);
     await this.sendZmqCommand(`scale@tick_scale h ${activeTickH}`).catch(() => { });
 
     return this.sendZmqCommand(`overlay@ticktext x ${expr.text.x}`);
@@ -1852,6 +1921,7 @@ export class EncoderService {
     if (this.isStopping || !this.isRunning) return;
     console.warn(`[Encoder] Triggering failure recovery for channel '${this.channel?.name}': ${reason}`);
     this.isRunning = false;
+    this.resolveFirstFrameWaiters(false);
     if (this.process) {
       try {
         killProcessTree(this.process);
@@ -1862,6 +1932,7 @@ export class EncoderService {
   stop() {
     this.isStopping = true;
     this.isRunning = false;
+    this.resolveFirstFrameWaiters(false);
     if (this.watchdogTimer) {
       clearInterval(this.watchdogTimer);
       this.watchdogTimer = null;

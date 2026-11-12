@@ -82,6 +82,7 @@ const channelSchema = new mongoose.Schema(
       },
       bug: {
         assetPath: { type: String, default: '' },
+        previewPath: { type: String, default: '' },
         enabled: { type: Boolean, default: false },
         position: {
           type: String,

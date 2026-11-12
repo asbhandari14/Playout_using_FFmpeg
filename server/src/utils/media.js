@@ -195,3 +195,84 @@ export const normalizeVideo = async (inputPath, outputPath, onProgress) => {
     });
   });
 };
+
+const runFfmpegWithTimeout = (args, outputPath, timeoutMs = 20000) => {
+  return new Promise((resolve) => {
+    const proc = spawn('ffmpeg', args, { stdio: ['ignore', 'ignore', 'ignore'] });
+    let finished = false;
+    const timer = setTimeout(() => {
+      if (!finished) {
+        finished = true;
+        try { proc.kill('SIGKILL'); } catch { }
+        try { if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath); } catch { }
+        resolve(false);
+      }
+    }, timeoutMs);
+
+    proc.on('close', (code) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      const ok = code === 0 && fs.existsSync(outputPath) && fs.statSync(outputPath).size > 0;
+      if (!ok) {
+        try { if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath); } catch { }
+      }
+      resolve(ok);
+    });
+
+    proc.on('error', () => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      resolve(false);
+    });
+  });
+};
+
+/**
+ * Generate a browser-playable preview for QuickTime MOV bugs (ProRes 4444 / qtrle etc. cannot play in Chromium <video>).
+ * Prefers animated transparent VP9 WebM and falls back to a transparent PNG frame.
+ */
+export const generateMovBugPreview = async (inputMovPath, outputBaseNoExt, duration = 0) => {
+  if (!inputMovPath || !fs.existsSync(inputMovPath)) return null;
+
+  const webmPath = `${outputBaseNoExt}_preview.webm`;
+  const webmArgs = [
+    '-y',
+    '-t', '10',
+    '-i', inputMovPath,
+    '-an',
+    '-vf', "scale=w='min(240,iw)':h=-2:flags=lanczos,format=yuva420p",
+    '-c:v', 'libvpx-vp9',
+    '-pix_fmt', 'yuva420p',
+    '-auto-alt-ref', '0',
+    '-b:v', '350k',
+    '-deadline', 'realtime',
+    '-cpu-used', '4',
+    webmPath
+  ];
+
+  if (await runFfmpegWithTimeout(webmArgs, webmPath, 20000)) {
+    return webmPath;
+  }
+
+  const pngPath = `${outputBaseNoExt}_preview.png`;
+  const seekTime = duration > 1 ? Math.min(duration * 0.25, 1.0) : 0;
+  const extractPng = (ss) => runFfmpegWithTimeout([
+    '-y',
+    ...(ss > 0 ? ['-ss', String(ss)] : []),
+    '-i', inputMovPath,
+    '-vframes', '1',
+    '-vf', "scale=w='min(240,iw)':h=-1:flags=lanczos,format=rgba",
+    pngPath
+  ], pngPath, 10000);
+
+  if (seekTime > 0 && await extractPng(seekTime)) {
+    return pngPath;
+  }
+  if (await extractPng(0)) {
+    return pngPath;
+  }
+
+  return null;
+};

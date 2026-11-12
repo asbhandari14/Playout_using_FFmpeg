@@ -24,6 +24,7 @@ import {
   updateBugBranding,
   removeBug,
   uploadBugFile,
+  ensureBugPreview,
   updateTickerBranding,
   removeTicker,
   updateLBandBranding,
@@ -106,6 +107,7 @@ router.post('/:channelId/logo/upload', uploadLogo.single('logo'), uploadLogoFile
 router.put('/:channelId/bug', updateBugBranding);
 router.delete('/:channelId/bug', removeBug);
 router.post('/:channelId/bug/upload', uploadBug.single('bug'), uploadBugFile);
+router.post('/:channelId/bug/preview', ensureBugPreview);
 
 router.put('/:channelId/ticker', updateTickerBranding);
 router.delete('/:channelId/ticker', removeTicker);

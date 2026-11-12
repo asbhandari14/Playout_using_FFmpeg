@@ -20,7 +20,9 @@ import {
   Layers,
   Crosshair,
   Clock,
-  Timer as TimerIcon
+  Timer as TimerIcon,
+  Film,
+  Loader2
 } from 'lucide-react';
 
 export const TICKER_FONT_OPTIONS = [
@@ -76,8 +78,12 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
   const [logoMarginY, setLogoMarginY] = useState(2);
   const [logoShowDuringSchedule, setLogoShowDuringSchedule] = useState(true);
 
-  // Station Bug state (supports static images & animated GIF + free positioning)
+  // Station Bug state (supports static PNG & QuickTime MOV + free positioning)
   const [bugAssetPath, setBugAssetPath] = useState('');
+  const [bugPreviewPath, setBugPreviewPath] = useState('');
+  const [bugPreviewVersion, setBugPreviewVersion] = useState(0);
+  const [bugPreviewErrorFor, setBugPreviewErrorFor] = useState('');
+  const [isUploadingBug, setIsUploadingBug] = useState(false);
   const [bugEnabled, setBugEnabled] = useState(false);
   const [bugPosition, setBugPosition] = useState('custom');
   const [bugPositionX, setBugPositionX] = useState(95);
@@ -87,6 +93,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
   const [bugMarginY, setBugMarginY] = useState(2);
   const [bugIsGif, setBugIsGif] = useState(false);
   const [bugIsMov, setBugIsMov] = useState(false);
+  const requestedBugPreviewForRef = useRef('');
 
   // Ticker state
   const [tickerEnabled, setTickerEnabled] = useState(false);
@@ -146,6 +153,9 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
     if (bugJson !== lastSyncedSectionsRef.current.bug && !isDraggingBugRef.current) {
       lastSyncedSectionsRef.current.bug = bugJson;
       setBugAssetPath(bBug.assetPath || '');
+      setBugPreviewPath(bBug.previewPath || '');
+      setBugPreviewErrorFor('');
+      if (!bBug.assetPath) requestedBugPreviewForRef.current = '';
       setBugEnabled(!!bBug.enabled);
       setBugPosition(bBug.position || 'custom');
       setBugPositionX(
@@ -225,6 +235,33 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
       }
     }
   }, [channel]);
+
+  // Backfill browser-playable preview when a channel already has an uploaded .mov bug without previewPath
+  useEffect(() => {
+    const channelId = channel?._id;
+    const isMovBug = Boolean(bugIsMov || (bugAssetPath && String(bugAssetPath).toLowerCase().endsWith('.mov')));
+    if (!channelId || !bugAssetPath || !isMovBug || bugPreviewPath) return;
+    if (requestedBugPreviewForRef.current === bugAssetPath) return;
+
+    requestedBugPreviewForRef.current = bugAssetPath;
+    let cancelled = false;
+
+    api.post(`/channels/${channelId}/bug/preview`)
+      .then((res) => {
+        if (cancelled) return;
+        const preview = res.data?.bug?.previewPath;
+        if (preview) {
+          setBugPreviewPath(preview);
+          setBugPreviewVersion((v) => v + 1);
+          if (onBrandingUpdated) onBrandingUpdated({ type: 'bug', data: res.data.bug });
+        }
+      })
+      .catch(() => { });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [channel?._id, bugAssetPath, bugIsMov, bugPreviewPath, onBrandingUpdated]);
 
   const showAlert = (type, message) => {
     setAlert({ type, message });
@@ -342,11 +379,16 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
     const formData = new FormData();
     formData.append('bug', file);
 
+    setIsUploadingBug(true);
     try {
       const res = await api.post(`/channels/${channel._id}/bug/upload`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       setBugAssetPath(res.data.bug.assetPath);
+      setBugPreviewPath(res.data.bug.previewPath || '');
+      setBugPreviewErrorFor('');
+      requestedBugPreviewForRef.current = '';
+      setBugPreviewVersion((v) => v + 1);
       setBugEnabled(true);
       setBugIsMov(!!res.data.bug.isMov || ext === '.mov');
       setBugIsGif(false);
@@ -355,6 +397,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
     } catch (err) {
       showAlert('error', err.response?.data?.message || 'Failed to upload station bug');
     } finally {
+      setIsUploadingBug(false);
       if (e.target) e.target.value = '';
     }
   };
@@ -462,9 +505,24 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
     if (!channel?._id) return;
     try {
       const res = await api.delete(`/channels/${channel._id}/bug`);
+      const clearedBug = res.data?.bug || {
+        assetPath: '',
+        previewPath: '',
+        enabled: false,
+        isMov: false,
+        isGif: false
+      };
+      setBugAssetPath('');
+      setBugPreviewPath('');
+      setBugPreviewErrorFor('');
+      setBugIsMov(false);
+      setBugIsGif(false);
       setBugEnabled(false);
-      showAlert('success', 'Station bug removed from air');
-      if (onBrandingUpdated) onBrandingUpdated({ type: 'bug', data: res.data.bug });
+      requestedBugPreviewForRef.current = '';
+      setBugPreviewVersion((v) => v + 1);
+      if (bugInputRef.current) bugInputRef.current.value = '';
+      showAlert('success', res.data?.message || 'Station bug removed from air');
+      if (onBrandingUpdated) onBrandingUpdated({ type: 'bug', data: clearedBug });
     } catch (err) {
       showAlert('error', 'Failed to remove station bug');
     }
@@ -588,6 +646,56 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
       }
       showAlert('error', err.response?.data?.message || 'Failed to update Back In Timer');
     }
+  };
+
+  const renderBugGraphicPreview = (isMarker = false) => {
+    if (!isMarker && isUploadingBug) {
+      return <Loader2 size={16} className="text-amber-400 animate-spin" />;
+    }
+
+    if (!bugAssetPath) {
+      return <Sparkles size={isMarker ? 11 : 18} className={isMarker ? 'text-amber-300' : 'text-slate-600'} />;
+    }
+
+    const activeRelPath = bugPreviewPath || bugAssetPath;
+    const cleanRelPath = String(activeRelPath).replace(/^\/+/, '');
+    const src = `/${cleanRelPath}${bugPreviewVersion ? `?v=${bugPreviewVersion}` : ''}`;
+    const extLower = cleanRelPath.toLowerCase();
+    const isVideoSrc = extLower.endsWith('.webm') || extLower.endsWith('.mp4') || extLower.endsWith('.mov');
+    const hasMediaError = bugPreviewErrorFor === src;
+
+    if (isVideoSrc && !hasMediaError) {
+      return (
+        <video
+          key={src}
+          src={src}
+          autoPlay
+          loop
+          muted
+          playsInline
+          onError={() => setBugPreviewErrorFor(src)}
+          className="w-full h-full object-contain pointer-events-none"
+        />
+      );
+    }
+
+    if (isVideoSrc && hasMediaError) {
+      return (
+        <div className="flex flex-col items-center justify-center text-amber-300 pointer-events-none">
+          <Film size={isMarker ? 11 : 16} />
+          {!isMarker && <span className="text-[7.5px] font-bold tracking-wider mt-0.5">MOV</span>}
+        </div>
+      );
+    }
+
+    return (
+      <img
+        src={src}
+        alt={isMarker ? 'Bug target' : 'Bug'}
+        onError={() => setBugPreviewErrorFor(src)}
+        className={`w-full h-full object-contain ${isMarker ? 'pointer-events-none' : ''}`}
+      />
+    );
   };
 
   return (
@@ -871,8 +979,8 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                   max="45"
                   value={logoSizePercent}
                   onChange={(e) => setLogoSizePercent(Number(e.target.value))}
-                  onMouseUp={() => handleUpdateLogo({ sizePercent: logoSizePercent })}
-                  onTouchEnd={() => handleUpdateLogo({ sizePercent: logoSizePercent })}
+                  onMouseUp={(e) => handleUpdateLogo({ sizePercent: Number(e.currentTarget.value) })}
+                  onTouchEnd={(e) => handleUpdateLogo({ sizePercent: Number(e.currentTarget.value) })}
                   className="w-full accent-blue-600 cursor-pointer h-1.5 bg-[#090c12] rounded-lg"
                 />
               </div>
@@ -941,7 +1049,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                   <Sparkles size={12} className="text-amber-400" />
                   <span>Station Bug Graphic</span>
                 </div>
-                {bugIsMov ? (
+                {/* {bugIsMov ? (
                   <span className="text-[8.5px] 2xl:text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 animate-pulse">
                     MOV ANIMATED
                   </span>
@@ -949,32 +1057,13 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                   <span className="text-[8.5px] 2xl:text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
                     PNG STATIC
                   </span>
-                ) : null}
+                ) : null} */}
               </div>
 
               {/* Bug preview + Browse button */}
               <div className="flex items-center gap-2.5 2xl:gap-3">
                 <div className="w-10 h-10 2xl:w-13 2xl:h-13 rounded-lg 2xl:rounded-xl bg-[#090c12] border border-[#222938] overflow-hidden flex items-center justify-center p-1 shrink-0 relative">
-                  {bugAssetPath ? (
-                    bugIsMov || bugAssetPath.toLowerCase().endsWith('.mov') ? (
-                      <video
-                        src={`${import.meta.env.VITE_API_URL}/${bugAssetPath}`}
-                        autoPlay
-                        loop
-                        muted
-                        playsInline
-                        className="w-full h-full object-contain pointer-events-none"
-                      />
-                    ) : (
-                      <img
-                        src={`/${bugAssetPath}`}
-                        alt="Bug"
-                        className="w-full h-full object-contain"
-                      />
-                    )
-                  ) : (
-                    <Sparkles size={18} className="text-slate-600" />
-                  )}
+                  {renderBugGraphicPreview(false)}
                 </div>
 
                 <div className="flex-1 min-w-0">
@@ -988,10 +1077,11 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                   <div className="flex items-center gap-1.5">
                     <button
                       onClick={() => bugInputRef.current?.click()}
-                      className="px-2.5 py-1 2xl:px-3.5 2xl:py-1.5 rounded-md 2xl:rounded-lg bg-[#202736] hover:bg-[#2b354a] text-slate-200 text-[11px] 2xl:text-xs font-semibold flex items-center gap-1.5 transition border border-[#2b364c]"
+                      disabled={isUploadingBug}
+                      className="px-2.5 py-1 2xl:px-3.5 2xl:py-1.5 rounded-md 2xl:rounded-lg bg-[#202736] hover:bg-[#2b354a] disabled:opacity-60 text-slate-200 text-[11px] 2xl:text-xs font-semibold flex items-center gap-1.5 transition border border-[#2b364c]"
                     >
-                      <Upload size={12} />
-                      <span>Browse</span>
+                      {isUploadingBug ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
+                      <span>{isUploadingBug ? 'Uploading...' : 'Browse'}</span>
                     </button>
                     {bugAssetPath && (
                       <button
@@ -1019,6 +1109,10 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
               <button
                 onClick={() => {
                   const next = !bugEnabled;
+                  if (next && !bugAssetPath) {
+                    showAlert('error', 'Please upload a station bug first');
+                    return;
+                  }
                   setBugEnabled(next);
                   handleUpdateBug({ enabled: next });
                 }}
@@ -1037,10 +1131,10 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
               <div className="flex items-center justify-between">
                 <span className="text-[10px] 2xl:text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
                   <Crosshair size={12} className="text-amber-400" />
-                  <span>Free Screen Positioning</span>
+                  <span>Screen Position</span>
                 </span>
                 <span className="text-[9.5px] 2xl:text-[10px] font-mono text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
-                  X: {bugPositionX}% · Y: {bugPositionY}%
+                  X: {bugPositionX}% Y: {bugPositionY}%
                 </span>
               </div>
 
@@ -1072,26 +1166,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                   }}
                   className="absolute border-2 border-amber-400 bg-amber-500/30 rounded shadow-[0_0_12px_rgba(245,158,11,0.6)] flex items-center justify-center pointer-events-none transition-all duration-75 overflow-hidden"
                 >
-                  {bugAssetPath ? (
-                    bugIsMov || bugAssetPath.toLowerCase().endsWith('.mov') ? (
-                      <video
-                        src={`/${bugAssetPath}`}
-                        autoPlay
-                        loop
-                        muted
-                        playsInline
-                        className="w-full h-full object-contain pointer-events-none"
-                      />
-                    ) : (
-                      <img
-                        src={`/${bugAssetPath}`}
-                        alt="Bug target"
-                        className="w-full h-full object-contain pointer-events-none"
-                      />
-                    )
-                  ) : (
-                    <Sparkles size={11} className="text-amber-300" />
-                  )}
+                  {renderBugGraphicPreview(true)}
                 </div>
 
                 {/* Drag hint overlay */}
@@ -1153,8 +1228,8 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                   max="45"
                   value={bugSizePercent}
                   onChange={(e) => setBugSizePercent(Number(e.target.value))}
-                  onMouseUp={() => handleUpdateBug({ sizePercent: bugSizePercent })}
-                  onTouchEnd={() => handleUpdateBug({ sizePercent: bugSizePercent })}
+                  onMouseUp={(e) => handleUpdateBug({ sizePercent: Number(e.currentTarget.value) })}
+                  onTouchEnd={(e) => handleUpdateBug({ sizePercent: Number(e.currentTarget.value) })}
                   className="w-full accent-amber-500 cursor-pointer h-1.5 bg-[#090c12] rounded-lg"
                 />
               </div>
@@ -1171,17 +1246,17 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                   max="100"
                   value={bugPositionX}
                   onChange={(e) => setBugPositionX(Number(e.target.value))}
-                  onMouseUp={() =>
+                  onMouseUp={(e) =>
                     handleUpdateBug({
                       position: 'custom',
-                      positionX: bugPositionX,
+                      positionX: Number(e.currentTarget.value),
                       positionY: bugPositionY
                     })
                   }
-                  onTouchEnd={() =>
+                  onTouchEnd={(e) =>
                     handleUpdateBug({
                       position: 'custom',
-                      positionX: bugPositionX,
+                      positionX: Number(e.currentTarget.value),
                       positionY: bugPositionY
                     })
                   }
@@ -1201,18 +1276,18 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                   max="100"
                   value={bugPositionY}
                   onChange={(e) => setBugPositionY(Number(e.target.value))}
-                  onMouseUp={() =>
+                  onMouseUp={(e) =>
                     handleUpdateBug({
                       position: 'custom',
                       positionX: bugPositionX,
-                      positionY: bugPositionY
+                      positionY: Number(e.currentTarget.value)
                     })
                   }
-                  onTouchEnd={() =>
+                  onTouchEnd={(e) =>
                     handleUpdateBug({
                       position: 'custom',
                       positionX: bugPositionX,
-                      positionY: bugPositionY
+                      positionY: Number(e.currentTarget.value)
                     })
                   }
                   className="w-full accent-amber-500 cursor-pointer h-1.5 bg-[#090c12] rounded-lg"

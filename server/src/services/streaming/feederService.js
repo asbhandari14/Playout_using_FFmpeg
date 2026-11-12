@@ -339,6 +339,30 @@ export class FeederService {
   }
 
   /**
+   * Applies playlist branding asynchronously without blocking decoder startup on pipe:0.
+   * Waits for the encoder to process its first frame so filter_complex ZMQ commands succeed immediately.
+   */
+  schedulePlaylistBranding(playlist) {
+    if (!playlist) return;
+    const targetId = String(playlist._id);
+    const enc = this.getEncoder();
+    if (!enc || !enc.isRunning) return;
+
+    const run = async () => {
+      if (!enc.hasFirstPts && typeof enc.waitForFirstFrame === 'function') {
+        const ready = await enc.waitForFirstFrame(25000);
+        if (!ready) return;
+      }
+      if (!this.isRunning || String(this.currentPlayingPlaylist?._id || '') !== targetId) {
+        return;
+      }
+      await this.applyPlaylistBranding(playlist);
+    };
+
+    run().catch(() => {});
+  }
+
+  /**
    * Resolves the highest-priority active playlist matching current time/date/day.
    * Priority: emergency (5) > advertisement (4) > live_schedule (3) > scheduling (2) > default (1)
    */
@@ -379,9 +403,9 @@ export class FeederService {
         this.wasPreemptedByPriority = true;
         this.currentPlayingPlaylist = targetPlaylist;
 
-        // Apply new playlist branding immediately
+        // Apply new playlist branding immediately (non-blocking once encoder is live)
         if (targetPlaylist) {
-          this.applyPlaylistBranding(targetPlaylist).catch(() => {});
+          this.schedulePlaylistBranding(targetPlaylist);
         }
 
         if (this.currentDecoder) {
@@ -453,13 +477,24 @@ export class FeederService {
           this.currentAsset = null;
           this.currentAssetStartTime = null;
           this.currentAssetDuration = null;
+          this.lastAppliedBrandingKey = null;
           currentPlaylistId = null;
           console.log(`[Feeder:${this.channelId}] No scheduled playlist active at this time. Feeding live standby slate to maintain broadcast...`);
           const enc = this.getEncoder();
           if (enc && enc.isRunning) {
-            enc.setLogoEnabled(false).catch(() => {});
-            enc.setBugEnabled(false).catch(() => {});
-            enc.setTickerEnabled(false).catch(() => {});
+            const disableOverlays = () => {
+              if (!this.isRunning || this.currentPlayingPlaylist) return;
+              enc.setLogoEnabled(false).catch(() => {});
+              enc.setBugEnabled(false).catch(() => {});
+              enc.setTickerEnabled(false).catch(() => {});
+            };
+            if (enc.hasFirstPts || typeof enc.waitForFirstFrame !== 'function') {
+              disableOverlays();
+            } else {
+              enc.waitForFirstFrame(25000).then((ready) => {
+                if (ready) disableOverlays();
+              }).catch(() => {});
+            }
           }
           await this.streamStandbySlate(3);
           continue;
@@ -474,7 +509,7 @@ export class FeederService {
         }
         currentPlaylistId = String(playlist._id);
         this.currentPlayingPlaylist = playlist;
-        await this.applyPlaylistBranding(playlist);
+        this.schedulePlaylistBranding(playlist);
 
         // Special handling for live_schedule with a direct liveSourceUrl
         if (playlist.type === PLAYLIST_TYPE.LIVE_SCHEDULE && playlist.liveSourceUrl && (!playlist.items || playlist.items.length === 0)) {
@@ -674,7 +709,7 @@ export class FeederService {
       this.currentAssetDuration = _duration;
       this.currentOffsetAtStart = startOffset;
 
-      const baseVf = `scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,fps=${fps}`;
+      const baseVf = `fps=${fps},scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2`;
       const vfArg = timerFilter ? `${baseVf},${timerFilter}` : baseVf;
 
       // Decoder process arguments
@@ -691,7 +726,7 @@ export class FeederService {
         '-preset', 'ultrafast',
         '-tune', 'zerolatency',
         '-pix_fmt', 'yuv420p',
-        '-g', String(fps * 2),
+        '-g', String(fps),
         '-c:a', 'aac',
         '-b:a', '128k',
         '-ar', '44100',

@@ -12,8 +12,42 @@ import {
   analyzeAndNormalizeLBand,
   analyzeAndNormalizeAshton
 } from '../services/streaming/brandingAssets.js';
-import { probeVideo } from '../utils/media.js';
+import { probeVideo, generateMovBugPreview } from '../utils/media.js';
 import { calculateChannelStorage, validateStorageAvailability } from '../services/channel.service.js';
+
+const bugPreviewInFlight = new Map();
+
+const unlinkRelativeAsset = (relPath, excludeAbs = '') => {
+  if (!relPath) return false;
+  const fullPath = path.resolve(SERVER_ROOT, relPath);
+  if (excludeAbs && fullPath === excludeAbs) return false;
+  if (!fs.existsSync(fullPath)) return false;
+  try {
+    fs.unlinkSync(fullPath);
+    return true;
+  } catch (e) {
+    console.warn('[Branding] Failed to unlink branding asset:', e.message);
+    return false;
+  }
+};
+
+const createRelativeMovBugPreview = async (movAbsPath, duration = 0) => {
+  if (!movAbsPath || !fs.existsSync(movAbsPath)) return '';
+  let resolvedDuration = Number(duration) || 0;
+  if (!resolvedDuration) {
+    try {
+      const meta = await probeVideo(movAbsPath);
+      resolvedDuration = meta.duration || 0;
+    } catch { }
+  }
+  const parsed = path.parse(movAbsPath);
+  const generated = await generateMovBugPreview(
+    movAbsPath,
+    path.join(parsed.dir, parsed.name),
+    resolvedDuration
+  );
+  return generated ? path.relative(SERVER_ROOT, generated).replace(/\\/g, '/') : '';
+};
 
 // PUT /api/channels/:channelId/logo
 export const updateLogoBranding = async (req, res, next) => {
@@ -86,6 +120,10 @@ export const updateLogoBranding = async (req, res, next) => {
         };
       }
 
+      if (sizeActuallyChanged) {
+        scaledInfo = await stream.encoder.setLogoSize(currentLogo.sizePercent, { reposition: false });
+      }
+
       // Check if a schedule is currently actively broadcasting
       if (stream.feeder?.isScheduleActive) {
         const allowOnSchedule = currentLogo.showDuringSchedule !== false;
@@ -104,32 +142,23 @@ export const updateLogoBranding = async (req, res, next) => {
           });
         }
 
-        if (allowOnSchedule && currentLogo.enabled !== false) {
-          if (sizeActuallyChanged) {
-            scaledInfo = await stream.encoder.setLogoSize(currentLogo.sizePercent);
-          } else {
-            await stream.encoder.setLogoPosition(
-              currentLogo.position,
-              currentLogo.marginX,
-              currentLogo.marginY
-            );
-          }
+        if (allowOnSchedule && currentLogo.enabled) {
+          await stream.encoder.setLogoPosition(
+            currentLogo.position,
+            currentLogo.marginX,
+            currentLogo.marginY
+          );
         } else {
           // If not permitted during schedule or disabled, ensure logo is off-screen
           await stream.encoder.setLogoEnabled(false);
         }
       } else {
-        if (currentLogo.enabled !== false) {
-          if (sizeActuallyChanged) {
-            console.log(`[Branding] Dynamic live logo resize to ${currentLogo.sizePercent}% via ZMQ (zero video interruption)...`);
-            scaledInfo = await stream.encoder.setLogoSize(currentLogo.sizePercent);
-          } else {
-            await stream.encoder.setLogoPosition(
-              currentLogo.position,
-              currentLogo.marginX,
-              currentLogo.marginY
-            );
-          }
+        if (currentLogo.enabled) {
+          await stream.encoder.setLogoPosition(
+            currentLogo.position,
+            currentLogo.marginX,
+            currentLogo.marginY
+          );
         } else {
           await stream.encoder.setLogoEnabled(false);
         }
@@ -165,17 +194,7 @@ export const removeLogo = async (req, res, next) => {
       return res.status(404).json({ message: 'Channel not found' });
     }
 
-    const existingLogoPath = channel.branding?.logo?.assetPath;
-    if (existingLogoPath) {
-      const fullOldPath = path.resolve(SERVER_ROOT, existingLogoPath);
-      if (fs.existsSync(fullOldPath)) {
-        try {
-          fs.unlinkSync(fullOldPath);
-        } catch (e) {
-          console.warn('[Branding] Failed to unlink deleted logo:', e.message);
-        }
-      }
-    }
+    unlinkRelativeAsset(channel.branding?.logo?.assetPath);
 
     // Reset active stream logo.png to a 1x1 transparent PNG so running FFmpeg stays safe
     const targetLogoFile = path.join(STREAMS_DIR, String(channelId), 'logo.png');
@@ -282,17 +301,7 @@ export const uploadLogoFile = async (req, res, next) => {
     });
 
     // Clean up previous logo file from disk if it exists
-    const previousLogoPath = channel.branding?.logo?.assetPath;
-    if (previousLogoPath) {
-      const fullOldPath = path.resolve(SERVER_ROOT, previousLogoPath);
-      if (fs.existsSync(fullOldPath) && fullOldPath !== path.resolve(req.file.path)) {
-        try {
-          fs.unlinkSync(fullOldPath);
-        } catch (e) {
-          console.warn('[Branding] Failed to unlink old logo:', e.message);
-        }
-      }
-    }
+    unlinkRelativeAsset(channel.branding?.logo?.assetPath, path.resolve(req.file.path));
 
     // 3. Update channel branding in database
     const updatedChannel = await Channel.findByIdAndUpdate(
@@ -460,6 +469,11 @@ export const updateBugBranding = async (req, res, next) => {
         };
       }
 
+      if (sizeActuallyChanged) {
+        console.log(`[Branding] Dynamic live bug resize to ${currentBug.sizePercent}% via ZMQ...`);
+        await stream.encoder.setBugSize(currentBug.sizePercent, { reposition: false });
+      }
+
       if (stream.feeder?.isScheduleActive && stream.feeder.scheduleBrandingSnapshot) {
         if (enabled !== undefined) {
           stream.feeder.scheduleBrandingSnapshot.bug.enabled = !!enabled;
@@ -469,11 +483,7 @@ export const updateBugBranding = async (req, res, next) => {
         }
         // Keep bug suppressed on air while schedule is active
         await stream.encoder.setBugEnabled(false);
-      } else if (currentBug.enabled !== false) {
-        if (sizeActuallyChanged) {
-          console.log(`[Branding] Dynamic live bug resize to ${currentBug.sizePercent}% via ZMQ...`);
-          await stream.encoder.setBugSize(currentBug.sizePercent);
-        }
+      } else if (currentBug.enabled) {
         await stream.encoder.setBugPosition(currentBug);
       } else {
         await stream.encoder.setBugEnabled(false);
@@ -504,21 +514,70 @@ export const updateBugBranding = async (req, res, next) => {
 export const removeBug = async (req, res, next) => {
   try {
     const { channelId } = req.params;
-    const updatedChannel = await Channel.findByIdAndUpdate(
-      channelId,
-      { $set: { 'branding.bug.enabled': false } },
-      { new: true }
-    );
-    if (!updatedChannel) {
+    const channel = await Channel.findById(channelId);
+    if (!channel) {
       return res.status(404).json({ message: 'Channel not found' });
     }
 
-    const currentBug = updatedChannel.branding?.bug || {};
+    // Delete stored bug asset and any generated browser preview (.webm/.png) from disk
+    unlinkRelativeAsset(channel.branding?.bug?.assetPath);
+    unlinkRelativeAsset(channel.branding?.bug?.previewPath);
+
+    // Reset active stream bug.png to a 1x1 transparent PNG so running FFmpeg stays safe
+    const channelStreamDir = path.join(STREAMS_DIR, String(channelId));
+    clearStreamBrandingFile(path.join(channelStreamDir, 'bug.png'));
 
     const stream = streamManager.getStream(channelId);
+    const encoderUsingMov = Boolean(stream?.encoder?.isRunning && stream.encoder.isBugMov);
+    if (!encoderUsingMov) {
+      const streamMovFile = path.join(channelStreamDir, 'bug.mov');
+      if (fs.existsSync(streamMovFile)) {
+        try {
+          fs.unlinkSync(streamMovFile);
+        } catch (e) {
+          console.warn('[Branding] Failed to unlink stream bug.mov:', e.message);
+        }
+      }
+    }
+
+    const updateSet = {
+      'branding.bug.assetPath': '',
+      'branding.bug.previewPath': '',
+      'branding.bug.enabled': false,
+      'branding.bug.isMov': false,
+      'branding.bug.isGif': false
+    };
+    if (channel.branding?.preScheduleBranding?.bug) {
+      updateSet['branding.preScheduleBranding.bug.enabled'] = false;
+      updateSet['branding.preScheduleBranding.bug.suppressed'] = false;
+    }
+
+    const updatedChannel = await Channel.findByIdAndUpdate(
+      channelId,
+      { $set: updateSet },
+      { new: true }
+    );
+
+    const currentBug = updatedChannel?.branding?.bug || {
+      assetPath: '',
+      previewPath: '',
+      enabled: false,
+      isMov: false,
+      isGif: false
+    };
+
     if (stream?.encoder?.isRunning) {
       if (stream.encoder.channel?.branding?.bug) {
+        stream.encoder.channel.branding.bug.assetPath = '';
+        stream.encoder.channel.branding.bug.previewPath = '';
         stream.encoder.channel.branding.bug.enabled = false;
+        stream.encoder.channel.branding.bug.isMov = false;
+        stream.encoder.channel.branding.bug.isGif = false;
+      }
+      stream.encoder.bugAspectRatio = 1.0;
+      if (stream.feeder?.scheduleBrandingSnapshot?.bug) {
+        stream.feeder.scheduleBrandingSnapshot.bug.enabled = false;
+        stream.feeder.scheduleBrandingSnapshot.bug.suppressed = false;
       }
       await stream.encoder.setBugEnabled(false);
     }
@@ -533,7 +592,7 @@ export const removeBug = async (req, res, next) => {
     await calculateChannelStorage(channelId);
 
     return res.status(200).json({
-      message: 'Bug disabled from live air via ZMQ',
+      message: 'Station bug deleted successfully',
       bug: currentBug
     });
   } catch (error) {
@@ -580,21 +639,37 @@ export const uploadBugFile = async (req, res, next) => {
     const resolution = channel.outputSettings?.resolution || '1280x720';
     const canvasHeight = channel.outputSettings?.height || 720;
 
+    const stream = streamManager.getStream(channelId);
+    const encoderRunning = Boolean(stream?.encoder?.isRunning);
+    const encoderUsingMov = Boolean(stream?.encoder?.isBugMov);
+    const requiresEncoderRestart = encoderRunning && (encoderUsingMov !== isMov || isMov);
+
     let targetBugFile;
     let scaledWidth = 80;
     let scaledHeight = 60;
+    let movDuration = 0;
+    let previewRelativePath = '';
 
     if (isMov) {
-      // QuickTime MOV: copy directly to stream folder
+      // QuickTime MOV: skip writing over an active FFmpeg-locked bug.mov; restartStream copies and reloads it safely
       targetBugFile = path.join(channelStreamDir, 'bug.mov');
-      fs.copyFileSync(req.file.path, targetBugFile);
+      if (!requiresEncoderRestart) {
+        fs.copyFileSync(req.file.path, targetBugFile);
+      }
 
       try {
         const meta = await probeVideo(req.file.path);
         scaledWidth = meta.width || 80;
         scaledHeight = meta.height || 60;
+        movDuration = meta.duration || 0;
       } catch (pErr) {
         console.warn('[Branding] Warning probing MOV bug dimensions:', pErr.message);
+      }
+
+      try {
+        previewRelativePath = await createRelativeMovBugPreview(req.file.path, movDuration);
+      } catch (prevErr) {
+        console.warn('[Branding] Warning generating MOV bug browser preview:', prevErr.message);
       }
     } else {
       // Static PNG image: trim transparent borders and pre-scale
@@ -609,24 +684,19 @@ export const uploadBugFile = async (req, res, next) => {
       scaledHeight = scaled.height;
     }
 
-    // Clean up previous bug file from disk if it exists
-    const previousBugPath = channel.branding?.bug?.assetPath;
-    if (previousBugPath) {
-      const fullOldPath = path.resolve(SERVER_ROOT, previousBugPath);
-      if (fs.existsSync(fullOldPath) && fullOldPath !== path.resolve(req.file.path)) {
-        try {
-          fs.unlinkSync(fullOldPath);
-        } catch (e) {
-          console.warn('[Branding] Failed to unlink old bug:', e.message);
-        }
-      }
-    }
+    // Clean up previous bug file and preview file from disk if they exist
+    unlinkRelativeAsset(channel.branding?.bug?.assetPath, path.resolve(req.file.path));
+    unlinkRelativeAsset(
+      channel.branding?.bug?.previewPath,
+      previewRelativePath ? path.resolve(SERVER_ROOT, previewRelativePath) : ''
+    );
 
     const updatedChannel = await Channel.findByIdAndUpdate(
       channelId,
       {
         $set: {
           'branding.bug.assetPath': relativePath,
+          'branding.bug.previewPath': previewRelativePath,
           'branding.bug.enabled': true,
           'branding.bug.sizePercent': defaultSizePercent,
           'branding.bug.isMov': isMov,
@@ -638,9 +708,21 @@ export const uploadBugFile = async (req, res, next) => {
 
     const currentBug = updatedChannel?.branding?.bug || {};
 
-    // LIVE STREAM CONTROL: dynamically update bug overlay via ZMQ with zero stream restart
-    const stream = streamManager.getStream(channelId);
-    if (stream?.encoder?.isRunning) {
+    // LIVE STREAM CONTROL: switch FFmpeg bug input when format changes (PNG <-> MOV) or MOV is replaced; otherwise update PNG via ZMQ
+    if (requiresEncoderRestart) {
+      console.log(`[Branding] Channel ${channelId} is live on air. Restarting encoder to switch bug source (${isMov ? 'MOV' : 'PNG'})...`);
+      await streamManager.restartStream(channelId);
+      if (!isMov) {
+        const staleStreamMov = path.join(channelStreamDir, 'bug.mov');
+        if (fs.existsSync(staleStreamMov)) {
+          try {
+            fs.unlinkSync(staleStreamMov);
+          } catch (e) {
+            console.warn('[Branding] Failed to unlink stale stream bug.mov:', e.message);
+          }
+        }
+      }
+    } else if (encoderRunning) {
       console.log(`[Branding] Channel ${channelId} is live on air. Dynamically updating station bug overlay via ZMQ (zero restart)...`);
       if (stream.encoder.channel) {
         if (!stream.encoder.channel.branding) stream.encoder.channel.branding = {};
@@ -652,9 +734,20 @@ export const uploadBugFile = async (req, res, next) => {
       if (scaledWidth && scaledHeight) {
         stream.encoder.bugAspectRatio = scaledWidth / scaledHeight;
       }
-      await stream.encoder.setBugSize(currentBug.sizePercent || defaultSizePercent);
-      await stream.encoder.setBugPosition(currentBug);
-      await stream.encoder.setBugEnabled(true);
+      if (stream.feeder?.isScheduleActive && stream.feeder.scheduleBrandingSnapshot) {
+        if (stream.feeder.scheduleBrandingSnapshot.bug) {
+          stream.feeder.scheduleBrandingSnapshot.bug.enabled = true;
+        }
+        await Channel.findByIdAndUpdate(channelId, {
+          $set: { 'branding.preScheduleBranding.bug.enabled': true }
+        });
+        await stream.encoder.setBugSize(currentBug.sizePercent || defaultSizePercent, { reposition: false });
+        await stream.encoder.setBugEnabled(false);
+      } else {
+        await stream.encoder.setBugSize(currentBug.sizePercent || defaultSizePercent);
+        await stream.encoder.setBugPosition(currentBug);
+        await stream.encoder.setBugEnabled(true);
+      }
     }
 
     if (io) {
@@ -679,6 +772,69 @@ export const uploadBugFile = async (req, res, next) => {
     });
   } catch (error) {
     console.error('[Branding Controller] uploadBugFile error:', error);
+    next(error);
+  }
+};
+
+// POST /api/channels/:channelId/bug/preview
+export const ensureBugPreview = async (req, res, next) => {
+  try {
+    const { channelId } = req.params;
+    const chIdStr = String(channelId);
+    const channel = await Channel.findById(channelId);
+    if (!channel) {
+      return res.status(404).json({ message: 'Channel not found' });
+    }
+
+    const currentBug = channel.branding?.bug || {};
+    const assetPath = currentBug.assetPath || '';
+    const isMov = Boolean(currentBug.isMov || String(assetPath).toLowerCase().endsWith('.mov'));
+    if (!assetPath || !isMov) {
+      return res.status(200).json({ bug: currentBug });
+    }
+
+    if (currentBug.previewPath) {
+      const existingPreviewAbs = path.resolve(SERVER_ROOT, currentBug.previewPath);
+      if (fs.existsSync(existingPreviewAbs)) {
+        return res.status(200).json({ bug: currentBug });
+      }
+    }
+
+    let pending = bugPreviewInFlight.get(chIdStr);
+    if (!pending) {
+      pending = (async () => {
+        const assetAbs = path.resolve(SERVER_ROOT, assetPath);
+        const streamBugAbs = path.join(STREAMS_DIR, chIdStr, 'bug.mov');
+        const sourceMov = fs.existsSync(assetAbs) ? assetAbs : (fs.existsSync(streamBugAbs) ? streamBugAbs : '');
+        const previewRel = await createRelativeMovBugPreview(sourceMov);
+        if (!previewRel) return currentBug;
+
+        const updated = await Channel.findOneAndUpdate(
+          { _id: channelId, 'branding.bug.assetPath': assetPath },
+          { $set: { 'branding.bug.previewPath': previewRel } },
+          { new: true }
+        );
+        if (!updated) {
+          unlinkRelativeAsset(previewRel);
+          return {};
+        }
+        const updatedBug = updated.branding?.bug || { ...currentBug, previewPath: previewRel };
+        if (io) {
+          io.to(`channel:${channelId}`).emit('branding_updated', {
+            type: 'bug',
+            bug: updatedBug
+          });
+        }
+        return updatedBug;
+      })().finally(() => {
+        bugPreviewInFlight.delete(chIdStr);
+      });
+      bugPreviewInFlight.set(chIdStr, pending);
+    }
+
+    const resolvedBug = await pending;
+    return res.status(200).json({ bug: resolvedBug });
+  } catch (error) {
     next(error);
   }
 };
@@ -791,14 +947,16 @@ export const updateTickerBranding = async (req, res, next) => {
         // Keep ticker suppressed on air while schedule is active
         await stream.encoder.setTickerEnabled(false);
       } else {
-        // Dynamically adjust ticker position, crop width, and visibility via ZMQ with zero stream restart
+        // Dynamically adjust ticker position, crop width, scale height, and visibility via ZMQ with zero stream restart
+        const shouldShowTicker = currentTicker.enabled !== false;
         await stream.encoder.setTickerPosition(
           currentTicker.marginBottom,
           currentTicker.speed,
           currentTicker.alignment,
-          tickerMeta
+          tickerMeta,
+          { reposition: shouldShowTicker }
         );
-        await stream.encoder.setTickerEnabled(currentTicker.enabled !== false);
+        await stream.encoder.setTickerEnabled(shouldShowTicker);
       }
     }
 
@@ -822,22 +980,34 @@ export const updateTickerBranding = async (req, res, next) => {
 export const removeTicker = async (req, res, next) => {
   try {
     const { channelId } = req.params;
-    const updatedChannel = await Channel.findByIdAndUpdate(
-      channelId,
-      { $set: { 'branding.ticker.enabled': false } },
-      { new: true }
-    );
-    if (!updatedChannel) {
+    const existingChannel = await Channel.findById(channelId);
+    if (!existingChannel) {
       return res.status(404).json({ message: 'Channel not found' });
     }
 
-    const currentTicker = updatedChannel.branding?.ticker || {};
+    const updateSet = { 'branding.ticker.enabled': false };
+    if (existingChannel.branding?.preScheduleBranding?.ticker) {
+      updateSet['branding.preScheduleBranding.ticker.enabled'] = false;
+      updateSet['branding.preScheduleBranding.ticker.suppressed'] = false;
+    }
+
+    const updatedChannel = await Channel.findByIdAndUpdate(
+      channelId,
+      { $set: updateSet },
+      { new: true }
+    );
+
+    const currentTicker = updatedChannel?.branding?.ticker || {};
 
     // LIVE ZMQ CONTROL: disable ticker overlay without restart
     const stream = streamManager.getStream(channelId);
     if (stream?.encoder?.isRunning) {
       if (stream.encoder.channel?.branding?.ticker) {
         stream.encoder.channel.branding.ticker.enabled = false;
+      }
+      if (stream.feeder?.scheduleBrandingSnapshot?.ticker) {
+        stream.feeder.scheduleBrandingSnapshot.ticker.enabled = false;
+        stream.feeder.scheduleBrandingSnapshot.ticker.suppressed = false;
       }
       await stream.encoder.setTickerEnabled(false);
     }

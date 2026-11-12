@@ -88,31 +88,35 @@ export const ensureBrandingFiles = (
   };
 };
 
-export const safeWriteFileSync = (filePath, buffer, retries = 5, delayMs = 50) => {
-  const dir = path.dirname(filePath);
-  const tempPath = path.join(dir, `.tmp_${Date.now()}_${path.basename(filePath)}`);
-  try {
-    fs.writeFileSync(tempPath, buffer);
-  } catch {
-    fs.writeFileSync(filePath, buffer);
-    return;
+const sleepSync = (ms) => {
+  const start = Date.now();
+  while (Date.now() - start < ms) {
+    // brief sync backoff for Windows file lock retries
   }
+};
+
+export const safeWriteFileSync = (filePath, buffer, retries = 8, delayMs = 40) => {
+  const dir = path.dirname(filePath);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  const uniqueSuffix = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  const tempPath = path.join(dir, `.tmp_${uniqueSuffix}_${path.basename(filePath)}`);
+  fs.writeFileSync(tempPath, buffer);
 
   for (let attempt = 0; attempt < retries; attempt++) {
     try {
-      fs.copyFileSync(tempPath, filePath);
-      try { if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath); } catch {}
+      // Atomic directory-entry swap prevents live FFmpeg image2 inputs from reading partial/0-byte PNGs
+      fs.renameSync(tempPath, filePath);
       return;
     } catch (err) {
       if (attempt === retries - 1) {
-        try { fs.writeFileSync(filePath, buffer); } catch {}
-        try { if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath); } catch {}
-        return;
+        try {
+          if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+        } catch { }
+        throw err;
       }
-      const start = Date.now();
-      while (Date.now() - start < delayMs) {
-        // brief sync wait
-      }
+      sleepSync(delayMs);
     }
   }
 };
@@ -219,11 +223,14 @@ export const renderTickerImage = async ({
   // Reasonable length text (>= 15 chars) renders in an infinite seamless loop with zero empty section at any time.
   const isSmallText = cleanText.length < 15;
 
+  const safeFontSize = Math.max(10, Math.min(80, Number(fontSize) || 26));
+  const rawPaddingY = Number(paddingY);
+  const safePaddingY = Math.max(0, Math.min(60, Number.isFinite(rawPaddingY) ? rawPaddingY : 12));
   const canvasWidth = 1280;
   const wp = Math.max(30, Math.min(100, Number(widthPercent) || 100));
   const barWidth = Math.round((canvasWidth * wp) / 100);
-  const tickerHeight = Math.round(fontSize + paddingY * 2);
-  const yPos = Math.round(tickerHeight / 2 + fontSize * 0.35);
+  const tickerHeight = Math.round(safeFontSize + safePaddingY * 2);
+  const yPos = Math.round(tickerHeight / 2 + safeFontSize * 0.35);
 
   const fontDef = resolveTickerFont(fontFamily);
 
@@ -237,7 +244,7 @@ export const renderTickerImage = async ({
 
   // Measure text pixel width using Sharp
   const textMeasureSvg = `<svg width="8000" height="${tickerHeight}" xmlns="http://www.w3.org/2000/svg">
-    <text x="0" y="${yPos}" font-family='${fontDef}' font-size="${fontSize}px" font-weight="bold">${escapedText}</text>
+    <text x="0" y="${yPos}" font-family='${fontDef}' font-size="${safeFontSize}px" font-weight="bold">${escapedText}</text>
   </svg>`;
   const textTrimmed = await sharp(Buffer.from(textMeasureSvg))
     .trim({ background: 'rgba(0,0,0,0)' })
@@ -270,7 +277,7 @@ export const renderTickerImage = async ({
 
   if (isSmallText) {
     // Very small text: crawl across with empty section W - mod(t * scrollSpeed, W + w)
-    const paddingX = Math.max(40, Math.round(fontSize * 1.5));
+    const paddingX = Math.max(40, Math.round(safeFontSize * 1.5));
     tickerWidth = Math.max(300, textWidth + paddingX * 2);
     unitWidth = tickerWidth;
 
@@ -289,7 +296,7 @@ export const renderTickerImage = async ({
           fill="${cleanTextColor}"
           style="fill: ${cleanTextColor} !important; color: ${cleanTextColor} !important;"
           font-family='${fontDef}'
-          font-size="${fontSize}px"
+          font-size="${safeFontSize}px"
           font-weight="bold"
           text-anchor="start"
         >${escapedText}</text>
@@ -299,7 +306,7 @@ export const renderTickerImage = async ({
     // Reasonable length text: INFINITE seamless scrolling with NO empty section at any time
     // Measure star separator width
     const starMeasureSvg = `<svg width="200" height="${tickerHeight}" xmlns="http://www.w3.org/2000/svg">
-      <text x="0" y="${yPos}" font-family='${fontDef}' font-size="${fontSize}px" font-weight="bold"> </text>
+      <text x="0" y="${yPos}" font-family='${fontDef}' font-size="${safeFontSize}px" font-weight="bold"> </text>
     </svg>`;
     const starTrimmed = await sharp(Buffer.from(starMeasureSvg))
       .trim({ background: 'rgba(0,0,0,0)' })
@@ -307,7 +314,7 @@ export const renderTickerImage = async ({
       .toBuffer({ resolveWithObject: true });
     const starWidth = Math.max(8, starTrimmed.info.width);
 
-    const gap = Math.max(30, Math.round(fontSize * 2.2));
+    const gap = Math.max(30, Math.round(safeFontSize * 2.2));
     unitWidth = textWidth + gap + starWidth + gap;
     if (unitWidth % 2 !== 0) unitWidth += 1;
 
@@ -326,7 +333,7 @@ export const renderTickerImage = async ({
           fill="${cleanTextColor}"
           style="fill: ${cleanTextColor} !important; color: ${cleanTextColor} !important;"
           font-family='${fontDef}'
-          font-size="${fontSize}px"
+          font-size="${safeFontSize}px"
           font-weight="bold"
           text-anchor="start"
         >${escapedText}</text>
@@ -336,7 +343,7 @@ export const renderTickerImage = async ({
           fill="${cleanTextColor}"
           style="fill: ${cleanTextColor} !important; color: ${cleanTextColor} !important;"
           font-family='${fontDef}'
-          font-size="${fontSize}px"
+          font-size="${safeFontSize}px"
           font-weight="bold"
           text-anchor="start"
         > </text>
