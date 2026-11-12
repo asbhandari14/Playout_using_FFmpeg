@@ -215,7 +215,7 @@ export default function ControlRoomPage() {
       </div>
 
       {/* Settings Modal */}
-      <Modal
+      {/* <Modal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         title="Channel Stream Settings"
@@ -286,24 +286,24 @@ export default function ControlRoomPage() {
             </button>
           </div>
         </div>
-      </Modal>
+      </Modal> */}
 
       {/* More Settings: Ad & Playout Graphics Dashboard Modal */}
-      <MoreSettingsModal
+      {/* <MoreSettingsModal
         isOpen={isMoreSettingsOpen}
         onClose={() => setIsMoreSettingsOpen(false)}
         channel={currentChannel}
         onChannelUpdated={() => dispatch(fetchChannelById(channelId))}
-      />
+      /> */}
 
       {/* Scheduled Playout Manager Modal */}
-      <ScheduleModal
+      {/* <ScheduleModal
         isOpen={isScheduleModalOpen}
         onClose={() => setIsScheduleModalOpen(false)}
         channelId={channelId}
         channelName={currentChannel?.name}
         currentOnAirSchedule={currentOnAirSchedule}
-      />
+      /> */}
     </div>
   );
 }

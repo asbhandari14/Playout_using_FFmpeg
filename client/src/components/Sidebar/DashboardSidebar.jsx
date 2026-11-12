@@ -11,7 +11,10 @@ import {
   Layers,
   Info,
   PanelBottom,
-  CreditCard
+  CreditCard,
+  Activity,
+  Ad,
+  ClipboardClock
 } from 'lucide-react';
 
 const ACTIVE_CLASS =
@@ -66,11 +69,11 @@ export default function DashboardSidebar({
           } bg-[#0d111a] border-r border-[#1e2638] flex flex-col shrink-0 transition-all duration-200 overflow-y-auto select-none`}
       >
         {/* Greeting */}
-        <div className="px-4 pt-3.5 pb-2 border-b border-[#182032]">
-          <span className="text-[11px] 2xl:text-xs font-medium text-slate-300 block truncate">
+        <div className="px-4 pt-3.5 pb-2 border-b border-[#182032] font-mono">
+          <span className="text-sm 2xl:text-xs font-medium text-slate-300 block truncate">
             Hi, {currentUser?.name || 'Super Admin'}
           </span>
-          <span className="text-[9.5px] text-cyan-400 uppercase font-mono tracking-wider">
+          <span className="text-xs text-cyan-400 uppercase font-mono tracking-wider">
             {currentUser?.role || 'Admin'}
           </span>
         </div>
@@ -132,7 +135,7 @@ export default function DashboardSidebar({
             className={`${BASE_CLASS} ${isEmergencyActive ? ACTIVE_CLASS : INACTIVE_CLASS}`}
           >
             <div className="flex items-center gap-2.5">
-              {/* <AlertTriangle size={15} className={isEmergencyActive ? 'text-rose-400' : 'text-rose-500/80'} /> */}
+              <Activity size={15} />
               <span>Emergency Playlist</span>
             </div>
           </button>
@@ -143,7 +146,7 @@ export default function DashboardSidebar({
             className={`${BASE_CLASS} ${isAdActive ? ACTIVE_CLASS : INACTIVE_CLASS}`}
           >
             <div className="flex items-center gap-2.5">
-              {/* <Megaphone size={15} className={isAdActive ? 'text-amber-400' : 'text-amber-500/80'} /> */}
+              <Ad size={15} />
               <span>Ad Playlist</span>
             </div>
           </button>
@@ -154,7 +157,7 @@ export default function DashboardSidebar({
             className={`${BASE_CLASS} ${isLiveActive ? ACTIVE_CLASS : INACTIVE_CLASS}`}
           >
             <div className="flex items-center gap-2.5">
-              {/* <Radio size={15} className={isLiveActive ? 'text-purple-400' : 'text-purple-500/80'} /> */}
+              <Radio size={15} />
               <span>Live Scheduling</span>
             </div>
           </button>
@@ -165,21 +168,21 @@ export default function DashboardSidebar({
             className={`${BASE_CLASS} ${isSchedulingActive ? ACTIVE_CLASS : INACTIVE_CLASS}`}
           >
             <div className="flex items-center gap-2.5">
-              {/* <Calendar size={15} className={isSchedulingActive ? 'text-blue-400' : 'text-blue-500/80'} /> */}
+              <ClipboardClock size={15} />
               <span>Scheduling Playlist</span>
             </div>
           </button>
 
           {/* 5. Default Playlist (Priority 1) */}
-          <button
+          {/* <button
             onClick={() => handleNav('default_playlist', '/playlists/default')}
             className={`${BASE_CLASS} ${isDefaultActive ? ACTIVE_CLASS : INACTIVE_CLASS}`}
           >
             <div className="flex items-center gap-2.5">
-              {/* <Layers size={15} className={isDefaultActive ? 'text-emerald-400' : 'text-emerald-500/80'} /> */}
+              <Layers size={15} className={isDefaultActive ? 'text-emerald-400' : 'text-emerald-500/80'} />
               <span>Default Playlist</span>
             </div>
-          </button>
+          </button> */}
 
           {/* Graphic Overlays Section */}
           <div className="pt-3 px-2.5 py-1 text-[9.5px] 2xl:text-[10px] uppercase font-bold text-slate-500 tracking-wider">

@@ -120,7 +120,7 @@ export default function BroadcastHeader({
         </button>
 
         {/* Schedules Playout Button */}
-        <button
+        {/* <button
           onClick={onOpenSchedules}
           className={`px-2 sm:px-2.5 py-1 2xl:px-3 2xl:py-1.5 rounded-md 2xl:rounded-lg border flex items-center gap-1 text-[10px] font-bold tracking-wider shadow-sm transition group shrink-0 ${currentOnAirSchedule
             ? 'bg-amber-950/80 border-amber-500 text-amber-300 animate-pulse shadow-amber-500/30'
@@ -132,7 +132,7 @@ export default function BroadcastHeader({
           <span className="hidden sm:inline uppercase text-[9.5px] 2xl:text-[10px] tracking-wider font-extrabold">
             {currentOnAirSchedule ? 'SCHEDULE LIVE' : 'Schedules'}
           </span>
-        </button>
+        </button> */}
 
         {/* Dashboard button */}
         <button
@@ -145,14 +145,14 @@ export default function BroadcastHeader({
         </button>
 
         {/* More Setting Button */}
-        <button
+        {/* <button
           onClick={onOpenMoreSettings}
           className="px-2 sm:px-2.5 py-1 2xl:px-3 2xl:py-1.5 rounded-md 2xl:rounded-lg bg-linear-to-r from-blue-900/40 via-indigo-900/40 to-purple-900/40 hover:from-blue-800/60 hover:to-purple-800/60 border border-blue-500/40 hover:border-blue-400/80 text-blue-200 hover:text-white transition flex items-center gap-1 text-[10px] font-bold tracking-wider shadow-sm group shrink-0"
           title="Open Ad & Playout Graphics Dashboard (L-Band, Ashton Band)"
         >
           <Sliders size={12} className="text-blue-400 group-hover:rotate-45 transition duration-200" />
           <span className="hidden sm:inline uppercase text-[9.5px] 2xl:text-[10px] tracking-wider font-extrabold">More Setting</span>
-        </button>
+        </button> */}
       </div>
 
     </header>

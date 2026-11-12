@@ -1116,7 +1116,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                   setBugEnabled(next);
                   handleUpdateBug({ enabled: next });
                 }}
-                className={`w-9 h-5 2xl:w-11 2xl:h-6 flex items-center rounded-full p-0.5 2xl:p-1 transition-colors duration-300 shrink-0 ${bugEnabled ? 'bg-amber-500' : 'bg-slate-700'
+                className={`w-9 h-5 2xl:w-11 2xl:h-6 flex items-center rounded-full p-0.5 2xl:p-1 transition-colors duration-300 shrink-0 ${bugEnabled ? 'bg-[#2563eb]' : 'bg-slate-700'
                   }`}
               >
                 <div
@@ -1133,7 +1133,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                   <Crosshair size={12} className="text-amber-400" />
                   <span>Screen Position</span>
                 </span>
-                <span className="text-[9.5px] 2xl:text-[10px] font-mono text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                <span className="text-[9.5px] 2xl:text-[10px] font-mono text-[#2563eb] px-1.5 py-0.5 rounded border border-[#2563eb]">
                   X: {bugPositionX}% Y: {bugPositionY}%
                 </span>
               </div>
@@ -1164,7 +1164,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                     width: `${Math.max(14, Math.min(54, Math.round(14 + (bugSizePercent * 0.8))))}px`,
                     height: `${Math.max(14, Math.min(54, Math.round(14 + (bugSizePercent * 0.8))))}px`
                   }}
-                  className="absolute border-2 border-amber-400 bg-amber-500/30 rounded shadow-[0_0_12px_rgba(245,158,11,0.6)] flex items-center justify-center pointer-events-none transition-all duration-75 overflow-hidden"
+                  className="absolute border-2 border-[#2563eb] rounded flex items-center justify-center pointer-events-none transition-all duration-75 overflow-hidden"
                 >
                   {renderBugGraphicPreview(true)}
                 </div>
@@ -1200,7 +1200,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                         });
                       }}
                       className={`py-0.5 2xl:py-1 rounded text-[9.5px] 2xl:text-[10px] font-semibold border transition ${isActive
-                        ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-sm'
+                        ? ' text-[#2563eb] border-[#2563eb] shadow-sm'
                         : 'bg-[#121620] text-slate-400 hover:text-white border-[#222938]'
                         }`}
                       title={`Snap to ${preset.label}`}
@@ -1220,7 +1220,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                   <span className="uppercase tracking-wider text-[9.5px] 2xl:text-[10px]">
                     Bug Size (Proportional W × H)
                   </span>
-                  <span className="font-mono text-amber-400">{bugSizePercent}%</span>
+                  <span className="font-mono text-[#2563eb]">{bugSizePercent}%</span>
                 </div>
                 <input
                   type="range"
@@ -1230,7 +1230,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                   onChange={(e) => setBugSizePercent(Number(e.target.value))}
                   onMouseUp={(e) => handleUpdateBug({ sizePercent: Number(e.currentTarget.value) })}
                   onTouchEnd={(e) => handleUpdateBug({ sizePercent: Number(e.currentTarget.value) })}
-                  className="w-full accent-amber-500 cursor-pointer h-1.5 bg-[#090c12] rounded-lg"
+                  className="w-full accent-[#2563eb] cursor-pointer h-1.5 bg-[#090c12] rounded-lg"
                 />
               </div>
 
@@ -1238,7 +1238,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
               <div>
                 <div className="flex items-center justify-between text-[10px] 2xl:text-xs font-semibold text-slate-300 mb-1">
                   <span className="uppercase tracking-wider text-[9.5px] 2xl:text-[10px]">Position X (Horizontal)</span>
-                  <span className="font-mono text-amber-400">{bugPositionX}%</span>
+                  <span className="font-mono text-[#2563eb]">{bugPositionX}%</span>
                 </div>
                 <input
                   type="range"
@@ -1260,7 +1260,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                       positionY: bugPositionY
                     })
                   }
-                  className="w-full accent-amber-500 cursor-pointer h-1.5 bg-[#090c12] rounded-lg"
+                  className="w-full accent-[#2563eb] cursor-pointer h-1.5 bg-[#090c12] rounded-lg"
                 />
               </div>
 
@@ -1268,7 +1268,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
               <div>
                 <div className="flex items-center justify-between text-[10px] 2xl:text-xs font-semibold text-slate-300 mb-1">
                   <span className="uppercase tracking-wider text-[9.5px] 2xl:text-[10px]">Position Y (Vertical)</span>
-                  <span className="font-mono text-amber-400">{bugPositionY}%</span>
+                  <span className="font-mono text-[#2563eb]">{bugPositionY}%</span>
                 </div>
                 <input
                   type="range"
@@ -1290,7 +1290,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                       positionY: Number(e.currentTarget.value)
                     })
                   }
-                  className="w-full accent-amber-500 cursor-pointer h-1.5 bg-[#090c12] rounded-lg"
+                  className="w-full accent-[#2563eb] cursor-pointer h-1.5 bg-[#090c12] rounded-lg"
                 />
               </div>
             </div>

@@ -39,7 +39,7 @@ export default function DashboardHeader({
         )}
 
         <div className="flex items-center gap-2 cursor-pointer" onClick={onLogoClick}>
-          <span className="text-sm 2xl:text-base font-bold tracking-wide text-white">
+          <span className="text-sm 2xl:text-base tracking-wide text-white">
             Playout <span className="text-[#00bcd4] font-semibold">Lite</span>
           </span>
         </div>
