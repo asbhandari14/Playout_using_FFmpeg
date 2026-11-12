@@ -12,7 +12,8 @@ import { ROLES } from '../config/constants.js';
 export async function startStreamHandler(req, res, next) {
   try {
     const { channelId } = req.params;
-    const { startIndex = 0 } = req.body || {};
+    const hasExplicitStartIndex = req.body && req.body.startIndex !== undefined && req.body.startIndex !== null;
+    const startIndex = Math.max(0, Number(req.body?.startIndex) || 0);
 
     const channel = await Channel.findById(channelId);
     if (!channel) {
@@ -24,7 +25,9 @@ export async function startStreamHandler(req, res, next) {
       return res.status(403).json({ message: 'Forbidden: You are not assigned to this channel' });
     }
 
-    const stream = await streamManager.startStream(channelId, startIndex || 0);
+    const stream = (hasExplicitStartIndex && streamManager.isChannelLive(channelId))
+      ? await streamManager.jumpToIndex(channelId, startIndex)
+      : await streamManager.startStream(channelId, startIndex);
 
     return res.status(200).json({
       message: `Broadcast live stream started for '${channel.name}'`,
@@ -65,7 +68,7 @@ export async function stopStreamHandler(req, res, next) {
 export async function getStreamStatusHandler(req, res, next) {
   try {
     const { channelId } = req.params;
-    const isLive = streamManager.isChannelLive(channelId);
+    const isLive = streamManager.isChannelLive(channelId) || streamManager.isChannelReloading(channelId);
     const stream = streamManager.getStream(channelId);
 
     return res.status(200).json({
@@ -105,6 +108,7 @@ export async function getCurrentlyPlayingHandler(req, res, next) {
       }
 
       const isLive = streamManager.isChannelLive(channelId);
+      const isReloading = !isLive && streamManager.isChannelReloading(channelId);
       const liveInfo = streamManager.getChannelCurrentlyPlaying(channelId);
 
       if (isLive && liveInfo) {
@@ -161,17 +165,19 @@ export async function getCurrentlyPlayingHandler(req, res, next) {
 
       return res.status(200).json({
         success: true,
-        isLive: false,
+        isLive: isReloading,
         channel: {
           _id: channel._id,
           name: channel.name,
-          status: channel.status || 'idle',
+          status: isReloading ? 'live' : (channel.status || 'idle'),
           hlsUrl: channel.hlsUrl,
           rtmpUrl: channel.rtmpUrl,
           server: channel.server,
           assignedUser: channel.assignedUser
         },
-        playoutSource: activeSchedule ? 'schedule' : (activePlaylist ? 'playlist' : 'idle'),
+        playoutSource: isReloading
+          ? 'reconnecting'
+          : (activeSchedule ? 'schedule' : (activePlaylist ? 'playlist' : 'idle')),
         scheduling: activeSchedule ? {
           source: 'schedule_event',
           id: activeSchedule._id,
@@ -238,6 +244,7 @@ export async function getCurrentlyPlayingHandler(req, res, next) {
     const channelStatuses = await Promise.all(
       channels.map(async (ch) => {
         const isLive = streamManager.isChannelLive(ch._id);
+        const isReloading = !isLive && streamManager.isChannelReloading(ch._id);
         if (isLive) {
           const liveInfo = streamManager.getChannelCurrentlyPlaying(ch._id);
           return {
@@ -259,9 +266,11 @@ export async function getCurrentlyPlayingHandler(req, res, next) {
         return {
           channelId: ch._id,
           channelName: ch.name,
-          status: ch.status || 'idle',
-          isLive: false,
-          playoutSource: activeSchedule ? 'schedule' : (activePlaylist ? 'playlist' : 'idle'),
+          status: isReloading ? 'live' : (ch.status || 'idle'),
+          isLive: isReloading,
+          playoutSource: isReloading
+            ? 'reconnecting'
+            : (activeSchedule ? 'schedule' : (activePlaylist ? 'playlist' : 'idle')),
           scheduling: activeSchedule ? {
             source: 'schedule_event',
             id: activeSchedule._id,

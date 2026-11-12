@@ -51,7 +51,8 @@ export const probeVideo = (filePath) => {
       try {
         const metadata = JSON.parse(stdout);
         const videoStream = metadata.streams?.find((s) => s.codec_type === 'video') || {};
-        const audioStream = metadata.streams?.find((s) => s.codec_type === 'audio') || {};
+        const rawAudioStream = metadata.streams?.find((s) => s.codec_type === 'audio');
+        const audioStream = rawAudioStream || {};
 
         const duration = parseFloat(metadata.format?.duration || videoStream.duration || 0);
         const width = videoStream.width || 1280;
@@ -75,6 +76,7 @@ export const probeVideo = (filePath) => {
           resolution: `${width}x${height}`,
           fps,
           codec,
+          hasAudio: Boolean(rawAudioStream),
           audioCodec: audioStream.codec_name || 'aac',
           size
         });
@@ -148,18 +150,24 @@ export const generateThumbnail = (videoPath, outputPath, duration = 10) => {
 /**
  * Normalization transcode to 1280x720 25fps libx264 AAC
  */
-export const normalizeVideo = (inputPath, outputPath, onProgress) => {
+export const normalizeVideo = async (inputPath, outputPath, onProgress) => {
+  const probe = await probeVideo(inputPath).catch(() => ({ hasAudio: true }));
+  const hasAudio = probe.hasAudio !== false;
+
   return new Promise((resolve, reject) => {
     const args = [
       '-y',
       '-i', inputPath,
+      ...(!hasAudio ? ['-f', 'lavfi', '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100'] : []),
       '-vf', 'scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,fps=25',
+      ...(!hasAudio ? ['-map', '0:v:0', '-map', '1:a:0', '-shortest'] : []),
       '-c:v', 'libx264',
       '-preset', 'veryfast',
       '-crf', '23',
       '-c:a', 'aac',
       '-b:a', '128k',
       '-ar', '44100',
+      '-ac', '2',
       outputPath
     ];
 

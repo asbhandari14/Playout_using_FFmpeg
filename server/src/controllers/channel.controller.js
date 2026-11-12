@@ -447,7 +447,10 @@ export const CheckChannelOnlineOrOffline = async (req, res) => {
         }
       }
 
-      if (data && data.toLowerCase() !== 'not found' && !data.toLowerCase().includes('cannot get')) {
+      const trimmed = typeof data === 'string' ? data.trim() : '';
+      const hasValidPlaylist = trimmed.includes('#EXTM3U')
+        && (trimmed.includes('.ts') || trimmed.includes('.m4s') || trimmed.includes('#EXTINF') || trimmed.includes('.m3u8'));
+      if (hasValidPlaylist) {
         isOnline = true;
       }
     } catch {

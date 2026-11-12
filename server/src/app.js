@@ -39,7 +39,7 @@ if (process.env.NODE_ENV !== 'test') {
   app.use(morgan('dev'));
 }
 
-dns.setServers(['0.0.0.0', '8.8.8.8']);
+dns.setServers(['8.8.8.8', '1.1.1.1']);
 
 app.use(cookieParser());
 app.use(express.json({}));

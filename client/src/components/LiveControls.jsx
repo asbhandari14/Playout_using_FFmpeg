@@ -746,7 +746,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
             </div>
 
             {/* SHOW LOGO DURING AD Toggle */}
-            <div className="flex items-center justify-between gap-2 p-2.5 2xl:p-3 bg-[#151a24] border border-[#232c3d] rounded-lg 2xl:rounded-xl">
+            {/* <div className="flex items-center justify-between gap-2 p-2.5 2xl:p-3 bg-[#151a24] border border-[#232c3d] rounded-lg 2xl:rounded-xl">
               <div className="space-y-0.5 min-w-0">
                 <span className="text-[10.5px] 2xl:text-xs font-bold uppercase tracking-wider text-slate-200 block">
                   Show Logo during Ad
@@ -771,7 +771,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                     }`}
                 />
               </button>
-            </div>
+            </div> */}
 
             {/* Position Box (5 buttons) */}
             <div className="bg-[#151a24] border border-[#232c3d] rounded-xl 2xl:rounded-2xl p-2.5 2xl:p-3.5">
@@ -1454,8 +1454,8 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                 </span>
                 <span
                   className={`text-[9px] 2xl:text-[10px] font-bold px-2 py-0.5 rounded-full ${timerEnabled
-                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                      : 'bg-slate-800 text-slate-500'
+                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                    : 'bg-slate-800 text-slate-500'
                     }`}
                 >
                   {timerEnabled ? 'SHOWING DURING AD' : 'OFF'}
@@ -1465,14 +1465,14 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
               <div className="relative aspect-video max-h-[115px] xl:max-h-[125px] 2xl:max-h-[155px] w-full mx-auto bg-[#090c12] border border-[#222938] rounded-lg 2xl:rounded-xl flex items-center justify-center p-2 overflow-hidden">
                 <div
                   className={`absolute px-2 py-1 2xl:px-3 2xl:py-1.5 rounded-md font-mono font-bold text-[10px] 2xl:text-xs shadow-lg flex items-center gap-1 transition-all ${timerPosition === 'top-left'
-                      ? 'top-2 left-2'
-                      : timerPosition === 'top-right'
-                        ? 'top-2 right-2'
-                        : timerPosition === 'bottom-left'
-                          ? 'bottom-2 left-2'
-                          : timerPosition === 'bottom-right'
-                            ? 'bottom-2 right-2'
-                            : 'top-2 left-2'
+                    ? 'top-2 left-2'
+                    : timerPosition === 'top-right'
+                      ? 'top-2 right-2'
+                      : timerPosition === 'bottom-left'
+                        ? 'bottom-2 left-2'
+                        : timerPosition === 'bottom-right'
+                          ? 'bottom-2 right-2'
+                          : 'top-2 left-2'
                     }`}
                   style={{
                     backgroundColor: timerBgColor || '#000000cc',
@@ -1555,8 +1555,8 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                       handleUpdateTimer({ format: 'MM:SS' });
                     }}
                     className={`py-1.5 2xl:py-2 rounded-lg border text-[10.5px] 2xl:text-xs font-bold transition flex items-center justify-center ${timerFormat === 'MM:SS'
-                        ? 'bg-blue-600 border-blue-400 text-white shadow-md'
-                        : 'bg-[#090c12] border-[#222938] text-slate-400 hover:text-white'
+                      ? 'bg-blue-600 border-blue-400 text-white shadow-md'
+                      : 'bg-[#090c12] border-[#222938] text-slate-400 hover:text-white'
                       }`}
                   >
                     <span>MM:SS (00:30)</span>
@@ -1568,8 +1568,8 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                       handleUpdateTimer({ format: 'SS' });
                     }}
                     className={`py-1.5 2xl:py-2 rounded-lg border text-[10.5px] 2xl:text-xs font-bold transition flex items-center justify-center ${timerFormat === 'SS'
-                        ? 'bg-blue-600 border-blue-400 text-white shadow-md'
-                        : 'bg-[#090c12] border-[#222938] text-slate-400 hover:text-white'
+                      ? 'bg-blue-600 border-blue-400 text-white shadow-md'
+                      : 'bg-[#090c12] border-[#222938] text-slate-400 hover:text-white'
                       }`}
                   >
                     <span>Seconds (30s)</span>
@@ -1597,8 +1597,8 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                         handleUpdateTimer({ position: p.id });
                       }}
                       className={`py-1.5 2xl:py-2 px-2 rounded-lg border text-[10.5px] 2xl:text-xs font-bold transition flex items-center justify-center ${timerPosition === p.id
-                          ? 'bg-blue-600 border-blue-400 text-white shadow-md'
-                          : 'bg-[#090c12] border-[#222938] text-slate-400 hover:text-white'
+                        ? 'bg-blue-600 border-blue-400 text-white shadow-md'
+                        : 'bg-[#090c12] border-[#222938] text-slate-400 hover:text-white'
                         }`}
                     >
                       {p.label}

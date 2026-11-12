@@ -23,6 +23,7 @@ export class EncoderService {
     this.lastReportedPts = 0;
     this.lastReportedAt = Date.now();
     this.streamStartTime = Date.now();
+    this.watchdogTimer = null;
 
     // Stream working directory
     this.channelDir = path.join(STREAMS_DIR, String(channel._id));
@@ -30,6 +31,15 @@ export class EncoderService {
 
     if (!fs.existsSync(this.hlsDir)) {
       fs.mkdirSync(this.hlsDir, { recursive: true });
+    } else {
+      // Remove stale .m3u8 / .ts artifacts from earlier runs so CheckChannelOnlineOrOffline & HLS clients never read stale segments
+      try {
+        for (const file of fs.readdirSync(this.hlsDir)) {
+          if (file.endsWith('.ts') || file.endsWith('.m3u8')) {
+            try { fs.unlinkSync(path.join(this.hlsDir, file)); } catch { }
+          }
+        }
+      } catch { }
     }
 
     // Ensure initial logo.png, ticker_bg.png, ticker.png, lband.png, ashton.png, and bug file
@@ -653,28 +663,31 @@ export class EncoderService {
     // 6. Bug Overlay: [6:v] scaled and overlaid onto [v_after_ashton] -> [v_after_bug]
     // 7. Logo Overlay: [1:v] scaled and overlaid onto [v_after_bug] -> [v_after_logo] (LOGO ON TOP OF BUG IF SAME POSITION!)
     // 8. Ticker Overlay: [v_after_logo] + [tickbar] -> [vout]
+    const fps = Number(this.channel.outputSettings?.fps) || 25;
     const filtergraph = [
-      `color=c=black:s=${canvasW}x${canvasH}:r=25[lband_bg]`,
-      `color=c=black:s=${canvasW}x${canvasH}:r=25[ashton_bg]`,
-      `[2:v][3:v]overlay@ticktext=x='${tickPos.text.x}':y='${tickPos.text.y}':eval=frame:format=auto[tickbar_raw]`,
+      `[0:a]aresample=44100,asetpts=N/SR/TB[aout]`,
+      `color=c=black:s=${canvasW}x${canvasH}:r=${fps}[lband_bg]`,
+      `color=c=black:s=${canvasW}x${canvasH}:r=${fps}[ashton_bg]`,
+      `[2:v][3:v]overlay@ticktext=x='${tickPos.text.x}':y='${tickPos.text.y}':eval=frame:format=auto:eof_action=repeat[tickbar_raw]`,
       `[tickbar_raw]crop@tick_crop=w=${tickPos.bar.width || canvasW}:h=ih:x=0:y=0,scale@tick_scale=w=iw:h='${initTickH}':eval=frame[tickbar]`,
-      `[0:v]zmq=bind_address=tcp\\\\://127.0.0.1\\\\:${this.zmqPort},split=3[v_full][v_lband_in][v_ashton_in]`,
+      // Re-stamp incoming video monotonically from frame count N BEFORE split/overlays so per-clip decoder restarts never jump PTS backward
+      `[0:v]setpts=N/(${fps}*TB),fps=${fps},zmq=bind_address=tcp\\\\://127.0.0.1\\\\:${this.zmqPort},split=3[v_full][v_lband_in][v_ashton_in]`,
       `[v_lband_in]scale@lband_sq=w='${initW}':h='${initH}':eval=frame[v_lband_scaled]`,
       `[4:v]format=rgba[lband_g]`,
-      `[lband_bg][lband_g]overlay@lband_gfx=x=0:y=0[lband_base]`,
-      `[lband_base][v_lband_scaled]overlay@lband_vid_pos=x='${initX}':y='${initY}':eval=frame[lband_composite]`,
+      `[lband_bg][lband_g]overlay@lband_gfx=x=0:y=0:eof_action=repeat[lband_base]`,
+      `[lband_base][v_lband_scaled]overlay@lband_vid_pos=x='${initX}':y='${initY}':eval=frame:eof_action=repeat[lband_composite]`,
       `[5:v]format=rgba,scale=w=${canvasW}:h=${ashtonH},split[ashton_sq_g][ashton_ov_g]`,
-      `[ashton_bg][ashton_sq_g]overlay@ashton_sq_gfx=x=0:y='${ashtonGfxY}'[ashton_base]`,
+      `[ashton_bg][ashton_sq_g]overlay@ashton_sq_gfx=x=0:y='${ashtonGfxY}':eof_action=repeat[ashton_base]`,
       `[v_ashton_in]scale@ashton_sq=w=${canvasW}:h='${initAshtonVidH}':eval=frame[v_ashton_scaled]`,
-      `[ashton_base][v_ashton_scaled]overlay@ashton_sq_vid=x=0:y=0[ashton_sq_composite]`,
-      `[v_full][lband_composite]overlay@lband_master=x='${lbandMasterX}':y='${lbandMasterY}':eval=frame[v_after_lband]`,
-      `[v_after_lband][ashton_sq_composite]overlay@ashton_squeeze=x='${ashtonSqX}':y='${ashtonSqY}':eval=frame[v_after_ashton_sq]`,
-      `[v_after_ashton_sq][ashton_ov_g]overlay@ashton_overlay=x='${ashtonOvX}':y='${ashtonOvY}':eval=frame[v_after_ashton]`,
-      `[6:v]scale@bug_scale=w=${bugW}:h=${bugH}:eval=frame[v_bug_scaled]`,
-      `[v_after_ashton][v_bug_scaled]overlay@bug=x='${bugX}':y='${bugY}':eval=frame[v_after_bug]`,
+      `[ashton_base][v_ashton_scaled]overlay@ashton_sq_vid=x=0:y=0:eof_action=repeat[ashton_sq_composite]`,
+      `[v_full][lband_composite]overlay@lband_master=x='${lbandMasterX}':y='${lbandMasterY}':eval=frame:eof_action=repeat[v_after_lband]`,
+      `[v_after_lband][ashton_sq_composite]overlay@ashton_squeeze=x='${ashtonSqX}':y='${ashtonSqY}':eval=frame:eof_action=repeat[v_after_ashton_sq]`,
+      `[v_after_ashton_sq][ashton_ov_g]overlay@ashton_overlay=x='${ashtonOvX}':y='${ashtonOvY}':eval=frame:eof_action=repeat[v_after_ashton]`,
+      `[6:v]setpts=PTS-STARTPTS,fps=${fps},scale@bug_scale=w=${bugW}:h=${bugH}:eval=frame[v_bug_scaled]`,
+      `[v_after_ashton][v_bug_scaled]overlay@bug=x='${bugX}':y='${bugY}':eval=frame:eof_action=repeat[v_after_bug]`,
       `[1:v]scale@logo_scale=w=${logoW}:h=${logoH}:eval=frame[v_logo_scaled]`,
-      `[v_after_bug][v_logo_scaled]overlay@logo=x='${logoX}':y='${logoY}':eval=frame[v_after_logo]`,
-      `[v_after_logo][tickbar]overlay@tick=x='${tickBarX}':y='${tickBarY}':eval=frame[vout]`
+      `[v_after_bug][v_logo_scaled]overlay@logo=x='${logoX}':y='${logoY}':eval=frame:eof_action=repeat[v_after_logo]`,
+      `[v_after_logo][tickbar]overlay@tick=x='${tickBarX}':y='${tickBarY}':eval=frame:eof_action=repeat[vout]`
     ].join('; ');
 
     const hlsManifest = path.join(this.hlsDir, 'index.m3u8').replace(/\\/g, '/');
@@ -713,37 +726,38 @@ export class EncoderService {
       rtmpTarget = `${rtmpBase}/${streamKey}`;
     }
 
-    // Dual output via tee: local HLS for preview monitoring + remote RTMP for broadcast playout
+    // Dual output via tee: local HLS (2s GOP-aligned segments, 6-segment window) + remote RTMP for broadcast playout
     // Note: Remote RTMP must not ignore failure so network drops trigger immediate failover / recovery
-    const teeOutput = `[f=hls:hls_time=1:hls_list_size=3:hls_flags=delete_segments+split_by_time]${hlsManifest}|[f=flv:flvflags=no_duration_filesize]${rtmpTarget}`;
+    const teeOutput = `[f=hls:hls_time=2:hls_list_size=6:hls_flags=delete_segments+split_by_time+independent_segments]${hlsManifest}|[f=flv:flvflags=no_duration_filesize]${rtmpTarget}`;
 
     const ffmpegArgs = [
       '-y',
+      '-fflags', '+genpts+discardcorrupt',
       // Input 0: MPEG-TS stdin from Feeder
       '-f', 'mpegts', '-i', 'pipe:0',
       // Input 1: Dynamic looping logo.png (live reloadable without stream restart)
-      '-stream_loop', '-1', '-f', 'image2', '-framerate', '25', '-i', this.logoFile,
+      '-stream_loop', '-1', '-f', 'image2', '-framerate', String(fps), '-i', this.logoFile,
       // Input 2: Dynamic looping ticker_bg.png (STATIC BACKGROUND BAR)
-      '-stream_loop', '-1', '-f', 'image2', '-framerate', '25', '-i', this.tickerBgFile,
+      '-stream_loop', '-1', '-f', 'image2', '-framerate', String(fps), '-i', this.tickerBgFile,
       // Input 3: Dynamic looping ticker.png (MOVING TEXT OVERLAY)
-      '-stream_loop', '-1', '-f', 'image2', '-framerate', '25', '-i', this.tickerFile,
+      '-stream_loop', '-1', '-f', 'image2', '-framerate', String(fps), '-i', this.tickerFile,
       // Input 4: Dynamic looping lband.png (L-BAND GRAPHIC WITH TRANSPARENT CUTOUT)
-      '-stream_loop', '-1', '-f', 'image2', '-framerate', '25', '-i', this.lbandFile,
+      '-stream_loop', '-1', '-f', 'image2', '-framerate', String(fps), '-i', this.lbandFile,
       // Input 5: Dynamic looping ashton.png (ASHTON BAND LOWER THIRD)
-      '-stream_loop', '-1', '-f', 'image2', '-framerate', '25', '-i', this.ashtonFile,
+      '-stream_loop', '-1', '-f', 'image2', '-framerate', String(fps), '-i', this.ashtonFile,
       // Input 6: Station Bug (video MOV via -stream_loop -1, animated GIF via -ignore_loop 0, or static image via dynamic loop)
       ...(this.isBugMov
         ? ['-stream_loop', '-1', '-i', this.bugFile]
-        : (this.isBugGif ? ['-ignore_loop', '0', '-i', this.bugFile] : ['-stream_loop', '-1', '-f', 'image2', '-framerate', '25', '-i', this.bugFile])),
+        : (this.isBugGif ? ['-ignore_loop', '0', '-i', this.bugFile] : ['-stream_loop', '-1', '-f', 'image2', '-framerate', String(fps), '-i', this.bugFile])),
       // Filtergraph
       '-filter_complex', filtergraph,
       '-map', '[vout]',
-      '-map', '0:a?',
-      // Video encoding (libx264, CPU only, low CPU veryfast preset, 25fps GOP 50)
+      '-map', '[aout]',
+      // Video encoding (libx264, CPU only, low CPU veryfast preset, GOP = 2 * fps = 2s keyframes)
       '-c:v', 'libx264',
       '-preset', 'veryfast',
-      '-g', '50',
-      '-keyint_min', '25',
+      '-g', String(fps * 2),
+      '-keyint_min', String(fps),
       '-sc_threshold', '0',
       '-b:v', this.channel.outputSettings?.videoBitrate || '2500k',
       '-maxrate', this.channel.outputSettings?.videoBitrate || '2500k',
@@ -762,7 +776,7 @@ export class EncoderService {
 
     console.log(`[Encoder] Launching FFmpeg encoder for channel '${this.channel.name}' -> RTMP: ${rtmpTarget} (ZMQ: ${this.zmqPort})`);
     this.process = spawn('ffmpeg', ffmpegArgs, {
-      stdio: ['pipe', 'pipe', 'pipe']
+      stdio: ['pipe', 'ignore', 'pipe']
     });
 
     this.isRunning = true;
@@ -811,21 +825,40 @@ export class EncoderService {
         this.triggerFailure('RTMP output disconnected');
       }
 
-      // Log notable encoder events, RTMP connection messages, and errors
+      // Log notable encoder events, RTMP connection messages, timestamp warnings, and errors
       if (
         msg.includes('Error') ||
         msg.includes('failed') ||
         msg.includes('rtmp') ||
         msg.includes('Connection') ||
-        msg.includes('Slave')
+        msg.includes('Slave') ||
+        msg.includes('Non-monotonous DTS') ||
+        msg.includes('backward in time')
       ) {
         console.log(`[Encoder:${streamKey}] ${msg.trim()}`);
       }
     });
 
+    // Frozen-PTS watchdog: recover automatically if FFmpeg hangs without exiting
+    if (this.watchdogTimer) {
+      clearInterval(this.watchdogTimer);
+    }
+    this.watchdogTimer = setInterval(() => {
+      if (!this.isRunning || this.isStopping) return;
+      const idleMs = Date.now() - (this.lastReportedAt || this.streamStartTime || Date.now());
+      if (idleMs > 15000) {
+        console.warn(`[Encoder:${streamKey}] Watchdog detected frozen PTS for ${(idleMs / 1000).toFixed(1)}s. Triggering auto-recovery.`);
+        this.triggerFailure(`FFmpeg PTS stalled for ${(idleMs / 1000).toFixed(1)}s`);
+      }
+    }, 5000);
+
     this.process.on('close', (code) => {
       console.log(`[Encoder] FFmpeg encoder exited with code ${code}`);
       this.isRunning = false;
+      if (this.watchdogTimer) {
+        clearInterval(this.watchdogTimer);
+        this.watchdogTimer = null;
+      }
       if (this.zmqSocket) {
         try {
           this.zmqSocket.close();
@@ -1829,6 +1862,10 @@ export class EncoderService {
   stop() {
     this.isStopping = true;
     this.isRunning = false;
+    if (this.watchdogTimer) {
+      clearInterval(this.watchdogTimer);
+      this.watchdogTimer = null;
+    }
     if (this.zmqSocket) {
       try {
         this.zmqSocket.close();

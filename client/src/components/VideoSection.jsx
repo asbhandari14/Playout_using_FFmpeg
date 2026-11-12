@@ -9,6 +9,8 @@ export default function VideoSection({ channel, selectedAsset, isLive = false })
   const hlsInstanceRef = useRef(null);
   const currentLoadedHlsUrlRef = useRef(null);
   const consecutiveFailuresRef = useRef(0);
+  const lastMediaRecoveryRef = useRef(0);
+  const stallRecoveryTimerRef = useRef(null);
 
   const [liveMuted, setLiveMuted] = useState(true);
   const [hlsError, setHlsError] = useState(false);
@@ -75,17 +77,46 @@ export default function VideoSection({ channel, selectedAsset, isLive = false })
     };
   }, [isLive, hlsUrl]);
 
+  const recoverStalledLiveVideo = () => {
+    const video = liveVideoRef.current;
+    if (video && video.buffered && video.buffered.length > 0) {
+      const liveEnd = video.buffered.end(video.buffered.length - 1);
+      if (liveEnd - video.currentTime > 1.5) {
+        video.currentTime = Math.max(video.currentTime, liveEnd - 2);
+      }
+    }
+    if (hlsInstanceRef.current) {
+      try {
+        hlsInstanceRef.current.startLoad();
+      } catch { }
+    }
+    if (video && video.paused) {
+      video.play().catch(() => { });
+    }
+  };
+
+  // Destroy HLS instance cleanly on component unmount
+  useEffect(() => {
+    return () => {
+      if (stallRecoveryTimerRef.current) {
+        clearTimeout(stallRecoveryTimerRef.current);
+        stallRecoveryTimerRef.current = null;
+      }
+      if (hlsInstanceRef.current) {
+        hlsInstanceRef.current.destroy();
+        hlsInstanceRef.current = null;
+      }
+      currentLoadedHlsUrlRef.current = null;
+    };
+  }, []);
+
   // Setup HLS player for LIVE PROGRAM (PGM) when channel is confirmed online
   useEffect(() => {
     if (!liveVideoRef.current) return;
 
     if (isLive && isChannelOnline && hlsUrl) {
-      // If an HLS instance is already active and playing this exact URL, refresh source & resume playback!
+      // Keep active MSE buffer intact when polling re-runs with the same stream URL
       if (hlsInstanceRef.current && currentLoadedHlsUrlRef.current === hlsUrl) {
-        try {
-          hlsInstanceRef.current.loadSource(hlsUrl);
-          hlsInstanceRef.current.startLoad();
-        } catch { }
         if (liveVideoRef.current && liveVideoRef.current.paused) {
           liveVideoRef.current.play().catch(() => { });
         }
@@ -102,11 +133,17 @@ export default function VideoSection({ channel, selectedAsset, isLive = false })
 
         const hls = new Hls({
           enableWorker: true,
-          lowLatencyMode: true,
-          liveSyncDurationCount: 1, // Only buffer 1 segment behind live edge
-          liveMaxLatencyDurationCount: 2, // Never let player lag more than 2 segments
-          maxBufferLength: 4, // Max 4 seconds buffer
-          maxMaxBufferLength: 6
+          lowLatencyMode: false,
+          liveSyncDurationCount: 3,
+          liveMaxLatencyDurationCount: 6,
+          maxBufferLength: 12,
+          maxMaxBufferLength: 24,
+          maxBufferHole: 1.5,
+          nudgeOffset: 0.2,
+          nudgeMaxRetry: 10,
+          fragLoadingMaxRetry: 6,
+          manifestLoadingMaxRetry: 6,
+          levelLoadingMaxRetry: 6
         });
 
         hls.loadSource(hlsUrl);
@@ -128,31 +165,57 @@ export default function VideoSection({ channel, selectedAsset, isLive = false })
         });
 
         hls.on(Hls.Events.ERROR, (event, data) => {
-          if (data.fatal) {
-            switch (data.type) {
-              case Hls.ErrorTypes.NETWORK_ERROR:
-                // Auto-retry when network disconnects without destroying player
-                console.warn('[HLS PGM] Network error encountered, retrying startLoad in 2s...');
-                setTimeout(() => {
-                  if (hlsInstanceRef.current) {
-                    try {
-                      hlsInstanceRef.current.loadSource(hlsUrl);
-                      hlsInstanceRef.current.startLoad();
-                    } catch { }
-                  }
-                }, 2000);
-                break;
-              case Hls.ErrorTypes.MEDIA_ERROR:
-                hls.recoverMediaError();
-                break;
-              default:
-                if (hlsInstanceRef.current) {
-                  hlsInstanceRef.current.destroy();
-                  hlsInstanceRef.current = null;
-                }
-                currentLoadedHlsUrlRef.current = null;
-                break;
+          if (!data.fatal) {
+            if (
+              data.details === Hls.ErrorDetails.BUFFER_STALLED_ERROR ||
+              data.details === Hls.ErrorDetails.BUFFER_NUDGE_ON_STALL ||
+              data.details === Hls.ErrorDetails.BUFFER_SEEK_OVER_HOLE
+            ) {
+              recoverStalledLiveVideo();
             }
+            return;
+          }
+
+          switch (data.type) {
+            case Hls.ErrorTypes.NETWORK_ERROR:
+              // Auto-retry when network disconnects without destroying player
+              console.warn('[HLS PGM] Network error encountered, retrying startLoad in 2s...');
+              setTimeout(() => {
+                if (hlsInstanceRef.current) {
+                  try {
+                    if (
+                      data.details === Hls.ErrorDetails.MANIFEST_LOAD_ERROR ||
+                      data.details === Hls.ErrorDetails.MANIFEST_PARSING_ERROR
+                    ) {
+                      hlsInstanceRef.current.loadSource(hlsUrl);
+                    }
+                    hlsInstanceRef.current.startLoad();
+                  } catch { }
+                }
+              }, 2000);
+              break;
+            case Hls.ErrorTypes.MEDIA_ERROR: {
+              const now = Date.now();
+              if (now - lastMediaRecoveryRef.current >= 4000) {
+                lastMediaRecoveryRef.current = now;
+                hls.recoverMediaError();
+              } else {
+                setTimeout(() => {
+                  if (hlsInstanceRef.current === hls) {
+                    lastMediaRecoveryRef.current = Date.now();
+                    hls.recoverMediaError();
+                  }
+                }, 4000);
+              }
+              break;
+            }
+            default:
+              if (hlsInstanceRef.current) {
+                hlsInstanceRef.current.destroy();
+                hlsInstanceRef.current = null;
+              }
+              currentLoadedHlsUrlRef.current = null;
+              break;
           }
         });
 
@@ -293,6 +356,27 @@ export default function VideoSection({ channel, selectedAsset, isLive = false })
               muted={liveMuted}
               autoPlay
               playsInline
+              onPlaying={() => {
+                setHlsError(false);
+                if (stallRecoveryTimerRef.current) {
+                  clearTimeout(stallRecoveryTimerRef.current);
+                  stallRecoveryTimerRef.current = null;
+                }
+              }}
+              onWaiting={() => {
+                if (!isLive || !isChannelOnline || stallRecoveryTimerRef.current) return;
+                stallRecoveryTimerRef.current = setTimeout(() => {
+                  stallRecoveryTimerRef.current = null;
+                  recoverStalledLiveVideo();
+                }, 4000);
+              }}
+              onStalled={() => {
+                if (!isLive || !isChannelOnline || stallRecoveryTimerRef.current) return;
+                stallRecoveryTimerRef.current = setTimeout(() => {
+                  stallRecoveryTimerRef.current = null;
+                  recoverStalledLiveVideo();
+                }, 3000);
+              }}
             />
 
             {/* Volume toggle button for Live PGM */}

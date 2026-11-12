@@ -16,6 +16,7 @@ class StreamManager {
     this.nextZmqPort = 5600;
     this.fireTimers = new Map();
     this.recoveryMap = new Map();
+    this.reloadingChannels = new Set();
   }
 
   clearRecovery(channelId) {
@@ -25,6 +26,7 @@ class StreamManager {
       if (rec?.timer) clearTimeout(rec.timer);
       this.recoveryMap.delete(chIdStr);
     }
+    this.reloadingChannels.delete(chIdStr);
   }
 
   /**
@@ -32,6 +34,7 @@ class StreamManager {
    */
   scheduleAutoRecovery(channelId, lastPos = null) {
     const chIdStr = String(channelId);
+    this.reloadingChannels.add(chIdStr);
     const existingRec = this.recoveryMap.get(chIdStr) || { count: 0, lastPos };
     const count = existingRec.count + 1;
     const pos = lastPos || existingRec.lastPos || { index: 0, offsetSeconds: 0 };
@@ -244,7 +247,9 @@ class StreamManager {
    */
   async stopStream(channelId, { isReloading = false } = {}) {
     const chIdStr = String(channelId);
-    if (!isReloading) {
+    if (isReloading) {
+      this.reloadingChannels.add(chIdStr);
+    } else {
       this.clearRecovery(chIdStr);
     }
 
@@ -268,6 +273,9 @@ class StreamManager {
     // Stop feeder first so no more MPEG-TS packets are pushed
     if (stream.feeder) {
       stream.feeder.stop();
+      if (typeof stream.feeder.flushDbWrites === 'function') {
+        await stream.feeder.flushDbWrites(1500);
+      }
     }
 
     // Stop encoder
@@ -356,7 +364,32 @@ class StreamManager {
   }
 
   isChannelLive(channelId) {
-    return this.activeStreams.has(channelId);
+    return this.activeStreams.has(String(channelId));
+  }
+
+  isChannelReloading(channelId) {
+    return this.reloadingChannels.has(String(channelId));
+  }
+
+  /**
+   * Jump an active broadcast immediately to a specific playlist item index.
+   */
+  async jumpToIndex(channelId, startIndex = 0) {
+    const chIdStr = String(channelId);
+    const safeIndex = Math.max(0, Number(startIndex) || 0);
+    if (!this.activeStreams.has(chIdStr)) {
+      return this.startStream(chIdStr, safeIndex);
+    }
+    console.log(`[StreamManager] Jumping live channel ${chIdStr} to playlist item #${safeIndex + 1}...`);
+    this.reloadingChannels.add(chIdStr);
+    try {
+      await this.stopStream(chIdStr, { isReloading: true });
+      await new Promise((r) => setTimeout(r, 200));
+      return await this.startStream(chIdStr, safeIndex, { isReloading: true });
+    } catch (err) {
+      this.reloadingChannels.delete(chIdStr);
+      throw err;
+    }
   }
 
   /**
@@ -364,15 +397,22 @@ class StreamManager {
    * Keeps live status active to prevent player reloads or black/green screen flashes
    */
   async restartStream(channelId) {
-    const stream = this.activeStreams.get(channelId);
+    const chIdStr = String(channelId);
+    const stream = this.activeStreams.get(chIdStr);
     if (!stream) return null;
     const pos = stream.feeder?.getCurrentPlaybackPosition
       ? stream.feeder.getCurrentPlaybackPosition()
       : { index: stream.feeder?.currentIndex || 0, offsetSeconds: 0 };
-    console.log(`[StreamManager] Reloading live stream branding assets for channel ${channelId} (resuming item ${pos.index} at ${pos.offsetSeconds.toFixed(1)}s)...`);
-    await this.stopStream(channelId, { isReloading: true });
-    await new Promise((r) => setTimeout(r, 300));
-    return this.startStream(channelId, pos.index, { isReloading: true, startOffsetSeconds: pos.offsetSeconds });
+    console.log(`[StreamManager] Reloading live stream branding assets for channel ${chIdStr} (resuming item ${pos.index} at ${pos.offsetSeconds.toFixed(1)}s)...`);
+    this.reloadingChannels.add(chIdStr);
+    try {
+      await this.stopStream(chIdStr, { isReloading: true });
+      await new Promise((r) => setTimeout(r, 300));
+      return await this.startStream(chIdStr, pos.index, { isReloading: true, startOffsetSeconds: pos.offsetSeconds });
+    } catch (err) {
+      this.reloadingChannels.delete(chIdStr);
+      throw err;
+    }
   }
 
   /**

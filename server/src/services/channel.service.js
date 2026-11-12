@@ -7,19 +7,25 @@ import { io } from '../server.js';
 /**
  * Recursively calculate total size in bytes of all files in a directory
  */
-export const calculateDirectorySize = (dirPath) => {
-  if (!dirPath || !fs.existsSync(dirPath)) return 0;
+export const calculateDirectorySize = async (dirPath) => {
+  if (!dirPath) return 0;
+  try {
+    await fs.promises.access(dirPath);
+  } catch {
+    return 0;
+  }
+
   let totalBytes = 0;
 
   try {
-    const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+    const entries = await fs.promises.readdir(dirPath, { withFileTypes: true });
     for (const entry of entries) {
       const fullPath = path.join(dirPath, entry.name);
       try {
         if (entry.isDirectory()) {
-          totalBytes += calculateDirectorySize(fullPath);
+          totalBytes += await calculateDirectorySize(fullPath);
         } else if (entry.isFile()) {
-          const stat = fs.statSync(fullPath);
+          const stat = await fs.promises.stat(fullPath);
           totalBytes += stat.size;
         }
       } catch (statErr) {
@@ -52,7 +58,7 @@ export const calculateChannelStorage = async (channelId) => {
       }
     }
 
-    const totalBytes = calculateDirectorySize(channelDir);
+    const totalBytes = await calculateDirectorySize(channelDir);
 
     await Channel.findByIdAndUpdate(channelId, {
       $set: { usedStorage: totalBytes }
@@ -173,10 +179,10 @@ class ChannelStorageCron {
       this.runTick();
     }, 2000);
 
-    // Recurring scan every 1 minute (60,000 ms)
+    // Recurring scan every 5 minutes (300,000 ms) so directory scans stay low-overhead
     this.timer = setInterval(() => {
       this.runTick();
-    }, 60 * 1000);
+    }, 5 * 60 * 1000);
   }
 
   async runTick() {

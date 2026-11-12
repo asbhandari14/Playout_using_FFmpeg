@@ -135,6 +135,18 @@ export default function ControlRoomPage() {
     }
   };
 
+  // Start or jump live broadcast from a specific playlist item
+  const handlePlayFromIndex = async (index) => {
+    try {
+      await api.post(`/channels/${channelId}/start`, { startIndex: index });
+      setIsLive(true);
+      dispatch(updateChannelStatus({ channelId, status: 'live' }));
+      toast.success(`Playing from playlist item #${index + 1}`);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Error starting playback from selected item');
+    }
+  };
+
   // Add asset from library to playlist
   const handleAddToPlaylist = (asset) => {
     dispatch(addItem(asset));
@@ -178,10 +190,7 @@ export default function ControlRoomPage() {
           {/* Bottom of center: Broadcast Window Playlist Table */}
           <PlaylistTable
             channelId={channelId}
-            onPlayFromIndex={(index) => {
-              // Trigger play from here
-              console.log('Play from index:', index);
-            }}
+            onPlayFromIndex={handlePlayFromIndex}
           />
         </div>
 

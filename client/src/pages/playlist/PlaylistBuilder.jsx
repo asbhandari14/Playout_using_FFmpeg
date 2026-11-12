@@ -184,6 +184,8 @@ export default function PlaylistBuilder({
   const typeConfig = TYPE_CONFIGS[activeType] || TYPE_CONFIGS.default;
   const TypeIcon = typeConfig.icon;
 
+  const isDefaultPlaylist = activeType === 'default';
+
   // Active channel for assets
   const currentChannelId = formData.channel || formData.channelId || channels[0]?._id || '';
 
@@ -193,8 +195,16 @@ export default function PlaylistBuilder({
       ...prev,
       type: activeType,
       channel: prev.channel || channels[0]?._id || '',
-      loop: prev.loop !== undefined ? prev.loop : true,
-      isActive: prev.isActive !== undefined ? prev.isActive : true,
+      loop: activeType === 'default' ? true : (prev.loop !== undefined ? prev.loop : true),
+      isActive: activeType === 'default' ? true : (prev.isActive !== undefined ? prev.isActive : true),
+      ...(activeType === 'default' ? {
+        scheduleOption: 'none',
+        startDate: '',
+        endDate: '',
+        startTime: '',
+        endTime: '',
+        daysOfWeek: []
+      } : {}),
       showLogo: prev.showLogo !== undefined ? prev.showLogo : true,
       showBug: prev.showBug !== undefined ? prev.showBug : true,
       showTicker: prev.showTicker !== undefined ? prev.showTicker : true,
@@ -1148,6 +1158,14 @@ export default function PlaylistBuilder({
             )}
 
             {/* Scheduling Trigger Mode (Date Option) */}
+            {isDefaultPlaylist ? (
+              <div className="pt-2 border-t border-[#182032]">
+                <div className="p-2.5 rounded-xl bg-emerald-950/25 border border-emerald-800/40 text-emerald-200 text-[10px] leading-relaxed">
+                  24/7 Baseline Mode: Default playlists stay active without date/time restrictions so playback continues whenever higher-priority playlists finish.
+                </div>
+              </div>
+            ) : (
+              <>
             <div className="pt-2 border-t border-[#182032]">
               <div className="flex items-center justify-between mb-2">
                 <label className="text-slate-300 font-semibold flex items-center gap-1.5">
@@ -1263,6 +1281,8 @@ export default function PlaylistBuilder({
                 Leave empty for continuous 24-hour playback while armed.
               </p>
             </div>
+              </>
+            )}
 
             {/* On-Air Branding & Graphics Overlays */}
             <div className="pt-2 border-t border-[#182032] space-y-2">
@@ -1352,32 +1372,36 @@ export default function PlaylistBuilder({
 
             {/* Loop & Enable Switches */}
             <div className="pt-2 border-t border-[#182032] space-y-2">
-              <label className="flex items-center justify-between p-2.5 rounded-xl bg-[#090d16] border border-[#1a2337] cursor-pointer hover:border-slate-600 transition">
+              <label className={`flex items-center justify-between p-2.5 rounded-xl bg-[#090d16] border border-[#1a2337] transition ${isDefaultPlaylist ? 'opacity-80 cursor-not-allowed' : 'cursor-pointer hover:border-slate-600'}`}>
                 <div className="flex flex-col">
-                  <span className="font-semibold text-slate-200 text-xs">Loop Playback</span>
+                  <span className="font-semibold text-slate-200 text-xs">
+                    Loop Playback {isDefaultPlaylist && <span className="text-[10px] text-emerald-400 font-normal">(Required 24/7)</span>}
+                  </span>
                   <span className="text-[9px] text-slate-500">Loop sequence continuously</span>
                 </div>
                 <input
                   type="checkbox"
-                  checked={formData.loop !== false}
+                  checked={isDefaultPlaylist ? true : formData.loop !== false}
+                  disabled={isDefaultPlaylist}
                   onChange={handleCheckboxChange('loop')}
-                  className="rounded w-4 h-4 text-cyan-500 bg-[#121929] border-[#222c42] focus:ring-0 cursor-pointer"
+                  className="rounded w-4 h-4 text-cyan-500 bg-[#121929] border-[#222c42] focus:ring-0"
                 />
               </label>
 
-              <label className={`flex items-center justify-between p-2.5 rounded-xl border ${typeConfig.accentBorder} ${typeConfig.accentBg} cursor-pointer transition`}>
+              <label className={`flex items-center justify-between p-2.5 rounded-xl border ${typeConfig.accentBorder} ${typeConfig.accentBg} transition ${isDefaultPlaylist ? 'opacity-80 cursor-not-allowed' : 'cursor-pointer'}`}>
                 <div className="flex flex-col">
                   <span className={`font-bold text-xs flex items-center gap-1.5 ${typeConfig.accentText}`}>
-                    <span className={`w-2 h-2 rounded-full ${formData.isActive !== false ? `${typeConfig.dotColor} animate-pulse` : 'bg-slate-600'}`} />
-                    <span>Enable {typeConfig.shortLabel}</span>
+                    <span className={`w-2 h-2 rounded-full ${(isDefaultPlaylist || formData.isActive !== false) ? `${typeConfig.dotColor} animate-pulse` : 'bg-slate-600'}`} />
+                    <span>Enable {typeConfig.shortLabel} {isDefaultPlaylist && '(Required)'}</span>
                   </span>
                   <span className="text-[9px] text-slate-400">Arm playlist for scheduled playout</span>
                 </div>
                 <input
                   type="checkbox"
-                  checked={formData.isActive !== false}
+                  checked={isDefaultPlaylist ? true : formData.isActive !== false}
+                  disabled={isDefaultPlaylist}
                   onChange={handleCheckboxChange('isActive')}
-                  className="rounded w-4 h-4 text-cyan-500 bg-[#121929] border-slate-700 focus:ring-0 cursor-pointer"
+                  className="rounded w-4 h-4 text-cyan-500 bg-[#121929] border-slate-700 focus:ring-0"
                 />
               </label>
             </div>

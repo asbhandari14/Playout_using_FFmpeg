@@ -91,11 +91,8 @@ class SchedulerService {
 
       if (!isMatch) continue;
 
-      if (schedule.lastAiredDate === todayStr) {
-        const windowEnded = endSec > startSec
-          ? currentSecOfDay >= endSec
-          : (currentSecOfDay >= endSec && currentSecOfDay < startSec);
-        if (windowEnded) continue;
+      if (!schedule.dailyEndTime && schedule.lastAiredDate === todayStr) {
+        continue;
       }
 
       return schedule;

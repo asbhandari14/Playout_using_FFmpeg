@@ -76,8 +76,25 @@ export default function PlaylistSettingsModal({
     setErrorMsg('');
   }, [playlist, isOpen]);
 
+  const isDefaultPlaylist = formData.type === 'default';
+
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
+    if (name === 'type' && value === 'default') {
+      setFormData((prev) => ({
+        ...prev,
+        type: 'default',
+        scheduleOption: 'none',
+        startDate: '',
+        endDate: '',
+        startTime: '',
+        endTime: '',
+        daysOfWeek: [],
+        loop: true,
+        isActive: true
+      }));
+      return;
+    }
     setFormData((prev) => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : value
@@ -105,7 +122,7 @@ export default function PlaylistSettingsModal({
       return;
     }
 
-    if (formData.scheduleOption === 'date') {
+    if (!isDefaultPlaylist && formData.scheduleOption === 'date') {
       if (formData.startDate && formData.endDate && formData.startDate > formData.endDate) {
         const msg = 'Start date must be earlier than or equal to End date';
         setErrorMsg(msg);
@@ -114,7 +131,7 @@ export default function PlaylistSettingsModal({
       }
     }
 
-    if (formData.scheduleOption === 'weekly' && formData.daysOfWeek.length === 0) {
+    if (!isDefaultPlaylist && formData.scheduleOption === 'weekly' && formData.daysOfWeek.length === 0) {
       const msg = 'Please select at least one day for weekly scheduling';
       setErrorMsg(msg);
       toast.error(msg);
@@ -123,11 +140,24 @@ export default function PlaylistSettingsModal({
 
     try {
       setIsSubmitting(true);
-      await onSave({
-        ...formData,
-        startDate: formData.startDate || null,
-        endDate: formData.endDate || null
-      });
+      const payload = isDefaultPlaylist
+        ? {
+            ...formData,
+            scheduleOption: 'none',
+            startDate: null,
+            endDate: null,
+            startTime: '',
+            endTime: '',
+            daysOfWeek: [],
+            loop: true,
+            isActive: true
+          }
+        : {
+            ...formData,
+            startDate: formData.startDate || null,
+            endDate: formData.endDate || null
+          };
+      await onSave(payload);
       toast.success('Playlist schedule settings saved');
       onClose();
     } catch (err) {
@@ -224,38 +254,44 @@ export default function PlaylistSettingsModal({
         )}
 
         {/* Scheduling Mode Option */}
-        <div className="pt-2 border-t border-[#1e2535]">
-          <label className="block text-slate-300 font-semibold mb-2 flex items-center gap-1.5">
-            <Calendar size={14} className="text-blue-400" />
-            <span>Scheduling Option</span>
-          </label>
-          <div className="grid grid-cols-3 gap-2">
-            {[
-              { id: 'none', label: 'None (Manual / 24x7)', desc: 'Always eligible or baseline' },
-              { id: 'weekly', label: 'Weekly Schedule', desc: 'Recurring days of week' },
-              { id: 'date', label: 'Date Schedule', desc: 'Specific date range' }
-            ].map((opt) => (
-              <label
-                key={opt.id}
-                className={`p-2.5 rounded-lg border cursor-pointer text-center transition flex flex-col items-center justify-center ${formData.scheduleOption === opt.id
-                  ? 'bg-blue-600/15 border-blue-500 text-blue-300 font-semibold shadow-sm'
-                  : 'bg-[#0d1017] border-[#232b3c] text-slate-400 hover:border-slate-600'
-                  }`}
-              >
-                <input
-                  type="radio"
-                  name="scheduleOption"
-                  value={opt.id}
-                  checked={formData.scheduleOption === opt.id}
-                  onChange={handleChange}
-                  className="sr-only"
-                />
-                <span className="text-xs">{opt.label}</span>
-                <span className="text-[9px] opacity-70 mt-0.5">{opt.desc}</span>
-              </label>
-            ))}
+        {isDefaultPlaylist ? (
+          <div className="p-3 rounded-lg bg-emerald-950/25 border border-emerald-800/40 text-emerald-200 text-[11px] leading-relaxed">
+            Default Playlists operate continuously (24/7) as the baseline channel feed whenever no scheduled or emergency playlist is active, so date/time restrictions are locked off.
           </div>
-        </div>
+        ) : (
+          <>
+            <div className="pt-2 border-t border-[#1e2535]">
+              <label className="block text-slate-300 font-semibold mb-2 flex items-center gap-1.5">
+                <Calendar size={14} className="text-blue-400" />
+                <span>Scheduling Option</span>
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { id: 'none', label: 'None (Manual / 24x7)', desc: 'Always eligible or baseline' },
+                  { id: 'weekly', label: 'Weekly Schedule', desc: 'Recurring days of week' },
+                  { id: 'date', label: 'Date Schedule', desc: 'Specific date range' }
+                ].map((opt) => (
+                  <label
+                    key={opt.id}
+                    className={`p-2.5 rounded-lg border cursor-pointer text-center transition flex flex-col items-center justify-center ${formData.scheduleOption === opt.id
+                      ? 'bg-blue-600/15 border-blue-500 text-blue-300 font-semibold shadow-sm'
+                      : 'bg-[#0d1017] border-[#232b3c] text-slate-400 hover:border-slate-600'
+                      }`}
+                  >
+                    <input
+                      type="radio"
+                      name="scheduleOption"
+                      value={opt.id}
+                      checked={formData.scheduleOption === opt.id}
+                      onChange={handleChange}
+                      className="sr-only"
+                    />
+                    <span className="text-xs">{opt.label}</span>
+                    <span className="text-[9px] opacity-70 mt-0.5">{opt.desc}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
 
         {/* Date Schedule Fields */}
         {formData.scheduleOption === 'date' && (
@@ -348,6 +384,8 @@ export default function PlaylistSettingsModal({
             Leave blank if playlist runs the whole day during the scheduled dates/days.
           </span>
         </div>
+          </>
+        )}
 
         {/* On-Air Branding & Overlays Settings */}
         <div className="p-3 rounded-lg bg-[#0d1017] border border-[#232b3c] space-y-2.5">
@@ -449,26 +487,32 @@ export default function PlaylistSettingsModal({
 
         {/* Options: Loop & Active */}
         <div className="flex items-center justify-between p-3 rounded-lg bg-[#0d1017] border border-[#232b3c]">
-          <label className="flex items-center gap-2 cursor-pointer">
+          <label className={`flex items-center gap-2 ${isDefaultPlaylist ? 'opacity-80 cursor-not-allowed' : 'cursor-pointer'}`}>
             <input
               type="checkbox"
               name="loop"
-              checked={formData.loop}
+              checked={isDefaultPlaylist ? true : formData.loop}
+              disabled={isDefaultPlaylist}
               onChange={handleChange}
               className="rounded bg-[#141822] border-slate-700 text-blue-600 focus:ring-0"
             />
-            <span className="font-semibold text-slate-200">Loop Playback</span>
+            <span className="font-semibold text-slate-200">
+              Loop Playback {isDefaultPlaylist && <span className="text-[10px] text-emerald-400 font-normal">(Required 24/7)</span>}
+            </span>
           </label>
 
-          <label className="flex items-center gap-2 cursor-pointer">
+          <label className={`flex items-center gap-2 ${isDefaultPlaylist ? 'opacity-80 cursor-not-allowed' : 'cursor-pointer'}`}>
             <input
               type="checkbox"
               name="isActive"
-              checked={formData.isActive}
+              checked={isDefaultPlaylist ? true : formData.isActive}
+              disabled={isDefaultPlaylist}
               onChange={handleChange}
               className="rounded bg-[#141822] border-slate-700 text-blue-600 focus:ring-0"
             />
-            <span className="font-semibold text-slate-200">Enable Playlist (Active)</span>
+            <span className="font-semibold text-slate-200">
+              Enable Playlist (Active) {isDefaultPlaylist && <span className="text-[10px] text-emerald-400 font-normal">(Required)</span>}
+            </span>
           </label>
         </div>
 

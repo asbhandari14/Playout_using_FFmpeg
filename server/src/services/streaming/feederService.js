@@ -10,7 +10,7 @@ import { SERVER_ROOT } from '../../config/paths.js';
 import { PLAYLIST_ITEM_STATUS } from '../../config/constants.js';
 import { buildBackInTimerFilter } from './brandingAssets.js';
 import { killProcessTree } from '../../utils/processHelper.js';
-import { formatDuration } from '../../utils/media.js';
+import { formatDuration, probeVideo } from '../../utils/media.js';
 
 export class FeederService {
   constructor(channelId, encoderProcess, options = {}, encoder = null) {
@@ -37,6 +37,27 @@ export class FeederService {
     this.currentScheduleTargetEndTime = null;
     this.wasPreemptedByPriority = false;
     this.priorityCheckTimer = null;
+    this.audioProbeCache = new Map();
+    this.lastAppliedBrandingKey = null;
+    this.isCheckingPriority = false;
+  }
+
+  getTargetFps() {
+    return this.encoder?.channel?.outputSettings?.fps || 25;
+  }
+
+  async checkVideoHasAudio(videoPath) {
+    if (this.audioProbeCache.has(videoPath)) {
+      return this.audioProbeCache.get(videoPath);
+    }
+    try {
+      const info = await probeVideo(videoPath);
+      const hasAudio = info.hasAudio !== false;
+      this.audioProbeCache.set(videoPath, hasAudio);
+      return hasAudio;
+    } catch {
+      return true;
+    }
   }
 
   getEncoder() {
@@ -112,10 +133,13 @@ export class FeederService {
       return { index: this.currentIndex, offsetSeconds: 0 };
     }
     const elapsed = (Date.now() - this.currentAssetStartTime) / 1000;
-    const currentOffset = (this.currentOffsetAtStart || 0) + elapsed;
+    const rawOffset = (this.currentOffsetAtStart || 0) + elapsed;
+    const maxOffset = this.currentAssetDuration > 1
+      ? this.currentAssetDuration - 1
+      : Math.max(0, rawOffset);
     return {
       index: this.currentIndex,
-      offsetSeconds: Math.max(0, currentOffset)
+      offsetSeconds: Math.max(0, Math.min(rawOffset, maxOffset))
     };
   }
 
@@ -264,8 +288,13 @@ export class FeederService {
    */
   async applyPlaylistBranding(playlist) {
     if (!playlist) return;
+    const brandingKey = `${playlist._id}:${playlist.updatedAt ? new Date(playlist.updatedAt).getTime() : ''}`;
+    if (this.lastAppliedBrandingKey === brandingKey) return;
     try {
       const channelDoc = await Channel.findById(this.channelId);
+      if (channelDoc) {
+        this.lastAppliedBrandingKey = brandingKey;
+      }
       if (!channelDoc || !channelDoc.branding) return;
 
       const encoder = this.getEncoder();
@@ -329,9 +358,10 @@ export class FeederService {
    * terminates current video decoder immediately so playLoop can transition seamlessly.
    */
   async checkPriorityTransition() {
-    if (!this.isRunning || this.isScheduleActive) {
+    if (!this.isRunning || this.isScheduleActive || this.isCheckingPriority) {
       return false;
     }
+    this.isCheckingPriority = true;
 
     try {
       const targetPlaylist = await this.resolveActivePlaylist();
@@ -368,6 +398,8 @@ export class FeederService {
       }
     } catch (err) {
       console.warn(`[Feeder:${this.channelId}] Warning checking priority transition:`, err.message);
+    } finally {
+      this.isCheckingPriority = false;
     }
 
     return false;
@@ -489,16 +521,16 @@ export class FeederService {
             continue;
           }
 
-          // Mark item PLAYING
-          await Playlist.updateOne(
+          // Mark item PLAYING (non-blocking to eliminate inter-video DB gap)
+          Playlist.updateOne(
             { _id: playlist._id, 'items._id': item._id },
             { $set: { 'items.$.status': PLAYLIST_ITEM_STATUS.PLAYING } }
-          );
+          ).catch(() => { });
 
-          await Channel.findByIdAndUpdate(this.channelId, {
+          Channel.findByIdAndUpdate(this.channelId, {
             currentPlayingIndex: i,
             currentAssetId: asset._id
-          });
+          }).catch(() => { });
 
           if (io) {
             io.to(`channel:${this.channelId}`).emit('stream_item_playing', {
@@ -569,11 +601,11 @@ export class FeederService {
             continue;
           }
 
-          // Mark item PLAYED
-          await Playlist.updateOne(
+          // Mark item PLAYED (non-blocking)
+          Playlist.updateOne(
             { _id: playlist._id, 'items._id': item._id },
             { $set: { 'items.$.status': PLAYLIST_ITEM_STATUS.PLAYED } }
-          );
+          ).catch(() => { });
 
           if (io) {
             io.to(`channel:${this.channelId}`).emit('stream_item_played', {
@@ -594,16 +626,22 @@ export class FeederService {
             this.currentIndex = 0;
             continue;
           }
-          this.isRunning = false;
-          break;
+          // Default playlist must never terminate a live broadcast channel when reaching the end
+          console.warn(`[Feeder:${this.channelId}] Default playlist has loop=false; forcing continuous loop to keep channel live.`);
+          this.currentIndex = 0;
+          Playlist.updateOne(
+            { _id: playlist._id },
+            { $set: { 'items.$[].status': PLAYLIST_ITEM_STATUS.QUEUED } }
+          ).catch(() => { });
+          continue;
         }
 
-        // Reset to beginning of playlist for seamless loop
+        // Reset to beginning of playlist for seamless loop (non-blocking)
         this.currentIndex = 0;
-        await Playlist.updateOne(
+        Playlist.updateOne(
           { _id: playlist._id },
           { $set: { 'items.$[].status': PLAYLIST_ITEM_STATUS.QUEUED } }
-        );
+        ).catch(() => { });
       } catch (err) {
         console.error(`[Feeder:${this.channelId}] Playback loop error:`, err);
         await new Promise((r) => setTimeout(r, 2000));
@@ -615,46 +653,69 @@ export class FeederService {
    * Spawns decoder ffmpeg to normalize asset and stream MPEG-TS directly to encoder stdin.
    * If timerFilter is provided (during schedule ads), burns in the exact frame-accurate countdown overlay.
    */
-  streamAsset(videoPath, _duration, maxDuration = 0, timerFilter = null, seekOffset = 0) {
-    return new Promise((resolve) => {
-      if (!this.isRunning || !this.encoderProcess?.stdin?.writable) {
-        return resolve();
-      }
+  async streamAsset(videoPath, _duration, maxDuration = 0, timerFilter = null, seekOffset = 0) {
+    if (!this.isRunning || !this.encoderProcess?.stdin?.writable) {
+      return;
+    }
 
-      const startOffset = seekOffset > 0 ? seekOffset : Math.max(0, this.startOffsetSeconds || 0);
+    const hasAudio = await this.checkVideoHasAudio(videoPath);
+    if (!this.isRunning || !this.encoderProcess?.stdin?.writable) {
+      return;
+    }
+
+    return new Promise((resolve) => {
+      const fps = this.getTargetFps();
+      let startOffset = seekOffset > 0 ? seekOffset : Math.max(0, this.startOffsetSeconds || 0);
+      if (_duration > 1 && startOffset >= _duration) {
+        startOffset = 0;
+      }
       this.startOffsetSeconds = 0; // reset after initial resume
       this.currentAssetStartTime = Date.now();
       this.currentAssetDuration = _duration;
       this.currentOffsetAtStart = startOffset;
 
-      const baseVf = 'scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,fps=25';
+      const baseVf = `scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,fps=${fps}`;
       const vfArg = timerFilter ? `${baseVf},${timerFilter}` : baseVf;
 
       // Decoder process arguments
-      // Normalizes to 1280x720, 25fps, AAC, outputs mpegts on stdout
+      // Normalizes to 1280x720, <fps>, AAC stereo 44.1kHz, outputs mpegts on stdout
       const decoderArgs = [
         '-re', // Real-time native pacing
         ...(startOffset > 0 ? ['-ss', String(startOffset)] : []),
         '-i', videoPath,
+        ...(!hasAudio ? ['-f', 'lavfi', '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100'] : []),
         ...(maxDuration > 0 ? ['-t', String(maxDuration)] : []),
         '-vf', vfArg,
+        ...(!hasAudio ? ['-map', '0:v:0', '-map', '1:a:0', '-shortest'] : ['-map', '0:v:0', '-map', '0:a:0']),
         '-c:v', 'libx264',
         '-preset', 'ultrafast',
         '-tune', 'zerolatency',
         '-pix_fmt', 'yuv420p',
+        '-g', String(fps * 2),
         '-c:a', 'aac',
         '-b:a', '128k',
         '-ar', '44100',
         '-ac', '2',
+        '-muxdelay', '0',
+        '-muxpreload', '0',
         '-f', 'mpegts',
         'pipe:1'
       ];
 
       const decoder = spawn('ffmpeg', decoderArgs, {
-        stdio: ['ignore', 'pipe', 'ignore']
+        stdio: ['ignore', 'pipe', 'pipe']
       });
 
       this.currentDecoder = decoder;
+
+      if (decoder.stderr) {
+        decoder.stderr.on('data', (chunk) => {
+          const msg = chunk.toString();
+          if (/error|invalid data|failed|no such file|corrupt|unable to/i.test(msg)) {
+            console.warn(`[Feeder:${this.channelId} Decoder stderr] ${msg.trim()}`);
+          }
+        });
+      }
 
       // Real-time priority ticker: checks every second while video is decoding
       if (this.priorityCheckTimer) {
@@ -713,9 +774,10 @@ export class FeederService {
         return resolve();
       }
 
+      const fps = this.getTargetFps();
       const slateArgs = [
         '-re',
-        '-f', 'lavfi', '-i', `color=c=0x0c0e12:s=1280x720:r=25:d=${duration}`,
+        '-f', 'lavfi', '-i', `color=c=0x0c0e12:s=1280x720:r=${fps}:d=${duration}`,
         '-f', 'lavfi', '-i', `anullsrc=channel_layout=stereo:sample_rate=44100`,
         '-t', `${duration}`,
         '-c:v', 'libx264',
@@ -895,9 +957,10 @@ export class FeederService {
         this.currentDecoder.stdout.unpipe();
       } catch { }
       try {
-        this.currentDecoder.kill('SIGINT');
+        killProcessTree(this.currentDecoder);
       } catch { }
       this.currentDecoder = null;
+      await new Promise((r) => setTimeout(r, 80));
     }
 
     // 3. Emit schedule_started event to UI
