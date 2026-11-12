@@ -862,11 +862,6 @@ export const updateTickerBranding = async (req, res, next) => {
       return res.status(404).json({ message: 'Channel not found' });
     }
 
-    const previousTicker = channel.branding?.ticker || {};
-    const previousFontSize = Number(previousTicker.fontSize) || 26;
-    const previousWidth = Number(previousTicker.width) || 100;
-    const previousPaddingY = Number(previousTicker.paddingY) || 12;
-
     const updateFields = {};
     if (text !== undefined) updateFields['branding.ticker.text'] = text;
     if (bgColor !== undefined) updateFields['branding.ticker.bgColor'] = bgColor;
@@ -918,25 +913,6 @@ export const updateTickerBranding = async (req, res, next) => {
         };
       }
 
-      // Check if rendered ticker assets changed (text, colors, font, dimensions) or if forcePush / toggle-on is requested.
-      // Since FFmpeg loops ticker_bg.png and ticker.png via -loop 1 at startup, FFmpeg holds the decoded
-      // frames in memory. Updating the files on disk will NOT show on air without a seamless stream reload.
-      const norm = (s) => (s === undefined || s === null ? '' : String(s).trim());
-      const normColor = (c) => norm(c).toLowerCase();
-
-      const textChanged = text !== undefined && norm(text) !== norm(previousTicker.text);
-      const bgChanged = bgColor !== undefined && normColor(bgColor) !== normColor(previousTicker.bgColor);
-      const textColChanged = textColor !== undefined && normColor(textColor) !== normColor(previousTicker.textColor);
-      const fontChanged = fontFamily !== undefined && norm(fontFamily).toLowerCase() !== norm(previousTicker.fontFamily).toLowerCase();
-      const dimensionsChanged =
-        (fontSize !== undefined && Number(fontSize) !== previousFontSize) ||
-        (width !== undefined && Number(width) !== previousWidth) ||
-        (paddingY !== undefined && Number(paddingY) !== previousPaddingY);
-      const enableToggledOn = enabled === true && !previousTicker.enabled;
-      const isForcePush = Boolean(req.body.forcePush);
-
-      const visualAssetsChanged = textChanged || bgChanged || textColChanged || fontChanged || dimensionsChanged;
-
       if (stream.feeder?.isScheduleActive && stream.feeder.scheduleBrandingSnapshot) {
         if (enabled !== undefined) {
           stream.feeder.scheduleBrandingSnapshot.ticker.enabled = !!enabled;
@@ -947,7 +923,7 @@ export const updateTickerBranding = async (req, res, next) => {
         // Keep ticker suppressed on air while schedule is active
         await stream.encoder.setTickerEnabled(false);
       } else {
-        // Dynamically adjust ticker position, crop width, scale height, and visibility via ZMQ with zero stream restart
+        // Dynamically adjust ticker position, crop width, text scroll expression, and visibility via ZMQ with zero stream restart
         const shouldShowTicker = currentTicker.enabled !== false;
         await stream.encoder.setTickerPosition(
           currentTicker.marginBottom,
@@ -956,7 +932,9 @@ export const updateTickerBranding = async (req, res, next) => {
           tickerMeta,
           { reposition: shouldShowTicker }
         );
-        await stream.encoder.setTickerEnabled(shouldShowTicker);
+        if (!shouldShowTicker) {
+          await stream.encoder.setTickerEnabled(false);
+        }
       }
     }
 

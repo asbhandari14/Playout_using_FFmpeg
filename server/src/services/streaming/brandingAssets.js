@@ -121,7 +121,7 @@ export const safeWriteFileSync = (filePath, buffer, retries = 8, delayMs = 40) =
   }
 };
 
-export const safeWriteFile = async (filePath, buffer, retries = 5, delayMs = 50) => {
+export const safeWriteFile = async (filePath, buffer, retries = 20, delayMs = 25) => {
   return safeWriteFileSync(filePath, buffer, retries, delayMs);
 };
 
@@ -179,11 +179,15 @@ export const resolveTickerFont = (fontFamily = '') => {
   }
 };
 
+export const TICKER_CANVAS_BG_WIDTH = 1280;
+export const TICKER_CANVAS_TEXT_WIDTH = 6144;
+export const TICKER_CANVAS_HEIGHT = 128;
+
 /**
  * Render ticker crawl text to transparent PNG using sharp + SVG with Unicode/Hindi support.
- * Renders two files:
- * 1. ticker_bg.png: STATIC full-width background bar (1280px wide) that remains motionless at the bottom.
- * 2. ticker.png: MOVING transparent text strip that scrolls smoothly over the static background.
+ * Uses constant canvas dimensions (1280x128 for ticker_bg.png, 6144x128 for ticker.png)
+ * with content bottom-aligned so updating text/fontSize/paddingY live on air NEVER changes
+ * FFmpeg input stream dimensions or triggers filtergraph reinitialization.
  */
 export const renderTickerImage = async ({
   text = '',
@@ -221,16 +225,21 @@ export const renderTickerImage = async ({
 
   // Small text threshold: short tags (e.g. < 15 chars like "LIVE", "BREAKING") crawl with an empty section.
   // Reasonable length text (>= 15 chars) renders in an infinite seamless loop with zero empty section at any time.
-  const isSmallText = cleanText.length < 15;
+  let isSmallText = cleanText.length < 15;
 
-  const safeFontSize = Math.max(10, Math.min(80, Number(fontSize) || 26));
-  const rawPaddingY = Number(paddingY);
-  const safePaddingY = Math.max(0, Math.min(60, Number.isFinite(rawPaddingY) ? rawPaddingY : 12));
-  const canvasWidth = 1280;
+  const rawFontSize = Math.max(10, Math.min(80, Number(fontSize) || 26));
+  const rawPadY = Number(paddingY);
+  const rawPaddingY = Math.max(0, Math.min(60, Number.isFinite(rawPadY) ? rawPadY : 12));
+  const rawHeight = Math.round(rawFontSize + rawPaddingY * 2);
+  const heightScale = rawHeight > TICKER_CANVAS_HEIGHT ? (TICKER_CANVAS_HEIGHT / rawHeight) : 1;
+  const safeFontSize = Math.max(10, Math.round(rawFontSize * heightScale));
+  const tickerHeight = Math.max(20, Math.min(TICKER_CANVAS_HEIGHT, rawHeight));
+  const barY = TICKER_CANVAS_HEIGHT - tickerHeight;
+  const localYPos = Math.round(tickerHeight / 2 + safeFontSize * 0.35);
+  const yPos = barY + localYPos;
+
   const wp = Math.max(30, Math.min(100, Number(widthPercent) || 100));
-  const barWidth = Math.round((canvasWidth * wp) / 100);
-  const tickerHeight = Math.round(safeFontSize + safePaddingY * 2);
-  const yPos = Math.round(tickerHeight / 2 + safeFontSize * 0.35);
+  const barWidth = Math.round((TICKER_CANVAS_BG_WIDTH * wp) / 100);
 
   const fontDef = resolveTickerFont(fontFamily);
 
@@ -244,7 +253,7 @@ export const renderTickerImage = async ({
 
   // Measure text pixel width using Sharp
   const textMeasureSvg = `<svg width="8000" height="${tickerHeight}" xmlns="http://www.w3.org/2000/svg">
-    <text x="0" y="${yPos}" font-family='${fontDef}' font-size="${safeFontSize}px" font-weight="bold">${escapedText}</text>
+    <text x="0" y="${localYPos}" font-family='${fontDef}' font-size="${safeFontSize}px" font-weight="bold">${escapedText}</text>
   </svg>`;
   const textTrimmed = await sharp(Buffer.from(textMeasureSvg))
     .trim({ background: 'rgba(0,0,0,0)' })
@@ -258,55 +267,26 @@ export const renderTickerImage = async ({
     fs.mkdirSync(dir, { recursive: true });
   }
 
-  // 1. Render STATIC Background Bar: ticker_bg.png (full canvasWidth wide, cropped dynamically by crop@tick_crop)
+  // 1. Render STATIC Background Bar inside constant 1280x128 canvas (bottom-aligned at barY..128)
   const bgPath = path.join(dir, 'ticker_bg.png');
   const bgRadius = wp < 100 ? 8 : 0;
-  const bgWidth = Math.max(canvasWidth, barWidth);
+  const bgRectWidth = Math.min(TICKER_CANVAS_BG_WIDTH, Math.max(100, barWidth));
   const bgSvg = `
-    <svg width="${bgWidth}" height="${tickerHeight}" xmlns="http://www.w3.org/2000/svg">
-      <rect width="100%" height="100%" fill="${cleanBgColor}" rx="${bgRadius}" />
-      <line x1="0" y1="0" x2="${bgWidth}" y2="0" stroke="rgba(255,255,255,0.18)" stroke-width="1" />
+    <svg width="${TICKER_CANVAS_BG_WIDTH}" height="${TICKER_CANVAS_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
+      <rect x="0" y="${barY}" width="${bgRectWidth}" height="${tickerHeight}" fill="${cleanBgColor}" rx="${bgRadius}" />
+      <line x1="0" y1="${barY}" x2="${bgRectWidth}" y2="${barY}" stroke="rgba(255,255,255,0.18)" stroke-width="1" />
     </svg>
   `;
-  const bgBuffer = await sharp(Buffer.from(bgSvg)).png().toBuffer();
-  await safeWriteFile(bgPath, bgBuffer);
 
-  let tickerWidth = 0;
+  let contentWidth = 0;
   let unitWidth = 0;
   let textSvg = '';
 
-  if (isSmallText) {
-    // Very small text: crawl across with empty section W - mod(t * scrollSpeed, W + w)
-    const paddingX = Math.max(40, Math.round(safeFontSize * 1.5));
-    tickerWidth = Math.max(300, textWidth + paddingX * 2);
-    unitWidth = tickerWidth;
-
-    textSvg = `
-      <svg width="${tickerWidth}" height="${tickerHeight}" xmlns="http://www.w3.org/2000/svg">
-        <style>
-          text {
-            fill: ${cleanTextColor} !important;
-            fill-opacity: 1 !important;
-            color: ${cleanTextColor} !important;
-          }
-        </style>
-        <text
-          x="${paddingX}"
-          y="${yPos}"
-          fill="${cleanTextColor}"
-          style="fill: ${cleanTextColor} !important; color: ${cleanTextColor} !important;"
-          font-family='${fontDef}'
-          font-size="${safeFontSize}px"
-          font-weight="bold"
-          text-anchor="start"
-        >${escapedText}</text>
-      </svg>
-    `;
-  } else {
+  if (!isSmallText) {
     // Reasonable length text: INFINITE seamless scrolling with NO empty section at any time
-    // Measure star separator width
+    // Measure separator width
     const starMeasureSvg = `<svg width="200" height="${tickerHeight}" xmlns="http://www.w3.org/2000/svg">
-      <text x="0" y="${yPos}" font-family='${fontDef}' font-size="${safeFontSize}px" font-weight="bold"> </text>
+      <text x="0" y="${localYPos}" font-family='${fontDef}' font-size="${safeFontSize}px" font-weight="bold"> </text>
     </svg>`;
     const starTrimmed = await sharp(Buffer.from(starMeasureSvg))
       .trim({ background: 'rgba(0,0,0,0)' })
@@ -318,40 +298,76 @@ export const renderTickerImage = async ({
     unitWidth = textWidth + gap + starWidth + gap;
     if (unitWidth % 2 !== 0) unitWidth += 1;
 
-    // Number of repetitions required so that the visible bar is ALWAYS 100% covered across all time t
-    const repeatCount = Math.max(3, Math.ceil((barWidth + unitWidth * 2) / unitWidth) + 1);
-    tickerWidth = repeatCount * unitWidth;
+    if (unitWidth + barWidth <= TICKER_CANVAS_TEXT_WIDTH) {
+      const repeatCount = Math.max(2, Math.ceil((barWidth + unitWidth) / unitWidth));
+      contentWidth = repeatCount * unitWidth;
 
-    let itemsSvg = '';
-    for (let k = 0; k < repeatCount; k++) {
-      const xText = k * unitWidth;
-      const xStar = xText + textWidth + gap;
-      itemsSvg += `
-        <text
-          x="${xText}"
-          y="${yPos}"
-          fill="${cleanTextColor}"
-          style="fill: ${cleanTextColor} !important; color: ${cleanTextColor} !important;"
-          font-family='${fontDef}'
-          font-size="${safeFontSize}px"
-          font-weight="bold"
-          text-anchor="start"
-        >${escapedText}</text>
-        <text
-          x="${xStar}"
-          y="${yPos}"
-          fill="${cleanTextColor}"
-          style="fill: ${cleanTextColor} !important; color: ${cleanTextColor} !important;"
-          font-family='${fontDef}'
-          font-size="${safeFontSize}px"
-          font-weight="bold"
-          text-anchor="start"
-        > </text>
+      let itemsSvg = '';
+      for (let k = 0; k < repeatCount; k++) {
+        const xText = k * unitWidth;
+        const xStar = xText + textWidth + gap;
+        itemsSvg += `
+          <text
+            x="${xText}"
+            y="${yPos}"
+            fill="${cleanTextColor}"
+            style="fill: ${cleanTextColor} !important; color: ${cleanTextColor} !important;"
+            font-family='${fontDef}'
+            font-size="${safeFontSize}px"
+            font-weight="bold"
+            text-anchor="start"
+          >${escapedText}</text>
+          <text
+            x="${xStar}"
+            y="${yPos}"
+            fill="${cleanTextColor}"
+            style="fill: ${cleanTextColor} !important; color: ${cleanTextColor} !important;"
+            font-family='${fontDef}'
+            font-size="${safeFontSize}px"
+            font-weight="bold"
+            text-anchor="start"
+          > </text>
+        `;
+      }
+
+      textSvg = `
+        <svg width="${TICKER_CANVAS_TEXT_WIDTH}" height="${TICKER_CANVAS_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <clipPath id="tickBarClip">
+              <rect x="0" y="${barY}" width="${TICKER_CANVAS_TEXT_WIDTH}" height="${tickerHeight}" />
+            </clipPath>
+          </defs>
+          <style>
+            text {
+              fill: ${cleanTextColor} !important;
+              fill-opacity: 1 !important;
+              color: ${cleanTextColor} !important;
+            }
+          </style>
+          <g clip-path="url(#tickBarClip)">
+            ${itemsSvg}
+          </g>
+        </svg>
       `;
+    } else {
+      // Ultra-long headline where 2 copies exceed fixed canvas width: fall back to smooth crawl gap
+      isSmallText = true;
     }
+  }
+
+  if (isSmallText) {
+    // Very small or ultra-long text: crawl cleanly with W - mod(t * scrollSpeed, W + contentWidth)
+    const paddingX = Math.max(40, Math.round(safeFontSize * 1.5));
+    contentWidth = Math.min(TICKER_CANVAS_TEXT_WIDTH, Math.max(300, textWidth + paddingX * 2));
+    unitWidth = contentWidth;
 
     textSvg = `
-      <svg width="${tickerWidth}" height="${tickerHeight}" xmlns="http://www.w3.org/2000/svg">
+      <svg width="${TICKER_CANVAS_TEXT_WIDTH}" height="${TICKER_CANVAS_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <clipPath id="tickBarClip">
+            <rect x="0" y="${barY}" width="${contentWidth}" height="${tickerHeight}" />
+          </clipPath>
+        </defs>
         <style>
           text {
             fill: ${cleanTextColor} !important;
@@ -359,20 +375,38 @@ export const renderTickerImage = async ({
             color: ${cleanTextColor} !important;
           }
         </style>
-        ${itemsSvg}
+        <g clip-path="url(#tickBarClip)">
+          <text
+            x="${paddingX}"
+            y="${yPos}"
+            fill="${cleanTextColor}"
+            style="fill: ${cleanTextColor} !important; color: ${cleanTextColor} !important;"
+            font-family='${fontDef}'
+            font-size="${safeFontSize}px"
+            font-weight="bold"
+            text-anchor="start"
+          >${escapedText}</text>
+        </g>
       </svg>
     `;
   }
 
-  // 2. Render MOVING Text: ticker.png
-  const textBuffer = await sharp(Buffer.from(textSvg)).png().toBuffer();
+  // Render BOTH buffers in memory first so bg and text swap together without transient height mismatch
+  const [bgBuffer, textBuffer] = await Promise.all([
+    sharp(Buffer.from(bgSvg)).png().toBuffer(),
+    sharp(Buffer.from(textSvg)).png().toBuffer()
+  ]);
+
+  await safeWriteFile(bgPath, bgBuffer);
   await safeWriteFile(outputPath, textBuffer);
 
   return {
     outputPath,
     bgPath,
-    width: tickerWidth,
-    height: tickerHeight,
+    width: TICKER_CANVAS_TEXT_WIDTH,
+    contentWidth,
+    height: TICKER_CANVAS_HEIGHT,
+    tickerHeight,
     unitWidth,
     isSmallText,
     barWidth

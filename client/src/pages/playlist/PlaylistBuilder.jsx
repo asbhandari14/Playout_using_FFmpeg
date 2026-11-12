@@ -592,16 +592,16 @@ export default function PlaylistBuilder({
       </div>
 
       {/* Main 3-Column Responsive Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 2xl:gap-4 lg:h-[calc(100vh-145px)] lg:min-h-[480px]">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 2xl:gap-4 lg:h-[calc(100vh-155px)] lg:min-h-120">
         {/* ========================================================
             COLUMN 1: UPLOADED VIDEOS (Left, 4 cols)
             ======================================================== */}
-        <div className="lg:col-span-4 h-full flex flex-col bg-[#0b0e17] border border-[#182032] rounded-2xl overflow-hidden shadow-2xl">
+        <div className="lg:col-span-3 h-full flex flex-col bg-[#0b0e17] border border-[#182032] rounded-2xl overflow-hidden shadow-2xl">
           {/* Column 1 Header */}
           <div className="p-3.5 border-b border-[#182032] bg-[#0e121e] flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Film size={16} className="text-cyan-400" />
-              <h2 className="text-xs font-bold uppercase tracking-wider text-slate-200">
+              <h2 className="text-xs font-medium text-slate-200">
                 Uploaded Videos
               </h2>
               <span className="font-mono text-[10px] px-2 py-0.5 rounded-full bg-[#161d2d] text-cyan-300 font-semibold border border-[#212c44]">
@@ -610,14 +610,14 @@ export default function PlaylistBuilder({
             </div>
 
             <div className="flex items-center gap-2">
-              <button
+              {/* <button
                 type="button"
                 onClick={() => fetchVideos(currentChannelId)}
                 title="Refresh videos"
                 className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-[#182032] transition cursor-pointer"
               >
                 <RefreshCw size={13} className={loadingVideos ? 'animate-spin text-cyan-400' : ''} />
-              </button>
+              </button> */}
 
               <button
                 type="button"
@@ -626,7 +626,7 @@ export default function PlaylistBuilder({
                 className="px-2.5 py-1 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-black font-bold text-[11px] flex items-center gap-1 transition shadow-sm cursor-pointer disabled:opacity-50"
               >
                 <Upload size={12} />
-                <span>Upload</span>
+                {/* <span>Upload</span> */}
               </button>
               <input
                 ref={fileInputRef}
@@ -1054,7 +1054,7 @@ export default function PlaylistBuilder({
         {/* ========================================================
             COLUMN 3: CONFIGURATION FORM (Right, 3 cols)
             ======================================================== */}
-        <div className="lg:col-span-3 h-full flex flex-col bg-[#0b0e17] border border-[#182032] rounded-2xl overflow-hidden shadow-2xl">
+        <div className="lg:col-span-4 h-full flex flex-col bg-[#0b0e17] border border-[#182032] rounded-2xl overflow-hidden shadow-2xl">
           {/* Column 3 Header */}
           <div className="p-3.5 border-b border-[#182032] bg-[#0e121e] flex items-center justify-between">
             <div className="flex items-center gap-2">

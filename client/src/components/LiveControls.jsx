@@ -887,7 +887,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                 Logo Position
               </span>
 
-              <div className="relative aspect-video max-h-[115px] xl:max-h-[125px] 2xl:max-h-[155px] w-full mx-auto bg-[#090c12] border border-[#222938] rounded-lg 2xl:rounded-xl flex items-center justify-center p-2">
+              <div className="relative aspect-video max-h-28.75 xl:max-h-31.25 2xl:max-h-38.75 w-full mx-auto bg-[#090c12] border border-[#222938] rounded-lg 2xl:rounded-xl flex items-center justify-center p-2">
                 {/* Top-Left */}
                 <button
                   onClick={() => {
@@ -1144,7 +1144,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                 onPointerDown={handleBugPadPointerDown}
                 onPointerMove={handleBugPadPointerMove}
                 onPointerUp={handleBugPadPointerUp}
-                className="relative aspect-video max-h-[115px] xl:max-h-[125px] 2xl:max-h-[155px] w-full mx-auto bg-[#090c12] border border-[#222938] rounded-lg 2xl:rounded-xl overflow-hidden cursor-crosshair select-none touch-none shadow-inner"
+                className="relative aspect-video max-h-28.75 xl:max-h-31.25 2xl:max-h-38.75 w-full mx-auto bg-[#090c12] border border-[#222938] rounded-lg 2xl:rounded-xl overflow-hidden cursor-crosshair select-none touch-none shadow-inner"
                 title="Click or drag anywhere to place the bug"
               >
                 {/* Rule of thirds / Alignment guide lines */}
@@ -1537,7 +1537,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                 </span>
               </div>
 
-              <div className="relative aspect-video max-h-[115px] xl:max-h-[125px] 2xl:max-h-[155px] w-full mx-auto bg-[#090c12] border border-[#222938] rounded-lg 2xl:rounded-xl flex items-center justify-center p-2 overflow-hidden">
+              <div className="relative aspect-video max-h-28.75 xl:max-h-31.25 2xl:max-h-38.75 w-full mx-auto bg-[#090c12] border border-[#222938] rounded-lg 2xl:rounded-xl flex items-center justify-center p-2 overflow-hidden">
                 <div
                   className={`absolute px-2 py-1 2xl:px-3 2xl:py-1.5 rounded-md font-mono font-bold text-[10px] 2xl:text-xs shadow-lg flex items-center gap-1 transition-all ${timerPosition === 'top-left'
                     ? 'top-2 left-2'

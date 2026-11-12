@@ -3,7 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import * as zmq from 'zeromq';
 import sharp from 'sharp';
-import { ensureBrandingFiles, renderTickerImage, generateDefaultAshtonSvg, safeWriteFileSync } from './brandingAssets.js';
+import { ensureBrandingFiles, renderTickerImage, generateDefaultAshtonSvg, safeWriteFileSync, TICKER_CANVAS_HEIGHT } from './brandingAssets.js';
 import { STREAMS_DIR, SERVER_ROOT } from '../../config/paths.js';
 import { sanitizeStreamKey } from '../flussonicService.js';
 import { probeVideo } from '../../utils/media.js';
@@ -369,38 +369,39 @@ export class EncoderService {
     const bLband = this.channel?.branding?.lband || {};
     const bAshton = this.channel?.branding?.ashton || {};
 
+    const canvasW = this.canvasWidth || 1280;
+    const canvasH = this.canvasHeight || 720;
+    const activeTickH = this.getActiveTickerScaleHeight();
+
     const align = (alignment || bTick.alignment || 'center').toLowerCase();
     const wp = Math.max(30, Math.min(100, Number(bTick.width) || 100));
 
-    // Crawl scrolling speed in pixels per second (speed 1..10 maps to 70..295 px/s)
+    // Crawl scrolling speed in pixels per second (speed 1..10 maps to 35..260 px/s)
     const s = Math.max(1, Math.min(10, Number(speed) || 3));
     const scrollSpeed = Math.round(10 + s * 25);
-
-    // Text crawling expression:
-    // If small text (< 15 chars): crawl across with empty section W - mod(t * scrollSpeed, W + w)
-    // If reasonable length: continuous infinite seamless crawl with NO empty section at any time: 0 - mod(t * scrollSpeed, unitWidth)
-    let xTextExpr;
-    if (meta.isSmallText) {
-      xTextExpr = `W-mod(t*${scrollSpeed},W+w)`;
-    } else {
-      const u = meta.unitWidth || 350;
-      xTextExpr = `0-mod(t*${scrollSpeed},${u})`;
-    }
 
     const isLbandActive = lbandOverride !== null ? !!lbandOverride : !!bLband.enabled;
     const isAshtonActive = !!bAshton.enabled;
 
+    const computeBarX = (containerX, containerW, barW) => {
+      if (align === 'center') {
+        return `${containerX + Math.max(0, Math.round((containerW - barW) / 2))}`;
+      }
+      if (align === 'right') {
+        return `${containerX + Math.max(0, containerW - barW)}`;
+      }
+      return `${containerX}`;
+    };
+
+    // Use explicit numeric X/Y expressions rather than overlay variables w/h because
+    // vf_overlay caches w/h at filtergraph init and does not refresh them after ZMQ crop/scale updates.
     let xBarExpr = '0';
-    let yBarExpr = 'H-h';
-    let targetWidth = 1280;
+    let yBarExpr = `${canvasH - activeTickH}`;
+    let targetWidth = canvasW;
 
     if (isLbandActive) {
       // CASE 1: L-Band is active on air
       // Video is squeezed into cutout window [windowX, windowY, windowWidth, windowHeight]
-      // Ticker appears strictly IN THE REGION TILL WHICH THE VIDEO APPEARS:
-      // - Left edge starts at windowX
-      // - Width constrained to windowWidth
-      // - Bottom edge aligned to the bottom of the video region (windowY + windowHeight)
       const winX = Number(bLband.windowX !== undefined ? bLband.windowX : 300);
       const winY = Number(bLband.windowY !== undefined ? bLband.windowY : 20);
       const winW = Number(bLband.windowWidth || 960);
@@ -412,57 +413,38 @@ export class EncoderService {
 
       const mb = Math.max(0, Math.round((winH * Number(mbPercent || 0)) / 100));
       const videoBottom = winY + winH;
-
-      if (isAshtonActive) {
-        const ashtonH = Number(bAshton.height) || 160;
-        const bottomOffset = ashtonH + mb;
-        yBarExpr = `${videoBottom}-h-${bottomOffset}`;
-      } else {
-        yBarExpr = mb > 0 ? `${videoBottom}-h-${mb}` : `${videoBottom}-h`;
-      }
-
-      if (align === 'center') {
-        const offset = Math.max(0, Math.round((winW - targetWidth) / 2));
-        xBarExpr = `${winX + offset}`;
-      } else if (align === 'left') {
-        xBarExpr = `${winX}`;
-      } else if (align === 'right') {
-        xBarExpr = `${winX + winW - targetWidth}`;
-      }
+      const bottomOffset = isAshtonActive ? ((Number(bAshton.height) || 160) + mb) : mb;
+      yBarExpr = `${videoBottom - activeTickH - bottomOffset}`;
+      xBarExpr = computeBarX(winX, winW, targetWidth);
     } else if (isAshtonActive) {
       // CASE 2: Ashton Band is active on air
-      // Lower third banner graphic is at the bottom of the screen (height = ashtonH)
-      // Ticker must appear directly ABOVE THE ASHTON BAND:
-      // y = H - ashtonH - h - mb
+      // Lower third banner graphic sits at the bottom of the screen (height = ashtonH)
       const ashtonH = Number(bAshton.height) || 160;
-      const mb = Math.max(0, Math.round((720 * Number(mbPercent || 0)) / 100));
+      const mb = Math.max(0, Math.round((canvasH * Number(mbPercent || 0)) / 100));
 
-      targetWidth = Math.round((1280 * wp) / 100);
+      targetWidth = Math.round((canvasW * wp) / 100);
       if (targetWidth % 2 !== 0) targetWidth += 1;
-      const bottomOffset = ashtonH + mb;
-      yBarExpr = `H-h-${bottomOffset}`;
-
-      if (align === 'center') {
-        xBarExpr = '(W-w)/2';
-      } else if (align === 'left') {
-        xBarExpr = '0';
-      } else if (align === 'right') {
-        xBarExpr = 'W-w';
-      }
+      yBarExpr = `${canvasH - activeTickH - (ashtonH + mb)}`;
+      xBarExpr = computeBarX(0, canvasW, targetWidth);
     } else {
       // CASE 3: Normal mode (full screen video, no L-Band, no Ashton Band)
-      const mb = Math.max(0, Math.round((720 * Number(mbPercent || 0)) / 100));
-      yBarExpr = mb > 0 ? `H-h-${mb}` : 'H-h';
-      targetWidth = Math.round((1280 * wp) / 100);
+      const mb = Math.max(0, Math.round((canvasH * Number(mbPercent || 0)) / 100));
+      targetWidth = Math.round((canvasW * wp) / 100);
       if (targetWidth % 2 !== 0) targetWidth += 1;
+      yBarExpr = `${canvasH - activeTickH - mb}`;
+      xBarExpr = computeBarX(0, canvasW, targetWidth);
+    }
 
-      if (align === 'center') {
-        xBarExpr = '(W-w)/2';
-      } else if (align === 'left') {
-        xBarExpr = '0';
-      } else if (align === 'right') {
-        xBarExpr = 'W-w';
-      }
+    // Text crawling expression:
+    // Small text enters from the visible cropped bar width (targetWidth) so narrow bars don't wait in silence;
+    // longer/repeated text scrolls seamlessly by unitWidth.
+    let xTextExpr;
+    if (meta.isSmallText) {
+      const cw = meta.contentWidth || 'w';
+      xTextExpr = `${targetWidth}-mod(t*${scrollSpeed},${targetWidth}+${cw})`;
+    } else {
+      const u = meta.unitWidth || 350;
+      xTextExpr = `0-mod(t*${scrollSpeed},${u})`;
     }
 
     return {
@@ -641,7 +623,7 @@ export class EncoderService {
     const tickBarX = tickEnabled ? tickPos.bar.x : '-5000';
     const tickBarY = tickEnabled ? tickPos.bar.y : '-5000';
 
-    const tickBaseHeight = Math.round(Number(bTick.fontSize || 26) + Number(bTick.paddingY || 12) * 2);
+    const tickBaseHeight = TICKER_CANVAS_HEIGHT;
     let activeVidH = canvasH;
     if (lbandEnabled) {
       activeVidH = targetH;
@@ -650,6 +632,7 @@ export class EncoderService {
     }
     const squeezedTickH = Math.max(16, Math.round(tickBaseHeight * (activeVidH / canvasH)));
     const initTickH = (lbandEnabled || (ashtonEnabled && ashtonSqueeze)) ? squeezedTickH : tickBaseHeight;
+    this.lastTickerScaleHeight = initTickH;
 
     // Complex filter with ZMQ broker and dynamic DVE squeeze + overlay filters:
     // 1. Moving ticker text over static background bar
@@ -737,20 +720,21 @@ export class EncoderService {
       '-probesize', '1000000',
       '-analyzeduration', '1500000',
       '-f', 'mpegts', '-i', 'pipe:0',
+      // Use image2 -loop 1 with a small thread_queue_size so img2dec re-reads updated PNGs from disk every frame without EOF stalls
       // Input 1: Dynamic looping logo.png (live reloadable without stream restart)
-      '-stream_loop', '-1', '-f', 'image2', '-framerate', String(fps), '-i', this.logoFile,
+      '-f', 'image2', '-loop', '1', '-thread_queue_size', '4', '-framerate', String(fps), '-i', this.logoFile,
       // Input 2: Dynamic looping ticker_bg.png (STATIC BACKGROUND BAR)
-      '-stream_loop', '-1', '-f', 'image2', '-framerate', String(fps), '-i', this.tickerBgFile,
+      '-f', 'image2', '-loop', '1', '-thread_queue_size', '4', '-framerate', String(fps), '-i', this.tickerBgFile,
       // Input 3: Dynamic looping ticker.png (MOVING TEXT OVERLAY)
-      '-stream_loop', '-1', '-f', 'image2', '-framerate', String(fps), '-i', this.tickerFile,
+      '-f', 'image2', '-loop', '1', '-thread_queue_size', '4', '-framerate', String(fps), '-i', this.tickerFile,
       // Input 4: Dynamic looping lband.png (L-BAND GRAPHIC WITH TRANSPARENT CUTOUT)
-      '-stream_loop', '-1', '-f', 'image2', '-framerate', String(fps), '-i', this.lbandFile,
+      '-f', 'image2', '-loop', '1', '-thread_queue_size', '4', '-framerate', String(fps), '-i', this.lbandFile,
       // Input 5: Dynamic looping ashton.png (ASHTON BAND LOWER THIRD)
-      '-stream_loop', '-1', '-f', 'image2', '-framerate', String(fps), '-i', this.ashtonFile,
-      // Input 6: Station Bug (video MOV via -stream_loop -1, animated GIF via -ignore_loop 0, or static image via dynamic loop)
+      '-f', 'image2', '-loop', '1', '-thread_queue_size', '4', '-framerate', String(fps), '-i', this.ashtonFile,
+      // Input 6: Station Bug (video MOV via -stream_loop -1, animated GIF via -ignore_loop 0, or static image via image2 -loop 1)
       ...(this.isBugMov
         ? ['-stream_loop', '-1', '-i', this.bugFile]
-        : (this.isBugGif ? ['-ignore_loop', '0', '-i', this.bugFile] : ['-stream_loop', '-1', '-f', 'image2', '-framerate', String(fps), '-i', this.bugFile])),
+        : (this.isBugGif ? ['-ignore_loop', '0', '-i', this.bugFile] : ['-f', 'image2', '-loop', '1', '-thread_queue_size', '4', '-framerate', String(fps), '-i', this.bugFile])),
       // Filtergraph
       '-filter_complex', filtergraph,
       '-map', '[vout]',
@@ -1003,6 +987,9 @@ export class EncoderService {
         const [reply] = await Promise.race([receivePromise, timeoutPromise]);
         clearTimeout(timeoutHandle);
         const res = reply ? reply.toString().trim() : '';
+        if (res && !res.startsWith('0')) {
+          console.warn(`[Encoder ZMQ] Command '${commandString}' returned error: ${res}`);
+        }
         return res;
       } catch (err) {
         clearTimeout(timeoutHandle);
@@ -1230,8 +1217,9 @@ export class EncoderService {
       const bTick = this.channel.branding.ticker;
       const expr = this.getTickerPositionExpressions(
         bTick.marginBottom !== undefined ? bTick.marginBottom : 0,
-        bTick.speed || 3,
-        bTick.alignment || 'center'
+        bTick.speed ?? 3,
+        bTick.alignment || 'center',
+        this.tickerMeta
       );
       if (expr.bar.width) {
         await this.sendZmqCommand(`crop@tick_crop w ${expr.bar.width}`);
@@ -1244,8 +1232,7 @@ export class EncoderService {
     }
   }
 
-  getActiveTickerScaleHeight(bTick = null) {
-    const tickCfg = bTick || this.channel?.branding?.ticker || {};
+  getActiveTickerScaleHeight() {
     const bLband = this.channel?.branding?.lband;
     const isLbandActive = !!bLband?.enabled;
     const bAshton = this.channel?.branding?.ashton;
@@ -1258,10 +1245,7 @@ export class EncoderService {
     if (ashtonH % 2 !== 0) ashtonH -= 1;
     const ashtonVidH = Math.max(20, canvasH - ashtonH);
 
-    const fontSize = Math.max(10, Math.min(80, Number(tickCfg.fontSize) || 26));
-    const rawPadY = Number(tickCfg.paddingY);
-    const paddingY = Math.max(0, Math.min(60, Number.isFinite(rawPadY) ? rawPadY : 12));
-    const tickBaseHeight = Math.round(fontSize + paddingY * 2);
+    const tickBaseHeight = TICKER_CANVAS_HEIGHT;
 
     let activeTickH = tickBaseHeight;
     if (isLbandActive) {
@@ -1292,8 +1276,11 @@ export class EncoderService {
     if (expr.bar.width) {
       await this.sendZmqCommand(`crop@tick_crop w ${expr.bar.width}`);
     }
-    const activeTickH = this.getActiveTickerScaleHeight(this.channel.branding.ticker);
-    await this.sendZmqCommand(`scale@tick_scale h ${activeTickH}`).catch(() => { });
+    const activeTickH = this.getActiveTickerScaleHeight();
+    if (activeTickH !== this.lastTickerScaleHeight) {
+      this.lastTickerScaleHeight = activeTickH;
+      await this.sendZmqCommand(`scale@tick_scale h ${activeTickH}`).catch(() => { });
+    }
     if (reposition) {
       await this.sendZmqCommand(`overlay@tick x ${expr.bar.x}`);
       await this.sendZmqCommand(`overlay@tick y ${expr.bar.y}`);
@@ -1319,7 +1306,8 @@ export class EncoderService {
     await this.sendZmqCommand(`overlay@tick x ${expr.bar.x}`);
     await this.sendZmqCommand(`overlay@tick y ${expr.bar.y}`);
 
-    const activeTickH = this.getActiveTickerScaleHeight(bTick);
+    const activeTickH = this.getActiveTickerScaleHeight();
+    this.lastTickerScaleHeight = activeTickH;
     await this.sendZmqCommand(`scale@tick_scale h ${activeTickH}`).catch(() => { });
 
     return this.sendZmqCommand(`overlay@ticktext x ${expr.text.x}`);
@@ -1348,7 +1336,7 @@ export class EncoderService {
     const wp = Math.max(30, Math.min(100, Number(bTick.width) || 100));
     const mbPercent = Number(bTick.marginBottom || 0);
 
-    const tickBaseHeight = Math.round(Number(bTick.fontSize || 26) + Number(bTick.paddingY || 12) * 2);
+    const tickBaseHeight = TICKER_CANVAS_HEIGHT;
     let squeezedTickH = Math.max(16, Math.round(tickBaseHeight * (targetH / canvasH)));
     if (squeezedTickH % 2 !== 0) squeezedTickH += 1;
 
@@ -1412,7 +1400,7 @@ export class EncoderService {
     const wp = Math.max(30, Math.min(100, Number(bTick.width) || 100));
     const mbPercent = Number(bTick.marginBottom || 0);
 
-    const tickBaseHeight = Math.round(Number(bTick.fontSize || 26) + Number(bTick.paddingY || 12) * 2);
+    const tickBaseHeight = TICKER_CANVAS_HEIGHT;
 
     let w0 = Math.round((canvasW * wp) / 100);
     if (w0 % 2 !== 0) w0 += 1;
