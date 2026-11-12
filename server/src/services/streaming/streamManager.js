@@ -443,7 +443,7 @@ class StreamManager {
    * Instantly fire L-Band for a given duration (default 60s), then automatically close
    */
   async fireLBand(channelId, duration = 60, customImagePath = null, cutout = null) {
-    const dur = Math.max(5, Math.min(3600, Number(duration) || 60));
+    const dur = Math.max(1, Math.min(3600, Number(duration) || 60));
     const channelIdStr = String(channelId);
     console.log(`[StreamManager] 🔥 Quick Fire L-Band triggered for channel ${channelIdStr} (${dur}s duration)`);
 
@@ -606,7 +606,7 @@ class StreamManager {
    * Instantly fire Ashton Band for a given duration (default 60s), then automatically close
    */
   async fireAshton(channelId, duration = 60, squeeze = true, customImagePath = null, customHeight = null) {
-    const dur = Math.max(5, Math.min(3600, Number(duration) || 60));
+    const dur = Math.max(1, Math.min(3600, Number(duration) || 60));
     const channelIdStr = String(channelId);
     console.log(`[StreamManager] 🔥 Quick Fire Ashton Band triggered for channel ${channelIdStr} (${dur}s duration, squeeze: ${squeeze})`);
 

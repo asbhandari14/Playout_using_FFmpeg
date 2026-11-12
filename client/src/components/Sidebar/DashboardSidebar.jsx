@@ -18,7 +18,7 @@ const ACTIVE_CLASS =
   "bg-[#131b2b] text-white font-semibold relative before:content-[''] before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:w-1 before:h-5 before:bg-[#00bcd4] before:rounded-r-full";
 const INACTIVE_CLASS = 'text-slate-400 hover:text-slate-200 hover:bg-[#131926]';
 const BASE_CLASS =
-  'w-full flex items-center justify-between px-2.5 py-1.5 2xl:px-3 2xl:py-2 rounded-lg text-xs 2xl:text-[13px] transition cursor-pointer';
+  'w-full flex items-center justify-between px-2.5 py-1.5 2xl:px-3 2xl:py-2 rounded-lg font-mono text-sm 2xl:text-[13px] transition cursor-pointer';
 
 export default function DashboardSidebar({
   currentUser,
@@ -60,11 +60,10 @@ export default function DashboardSidebar({
       )}
 
       <aside
-        className={`fixed lg:static top-11 bottom-0 left-0 z-40 lg:z-auto ${
-          isOpen
-            ? 'w-52 xl:w-56 2xl:w-64 translate-x-0'
-            : 'w-52 lg:w-0 -translate-x-full lg:border-r-0 lg:overflow-hidden'
-        } bg-[#0d111a] border-r border-[#1e2638] flex flex-col shrink-0 transition-all duration-200 overflow-y-auto select-none`}
+        className={`fixed lg:static top-11 bottom-0 left-0 z-40 lg:z-auto ${isOpen
+          ? 'w-52 xl:w-56 2xl:w-64 translate-x-0'
+          : 'w-52 lg:w-0 -translate-x-full lg:border-r-0 lg:overflow-hidden'
+          } bg-[#0d111a] border-r border-[#1e2638] flex flex-col shrink-0 transition-all duration-200 overflow-y-auto select-none`}
       >
         {/* Greeting */}
         <div className="px-4 pt-3.5 pb-2 border-b border-[#182032]">
@@ -133,12 +132,9 @@ export default function DashboardSidebar({
             className={`${BASE_CLASS} ${isEmergencyActive ? ACTIVE_CLASS : INACTIVE_CLASS}`}
           >
             <div className="flex items-center gap-2.5">
-              <AlertTriangle size={15} className={isEmergencyActive ? 'text-rose-400' : 'text-rose-500/80'} />
+              {/* <AlertTriangle size={15} className={isEmergencyActive ? 'text-rose-400' : 'text-rose-500/80'} /> */}
               <span>Emergency Playlist</span>
             </div>
-            <span className="font-mono text-[9px] font-bold px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-400 border border-rose-500/30">
-              P5
-            </span>
           </button>
 
           {/* 2. Advertisement Playlist (Priority 4) */}
@@ -147,12 +143,9 @@ export default function DashboardSidebar({
             className={`${BASE_CLASS} ${isAdActive ? ACTIVE_CLASS : INACTIVE_CLASS}`}
           >
             <div className="flex items-center gap-2.5">
-              <Megaphone size={15} className={isAdActive ? 'text-amber-400' : 'text-amber-500/80'} />
+              {/* <Megaphone size={15} className={isAdActive ? 'text-amber-400' : 'text-amber-500/80'} /> */}
               <span>Ad Playlist</span>
             </div>
-            <span className="font-mono text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">
-              P4
-            </span>
           </button>
 
           {/* 3. Live Scheduling (Priority 3) */}
@@ -161,12 +154,9 @@ export default function DashboardSidebar({
             className={`${BASE_CLASS} ${isLiveActive ? ACTIVE_CLASS : INACTIVE_CLASS}`}
           >
             <div className="flex items-center gap-2.5">
-              <Radio size={15} className={isLiveActive ? 'text-purple-400' : 'text-purple-500/80'} />
+              {/* <Radio size={15} className={isLiveActive ? 'text-purple-400' : 'text-purple-500/80'} /> */}
               <span>Live Scheduling</span>
             </div>
-            <span className="font-mono text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400 border border-purple-500/30">
-              P3
-            </span>
           </button>
 
           {/* 4. Scheduling Playlist (Priority 2) */}
@@ -175,12 +165,9 @@ export default function DashboardSidebar({
             className={`${BASE_CLASS} ${isSchedulingActive ? ACTIVE_CLASS : INACTIVE_CLASS}`}
           >
             <div className="flex items-center gap-2.5">
-              <Calendar size={15} className={isSchedulingActive ? 'text-blue-400' : 'text-blue-500/80'} />
+              {/* <Calendar size={15} className={isSchedulingActive ? 'text-blue-400' : 'text-blue-500/80'} /> */}
               <span>Scheduling Playlist</span>
             </div>
-            <span className="font-mono text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">
-              P2
-            </span>
           </button>
 
           {/* 5. Default Playlist (Priority 1) */}
@@ -189,12 +176,9 @@ export default function DashboardSidebar({
             className={`${BASE_CLASS} ${isDefaultActive ? ACTIVE_CLASS : INACTIVE_CLASS}`}
           >
             <div className="flex items-center gap-2.5">
-              <Layers size={15} className={isDefaultActive ? 'text-emerald-400' : 'text-emerald-500/80'} />
+              {/* <Layers size={15} className={isDefaultActive ? 'text-emerald-400' : 'text-emerald-500/80'} /> */}
               <span>Default Playlist</span>
             </div>
-            <span className="font-mono text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-              P1
-            </span>
           </button>
 
           {/* Graphic Overlays Section */}

@@ -47,7 +47,7 @@ export default function DashboardHeader({
 
       {/* Right: Actions + User Account Dropdown */}
       <div className="flex items-center gap-2 2xl:gap-2.5">
-        {canAccessDashboard && (
+        {/* {canAccessDashboard && (
           <button
             type="button"
             className="px-2.5 py-1 2xl:px-3 2xl:py-1.5 rounded-lg bg-[#151b28] hover:bg-[#1b2333] border border-[#232d42] transition text-[11px] 2xl:text-xs font-semibold text-slate-200 flex items-center gap-1.5 cursor-pointer"
@@ -56,7 +56,7 @@ export default function DashboardHeader({
             <LayoutDashboard size={13} className="text-[#00bcd4]" />
             <span className="hidden sm:inline">Dashboard</span>
           </button>
-        )}
+        )} */}
 
         <div className="relative">
           <button

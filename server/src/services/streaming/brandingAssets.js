@@ -801,7 +801,9 @@ export const analyzeAndNormalizeLBand = async (sourcePath, destinationPath) => {
   }
 
   // Write normalized 1280x720 PNG
-  safeWriteFileSync(destinationPath, normalizedBuffer);
+  if (destinationPath) {
+    safeWriteFileSync(destinationPath, normalizedBuffer);
+  }
   safeWriteFileSync(sourcePath, normalizedBuffer);
 
   return {
@@ -878,7 +880,9 @@ export const analyzeAndNormalizeAshton = async (sourcePath, destinationPath) => 
   }
 
   // Save normalized 1280xDetectedHeight lower-third banner PNG
-  safeWriteFileSync(destinationPath, bannerBuffer);
+  if (destinationPath) {
+    safeWriteFileSync(destinationPath, bannerBuffer);
+  }
   safeWriteFileSync(sourcePath, bannerBuffer);
 
   return {

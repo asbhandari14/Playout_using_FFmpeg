@@ -47,6 +47,13 @@ import {
   playScheduleNow
 } from '../controllers/schedule.controller.js';
 import {
+  getBands,
+  createBand,
+  updateBand,
+  deleteBand,
+  fireBandNow
+} from '../controllers/band.controller.js';
+import {
   startStreamHandler,
   stopStreamHandler,
   getStreamStatusHandler,
@@ -126,6 +133,13 @@ router.post('/:channelId/ashton/upload', uploadAshton.single('ashton'), uploadAs
 // Back In Timer controls (countdown overlay during commercial / ad schedules)
 router.put('/:channelId/timer', updateTimerBranding);
 router.delete('/:channelId/timer', removeTimer);
+
+// Reusable L-Band & Ashton Band Library Presets
+router.get('/:channelId/bands', getBands);
+router.post('/:channelId/bands', uploadOverlay.single('image'), createBand);
+router.put('/:channelId/bands/:bandId', uploadOverlay.single('image'), updateBand);
+router.post('/:channelId/bands/:bandId/play-now', fireBandNow);
+router.delete('/:channelId/bands/:bandId', deleteBand);
 
 // Scheduled Playout routes (time-based video interruption and resumption)
 router.get('/:channelId/schedules', getSchedules);

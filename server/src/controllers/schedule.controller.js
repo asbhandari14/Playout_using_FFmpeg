@@ -1,6 +1,7 @@
 import path from 'path';
 import fs from 'fs';
 import { Schedule } from '../models/schedule.model.js';
+import { BandPreset } from '../models/bandPreset.model.js';
 import { Asset } from '../models/asset.model.js';
 import { Channel } from '../models/channel.model.js';
 import { SERVER_ROOT } from '../config/paths.js';
@@ -54,6 +55,7 @@ export const getSchedules = async (req, res, next) => {
     }
 
     const schedules = await Schedule.find(query)
+      .populate('bandPreset')
       .populate('assets', 'originalName filePath duration durationFormatted thumbnailPath category')
       .populate('asset', 'originalName filePath duration durationFormatted thumbnailPath category')
       .sort({ dailyStartTime: 1, createdAt: 1 });
@@ -89,8 +91,17 @@ export const createSchedule = async (req, res, next) => {
     }
 
     const scheduleType = ['video', 'lband', 'ashton'].includes(type) ? type : 'video';
+    const rawBandPresetId = req.body.bandPresetId || req.body.bandPreset || null;
 
-    let imageRelativePath = req.body.imagePath || '';
+    let linkedPreset = null;
+    if (rawBandPresetId && (scheduleType === 'lband' || scheduleType === 'ashton')) {
+      linkedPreset = await BandPreset.findOne({ _id: rawBandPresetId, channel: channelId });
+      if (!linkedPreset) {
+        return res.status(404).json({ message: `Selected ${scheduleType === 'lband' ? 'L-Band' : 'Ashton Band'} was not found` });
+      }
+    }
+
+    let imageRelativePath = linkedPreset?.imagePath || req.body.imagePath || '';
     let detectedCutout = null;
     let detectedAshton = null;
 
@@ -98,13 +109,19 @@ export const createSchedule = async (req, res, next) => {
       imageRelativePath = path.relative(SERVER_ROOT, req.file.path).replace(/\\/g, '/');
       try {
         if (scheduleType === 'lband') {
-          detectedCutout = await analyzeAndNormalizeLBand(req.file.path);
+          detectedCutout = await analyzeAndNormalizeLBand(req.file.path, null);
         } else if (scheduleType === 'ashton') {
-          detectedAshton = await analyzeAndNormalizeAshton(req.file.path);
+          detectedAshton = await analyzeAndNormalizeAshton(req.file.path, null);
         }
       } catch (analErr) {
         console.warn('[ScheduleController] Graphic analysis warning:', analErr.message);
       }
+    }
+
+    if ((scheduleType === 'lband' || scheduleType === 'ashton') && !imageRelativePath) {
+      return res.status(400).json({
+        message: `Please select an existing ${scheduleType === 'lband' ? 'L-Band' : 'Ashton Band'} or upload a graphic image`
+      });
     }
 
     let finalAssetIds = [];
@@ -128,7 +145,10 @@ export const createSchedule = async (req, res, next) => {
 
       totalAssetDuration = foundAssets.reduce((sum, a) => sum + (Number(a.duration) || 0), 0) || 60;
     } else {
-      totalAssetDuration = duration && Number(duration) > 0 ? Number(duration) : 5;
+      totalAssetDuration =
+        duration && Number(duration) > 0
+          ? Number(duration)
+          : (linkedPreset?.duration ? Number(linkedPreset.duration) : 10);
     }
 
     if (!dailyStartTime) {
@@ -161,19 +181,24 @@ export const createSchedule = async (req, res, next) => {
       normalizedDays = daysOfWeek.map(Number).filter((d) => !isNaN(d) && d >= 0 && d <= 6);
     }
 
+    const hasVal = (v) => v !== undefined && v !== null && String(v).trim() !== '';
+
     const schedule = new Schedule({
       channel: channelId,
       title: title.trim(),
       type: scheduleType,
+      bandPreset: linkedPreset?._id || null,
       imagePath: imageRelativePath,
-      scheduleOption: req.body.scheduleOption || (normalizedDays.length > 0 ? 'weekly' : (startDate || endDate ? 'datewise' : '24/7')),
-      gapMinutes: req.body.gapMinutes !== undefined ? Number(req.body.gapMinutes) : 20,
-      ashtonSqueeze: ashtonSqueeze !== false && ashtonSqueeze !== 'false',
-      ashtonHeight: detectedAshton?.height || (req.body.ashtonHeight ? Number(req.body.ashtonHeight) : 160),
-      windowX: detectedCutout?.windowX || (req.body.windowX !== undefined ? Number(req.body.windowX) : 300),
-      windowY: detectedCutout?.windowY || (req.body.windowY !== undefined ? Number(req.body.windowY) : 20),
-      windowWidth: detectedCutout?.windowWidth || (req.body.windowWidth !== undefined ? Number(req.body.windowWidth) : 960),
-      windowHeight: detectedCutout?.windowHeight || (req.body.windowHeight !== undefined ? Number(req.body.windowHeight) : 540),
+      scheduleOption: req.body.scheduleOption || (normalizedDays.length > 0 && normalizedDays.length < 7 ? 'weekly' : (startDate || endDate ? 'datewise' : '24/7')),
+      gapMinutes: hasVal(req.body.gapMinutes) ? Number(req.body.gapMinutes) : 20,
+      ashtonSqueeze: linkedPreset
+        ? linkedPreset.ashtonSqueeze !== false
+        : (ashtonSqueeze !== false && ashtonSqueeze !== 'false'),
+      ashtonHeight: linkedPreset?.ashtonHeight ?? (hasVal(req.body.ashtonHeight) ? Number(req.body.ashtonHeight) : (detectedAshton?.height ?? 160)),
+      windowX: linkedPreset?.windowX ?? (hasVal(req.body.windowX) ? Number(req.body.windowX) : (detectedCutout?.windowX ?? 300)),
+      windowY: linkedPreset?.windowY ?? (hasVal(req.body.windowY) ? Number(req.body.windowY) : (detectedCutout?.windowY ?? 20)),
+      windowWidth: linkedPreset?.windowWidth ?? (hasVal(req.body.windowWidth) ? Number(req.body.windowWidth) : (detectedCutout?.windowWidth ?? 960)),
+      windowHeight: linkedPreset?.windowHeight ?? (hasVal(req.body.windowHeight) ? Number(req.body.windowHeight) : (detectedCutout?.windowHeight ?? 540)),
       assets: finalAssetIds,
       asset: finalAssetIds[0] || null,
       dailyStartTime: normalizedTime,
@@ -193,6 +218,7 @@ export const createSchedule = async (req, res, next) => {
     triggerSchedulerDirect();
 
     const populated = await Schedule.findById(schedule._id)
+      .populate('bandPreset')
       .populate('assets', 'originalName filePath duration durationFormatted thumbnailPath category')
       .populate('asset', 'originalName filePath duration durationFormatted thumbnailPath category');
 
@@ -246,19 +272,40 @@ export const updateSchedule = async (req, res, next) => {
       schedule.ashtonSqueeze = ashtonSqueeze !== false && ashtonSqueeze !== 'false';
     }
 
+    const rawBandPresetId = req.body.bandPresetId ?? req.body.bandPreset;
+    if (rawBandPresetId !== undefined) {
+      if (rawBandPresetId) {
+        const linkedPreset = await BandPreset.findOne({ _id: rawBandPresetId, channel: channelId });
+        if (!linkedPreset) {
+          return res.status(404).json({ message: 'Selected Band preset was not found' });
+        }
+        schedule.bandPreset = linkedPreset._id;
+        schedule.imagePath = linkedPreset.imagePath;
+        schedule.duration = linkedPreset.duration;
+        schedule.windowX = linkedPreset.windowX;
+        schedule.windowY = linkedPreset.windowY;
+        schedule.windowWidth = linkedPreset.windowWidth;
+        schedule.windowHeight = linkedPreset.windowHeight;
+        schedule.ashtonSqueeze = linkedPreset.ashtonSqueeze;
+        schedule.ashtonHeight = linkedPreset.ashtonHeight;
+      } else {
+        schedule.bandPreset = null;
+      }
+    }
+
     if (req.file) {
       const relPath = path.relative(SERVER_ROOT, req.file.path).replace(/\\/g, '/');
       schedule.imagePath = relPath;
       try {
         if (schedule.type === 'lband') {
-          const detected = await analyzeAndNormalizeLBand(req.file.path);
-          schedule.windowX = detected.windowX;
-          schedule.windowY = detected.windowY;
-          schedule.windowWidth = detected.windowWidth;
-          schedule.windowHeight = detected.windowHeight;
+          const detected = await analyzeAndNormalizeLBand(req.file.path, null);
+          if (req.body.windowX === undefined) schedule.windowX = detected.windowX;
+          if (req.body.windowY === undefined) schedule.windowY = detected.windowY;
+          if (req.body.windowWidth === undefined) schedule.windowWidth = detected.windowWidth;
+          if (req.body.windowHeight === undefined) schedule.windowHeight = detected.windowHeight;
         } else if (schedule.type === 'ashton') {
-          const detected = await analyzeAndNormalizeAshton(req.file.path);
-          schedule.ashtonHeight = detected.height;
+          const detected = await analyzeAndNormalizeAshton(req.file.path, null);
+          if (req.body.ashtonHeight === undefined) schedule.ashtonHeight = detected.height;
         }
       } catch (err) {
         console.warn('[ScheduleController] Graphic analysis error on update:', err.message);
@@ -268,12 +315,12 @@ export const updateSchedule = async (req, res, next) => {
     }
 
     if (req.body.scheduleOption) schedule.scheduleOption = req.body.scheduleOption;
-    if (req.body.gapMinutes !== undefined) schedule.gapMinutes = Number(req.body.gapMinutes);
-    if (req.body.ashtonHeight !== undefined) schedule.ashtonHeight = Number(req.body.ashtonHeight);
-    if (req.body.windowX !== undefined) schedule.windowX = Number(req.body.windowX);
-    if (req.body.windowY !== undefined) schedule.windowY = Number(req.body.windowY);
-    if (req.body.windowWidth !== undefined) schedule.windowWidth = Number(req.body.windowWidth);
-    if (req.body.windowHeight !== undefined) schedule.windowHeight = Number(req.body.windowHeight);
+    if (req.body.gapMinutes !== undefined && req.body.gapMinutes !== '') schedule.gapMinutes = Number(req.body.gapMinutes);
+    if (req.body.ashtonHeight !== undefined && req.body.ashtonHeight !== '') schedule.ashtonHeight = Number(req.body.ashtonHeight);
+    if (req.body.windowX !== undefined && req.body.windowX !== '') schedule.windowX = Number(req.body.windowX);
+    if (req.body.windowY !== undefined && req.body.windowY !== '') schedule.windowY = Number(req.body.windowY);
+    if (req.body.windowWidth !== undefined && req.body.windowWidth !== '') schedule.windowWidth = Number(req.body.windowWidth);
+    if (req.body.windowHeight !== undefined && req.body.windowHeight !== '') schedule.windowHeight = Number(req.body.windowHeight);
 
     if (assetIds !== undefined || assetId !== undefined) {
       let finalAssetIds = [];
@@ -300,10 +347,10 @@ export const updateSchedule = async (req, res, next) => {
     if (dailyEndTime !== undefined) {
       schedule.dailyEndTime = dailyEndTime ? normalizeTimeStr(dailyEndTime) : '';
     }
-    if (schedule.dailyStartTime && schedule.dailyEndTime) {
+    if (schedule.type === 'video' && schedule.dailyStartTime && schedule.dailyEndTime) {
       const winDur = calcWindowDuration(schedule.dailyStartTime, schedule.dailyEndTime);
       if (winDur > 0) schedule.duration = winDur;
-    } else if (duration !== undefined) {
+    } else if (duration !== undefined && duration !== '') {
       schedule.duration = Number(duration);
     }
     if (startDate !== undefined) schedule.startDate = startDate ? new Date(startDate) : null;
@@ -321,7 +368,7 @@ export const updateSchedule = async (req, res, next) => {
       }
     }
     if (priority !== undefined) schedule.priority = Number(priority);
-    if (enabled !== undefined) schedule.enabled = Boolean(enabled);
+    if (enabled !== undefined) schedule.enabled = enabled === true || enabled === 'true';
 
     // Reset lastAiredDate so updated schedule is eligible to air immediately
     schedule.lastAiredDate = '';
@@ -332,6 +379,7 @@ export const updateSchedule = async (req, res, next) => {
     triggerSchedulerDirect();
 
     const populated = await Schedule.findById(schedule._id)
+      .populate('bandPreset')
       .populate('assets', 'originalName filePath duration durationFormatted thumbnailPath category')
       .populate('asset', 'originalName filePath duration durationFormatted thumbnailPath category');
 
@@ -368,6 +416,7 @@ export const toggleSchedule = async (req, res, next) => {
     triggerSchedulerDirect();
 
     const populated = await Schedule.findById(schedule._id)
+      .populate('bandPreset')
       .populate('assets', 'originalName filePath duration durationFormatted thumbnailPath category')
       .populate('asset', 'originalName filePath duration durationFormatted thumbnailPath category');
 
@@ -420,6 +469,7 @@ export const playScheduleNow = async (req, res, next) => {
   try {
     const { channelId, scheduleId } = req.params;
     const schedule = await Schedule.findOne({ _id: scheduleId, channel: channelId })
+      .populate('bandPreset')
       .populate('assets')
       .populate('asset');
 
@@ -435,22 +485,26 @@ export const playScheduleNow = async (req, res, next) => {
       });
     }
 
+    const preset = schedule.bandPreset;
     if (schedule.type === 'lband') {
-      const dur = Number(schedule.duration) || 5;
-      await streamManager.fireLBand(channelId, dur, schedule.imagePath, {
-        windowX: schedule.windowX,
-        windowY: schedule.windowY,
-        windowWidth: schedule.windowWidth,
-        windowHeight: schedule.windowHeight
+      const dur = Number(preset?.duration || schedule.duration) || 10;
+      const imgPath = preset?.imagePath || schedule.imagePath;
+      await streamManager.fireLBand(channelId, dur, imgPath, {
+        windowX: preset?.windowX ?? schedule.windowX,
+        windowY: preset?.windowY ?? schedule.windowY,
+        windowWidth: preset?.windowWidth ?? schedule.windowWidth,
+        windowHeight: preset?.windowHeight ?? schedule.windowHeight
       });
       return res.status(200).json({
         success: true,
         message: `L-Band graphic "${schedule.title}" fired live on air for ${dur}s!`
       });
     } else if (schedule.type === 'ashton') {
-      const dur = Number(schedule.duration) || 5;
-      const squeeze = schedule.ashtonSqueeze !== false;
-      await streamManager.fireAshton(channelId, dur, squeeze, schedule.imagePath, schedule.ashtonHeight);
+      const dur = Number(preset?.duration || schedule.duration) || 10;
+      const squeeze = preset ? preset.ashtonSqueeze !== false : schedule.ashtonSqueeze !== false;
+      const imgPath = preset?.imagePath || schedule.imagePath;
+      const height = preset?.ashtonHeight ?? schedule.ashtonHeight;
+      await streamManager.fireAshton(channelId, dur, squeeze, imgPath, height);
       return res.status(200).json({
         success: true,
         message: `Ashton Band "${schedule.title}" fired live on air for ${dur}s!`

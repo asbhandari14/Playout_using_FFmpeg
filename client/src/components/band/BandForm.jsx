@@ -1,68 +1,62 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   ArrowLeft,
-  Upload,
   Calendar,
   Clock,
-  Timer,
-  Layers,
   Sparkles,
   Check,
-  X,
-  Play,
-  Eye,
   Tv,
   PanelBottom,
   CreditCard,
-  Sliders,
-  AlertCircle
+  PlusCircle,
+  Power
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import BandPreviewScreen from './BandPreviewScreen.jsx';
+import { resolveMediaUrl } from '../../utils/bandGeometry.js';
 
 const DAYS_MAP = [
+  { day: 0, label: 'Sun', full: 'Sunday' },
   { day: 1, label: 'Mon', full: 'Monday' },
   { day: 2, label: 'Tue', full: 'Tuesday' },
   { day: 3, label: 'Wed', full: 'Wednesday' },
   { day: 4, label: 'Thu', full: 'Thursday' },
   { day: 5, label: 'Fri', full: 'Friday' },
-  { day: 6, label: 'Sat', full: 'Saturday' },
-  { day: 0, label: 'Sun', full: 'Sunday' }
+  { day: 6, label: 'Sat', full: 'Saturday' }
 ];
 
 export default function BandForm({
   type = 'lband', // 'lband' | 'ashton'
+  bands = [],
   initialData = null,
   channel = null,
   channels = [],
   currentUser = null,
   onSubmit,
+  onCreateBandShortcut,
   onCancel,
   isSubmitting = false
 }) {
   const isEdit = Boolean(initialData?._id);
   const isLBand = type === 'lband';
+  const bandLabel = isLBand ? 'L-Band' : 'Ashton Band';
+
+  const initialPresetId =
+    initialData?.bandPreset?._id ||
+    initialData?.bandPreset ||
+    bands[0]?._id ||
+    '';
 
   const [channelId, setChannelId] = useState(
     initialData?.channel?._id || initialData?.channel || channel?._id || channels[0]?._id || ''
   );
+  const [bandPresetId, setBandPresetId] = useState(initialPresetId);
   const [title, setTitle] = useState(initialData?.title || '');
-  const [scheduleOption, setScheduleOption] = useState(
-    initialData?.scheduleOption || '24/7'
-  );
   const [dailyStartTime, setDailyStartTime] = useState(
-    initialData?.dailyStartTime ? initialData.dailyStartTime.substring(0, 5) : '14:00'
+    initialData?.dailyStartTime ? initialData.dailyStartTime.substring(0, 8) : '14:00:00'
   );
   const [dailyEndTime, setDailyEndTime] = useState(
-    initialData?.dailyEndTime ? initialData.dailyEndTime.substring(0, 5) : '15:00'
-  );
-  const [duration, setDuration] = useState(initialData?.duration || 5); // 5 seconds display
-  const [gapMinutes, setGapMinutes] = useState(
-    initialData?.gapMinutes !== undefined ? initialData.gapMinutes : 20 // 20 minutes gap
-  );
-  const [daysOfWeek, setDaysOfWeek] = useState(
-    Array.isArray(initialData?.daysOfWeek) && initialData.daysOfWeek.length > 0
-      ? initialData.daysOfWeek
-      : [0, 1, 2, 3, 4, 5, 6]
+    initialData?.dailyEndTime ? initialData.dailyEndTime.substring(0, 8) : '15:00:00'
   );
   const [startDate, setStartDate] = useState(
     initialData?.startDate ? new Date(initialData.startDate).toISOString().substring(0, 10) : ''
@@ -70,59 +64,48 @@ export default function BandForm({
   const [endDate, setEndDate] = useState(
     initialData?.endDate ? new Date(initialData.endDate).toISOString().substring(0, 10) : ''
   );
+  const [daysOfWeek, setDaysOfWeek] = useState(
+    Array.isArray(initialData?.daysOfWeek) && initialData.daysOfWeek.length > 0
+      ? initialData.daysOfWeek
+      : [0, 1, 2, 3, 4, 5, 6]
+  );
+  const [gapMinutes, setGapMinutes] = useState(
+    initialData?.gapMinutes !== undefined ? initialData.gapMinutes : 20
+  );
   const [enabled, setEnabled] = useState(
     initialData?.enabled !== undefined ? initialData.enabled : true
   );
 
-  // Ashton specific
-  const [ashtonSqueeze, setAshtonSqueeze] = useState(
-    initialData?.ashtonSqueeze !== undefined ? initialData.ashtonSqueeze : true
-  );
-  const [ashtonHeight, setAshtonHeight] = useState(initialData?.ashtonHeight || 160);
-
-  // L-Band specific cutout
-  const [windowX, setWindowX] = useState(initialData?.windowX || 300);
-  const [windowY, setWindowY] = useState(initialData?.windowY || 20);
-  const [windowWidth, setWindowWidth] = useState(initialData?.windowWidth || 960);
-  const [windowHeight, setWindowHeight] = useState(initialData?.windowHeight || 540);
-
-  // File upload state & object URL for live real-time preview
-  const [imageFile, setImageFile] = useState(null);
-  const [previewUrl, setPreviewUrl] = useState('');
-  const [isSimulatingAir, setIsSimulatingAir] = useState(true);
-  const fileInputRef = useRef(null);
-
-  // Initialize preview image from initialData
+  // Sync default band selection if bands finish loading after mount
   useEffect(() => {
+    if (!bandPresetId && bands.length > 0 && !initialData?.imagePath) {
+      setBandPresetId(bands[0]._id);
+    }
+  }, [bands, bandPresetId, initialData]);
+
+  const selectedBand = useMemo(() => {
+    if (bandPresetId) {
+      const found = bands.find((b) => String(b._id) === String(bandPresetId));
+      if (found) return found;
+      if (initialData?.bandPreset && typeof initialData.bandPreset === 'object') {
+        return initialData.bandPreset;
+      }
+    }
     if (initialData?.imagePath) {
-      const cleanPath = initialData.imagePath.startsWith('/')
-        ? initialData.imagePath
-        : `/${initialData.imagePath}`;
-      setPreviewUrl(cleanPath);
+      return {
+        title: initialData.title || bandLabel,
+        imagePath: initialData.imagePath,
+        duration: initialData.duration || 10,
+        windowX: initialData.windowX ?? 300,
+        windowY: initialData.windowY ?? 20,
+        windowWidth: initialData.windowWidth ?? 960,
+        windowHeight: initialData.windowHeight ?? 540,
+        ashtonSqueeze: initialData.ashtonSqueeze !== false,
+        ashtonHeight: initialData.ashtonHeight || 160
+      };
     }
-  }, [initialData]);
-
-  // Clean up created object URL on unmount or file change
-  useEffect(() => {
-    if (!imageFile) return;
-    const objectUrl = URL.createObjectURL(imageFile);
-    setPreviewUrl(objectUrl);
-    return () => URL.revokeObjectURL(objectUrl);
-  }, [imageFile]);
-
-  const handleFileChange = (e) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setImageFile(file);
-    }
-  };
-
-  const handleRemoveImage = (e) => {
-    e.stopPropagation();
-    setImageFile(null);
-    setPreviewUrl('');
-    if (fileInputRef.current) fileInputRef.current.value = '';
-  };
+    return null;
+  }, [bands, bandPresetId, initialData, bandLabel]);
 
   const toggleDay = (dayNum) => {
     setDaysOfWeek((prev) =>
@@ -130,7 +113,11 @@ export default function BandForm({
     );
   };
 
-  // Calculate live playout summary details (how many times it airs in the window)
+  const isAllDays = daysOfWeek.length === 7;
+  const toggleAllDays = () => {
+    setDaysOfWeek(isAllDays ? [] : [0, 1, 2, 3, 4, 5, 6]);
+  };
+
   const calculationSummary = useMemo(() => {
     if (!dailyStartTime || !dailyEndTime) return null;
     const [sh, sm] = dailyStartTime.split(':').map(Number);
@@ -138,21 +125,21 @@ export default function BandForm({
     const startMins = (sh || 0) * 60 + (sm || 0);
     const endMins = (eh || 0) * 60 + (em || 0);
     let totalWindowMins = endMins >= startMins ? endMins - startMins : 1440 - startMins + endMins;
-    if (totalWindowMins === 0) totalWindowMins = 1440; // 24 hours
+    if (totalWindowMins === 0) totalWindowMins = 1440;
 
     const gap = Number(gapMinutes) || 0;
     let occurrences = 1;
     if (gap > 0 && totalWindowMins > 0) {
-      occurrences = Math.floor(totalWindowMins / gap) + (totalWindowMins % gap >= 0 ? 0 : 0);
-      if (occurrences < 1) occurrences = 1;
+      occurrences = Math.max(1, Math.floor(totalWindowMins / gap));
     }
 
     return {
       totalWindowMins,
       occurrences: gap > 0 ? occurrences : 1,
-      gap
+      gap,
+      duration: Number(selectedBand?.duration || initialData?.duration) || 10
     };
-  }, [dailyStartTime, dailyEndTime, gapMinutes]);
+  }, [dailyStartTime, dailyEndTime, gapMinutes, selectedBand, initialData]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -161,82 +148,78 @@ export default function BandForm({
       return;
     }
 
-    if (!isEdit && !imageFile && !previewUrl) {
-      toast.error(`Please upload an image for the ${isLBand ? 'L-Band' : 'Ashton Band'}`);
+    if (!bandPresetId && !selectedBand?.imagePath) {
+      toast.error(`Please select a created ${bandLabel} first`);
       return;
     }
 
-    if (scheduleOption === 'weekly' && daysOfWeek.length === 0) {
-      toast.error('Please select at least one day of the week');
+    if (daysOfWeek.length === 0) {
+      toast.error('Please select at least one weekday');
       return;
     }
 
-    if (scheduleOption === 'datewise' && (!startDate || !endDate)) {
-      toast.error('Please select both start date and end date');
+    if (startDate && endDate && endDate < startDate) {
+      toast.error('End date cannot be earlier than start date');
       return;
     }
 
-    const formData = new FormData();
-    formData.append('title', title.trim());
-    formData.append('type', type);
-    formData.append('scheduleOption', scheduleOption);
-    formData.append('dailyStartTime', dailyStartTime.length === 5 ? `${dailyStartTime}:00` : dailyStartTime);
-    formData.append('dailyEndTime', dailyEndTime.length === 5 ? `${dailyEndTime}:00` : dailyEndTime);
-    formData.append('duration', Number(duration) || 5);
-    formData.append('gapMinutes', Number(gapMinutes) || 0);
-    formData.append('enabled', enabled);
-    formData.append('daysOfWeek', JSON.stringify(daysOfWeek));
+    const scheduleOption =
+      startDate || endDate
+        ? 'datewise'
+        : daysOfWeek.length < 7
+          ? 'weekly'
+          : '24/7';
 
-    if (startDate) formData.append('startDate', startDate);
-    if (endDate) formData.append('endDate', endDate);
+    const payload = {
+      title: title.trim(),
+      type,
+      bandPresetId: bandPresetId || null,
+      scheduleOption,
+      dailyStartTime: dailyStartTime.length === 5 ? `${dailyStartTime}:00` : dailyStartTime,
+      dailyEndTime: dailyEndTime ? (dailyEndTime.length === 5 ? `${dailyEndTime}:00` : dailyEndTime) : '',
+      gapMinutes: Number(gapMinutes) || 0,
+      daysOfWeek,
+      startDate: startDate || '',
+      endDate: endDate || '',
+      enabled
+    };
 
-    if (type === 'ashton') {
-      formData.append('ashtonSqueeze', ashtonSqueeze);
-      formData.append('ashtonHeight', Number(ashtonHeight) || 160);
-    } else {
-      formData.append('windowX', Number(windowX) || 300);
-      formData.append('windowY', Number(windowY) || 20);
-      formData.append('windowWidth', Number(windowWidth) || 960);
-      formData.append('windowHeight', Number(windowHeight) || 540);
-    }
-
-    if (imageFile) {
-      formData.append('image', imageFile);
+    if (selectedBand) {
+      payload.duration = Number(selectedBand.duration) || 10;
+      payload.imagePath = selectedBand.imagePath || '';
+      if (isLBand) {
+        payload.windowX = selectedBand.windowX ?? 300;
+        payload.windowY = selectedBand.windowY ?? 20;
+        payload.windowWidth = selectedBand.windowWidth ?? 960;
+        payload.windowHeight = selectedBand.windowHeight ?? 540;
+      } else {
+        payload.ashtonSqueeze = selectedBand.ashtonSqueeze !== false;
+        payload.ashtonHeight = selectedBand.ashtonHeight || 160;
+      }
     }
 
     onSubmit({
       channelId,
       scheduleId: initialData?._id,
-      formData
+      payload
     });
   };
 
-  // Convert 1280x720 coordinates to percentages for L-Band visual preview
-  const cutoutStyles = useMemo(() => {
-    const leftPct = (Number(windowX) / 1280) * 100;
-    const topPct = (Number(windowY) / 720) * 100;
-    const widthPct = (Number(windowWidth) / 1280) * 100;
-    const heightPct = (Number(windowHeight) / 720) * 100;
-    return {
-      left: `${Math.max(0, Math.min(100, leftPct))}%`,
-      top: `${Math.max(0, Math.min(100, topPct))}%`,
-      width: `${Math.max(10, Math.min(100, widthPct))}%`,
-      height: `${Math.max(10, Math.min(100, heightPct))}%`
-    };
-  }, [windowX, windowY, windowWidth, windowHeight]);
+  const canSwitchChannel =
+    (currentUser?.role === 'super_admin' || currentUser?.role === 'admin') &&
+    channels.length > 1;
 
-  const canSwitchChannel = (currentUser?.role === 'super_admin' || currentUser?.role === 'admin') && channels.length > 1;
+  const activeChannelName = channels.find((c) => c._id === channelId)?.name || channel?.name || 'Live Playout';
 
   return (
     <div className="space-y-3.5 select-none font-sans">
-      {/* Top back navigation button */}
       <button
         type="button"
         onClick={onCancel}
         className="flex items-center gap-1.5 text-xs font-medium text-slate-400 hover:text-white transition cursor-pointer"
       >
         <ArrowLeft size={14} />
-        <span>Back to {isLBand ? 'L-Bands' : 'Ashton Bands'}</span>
+        <span>Back to {bandLabel} Schedules</span>
       </button>
 
       {/* Header */}
@@ -247,13 +230,11 @@ export default function BandForm({
               {isLBand ? <PanelBottom size={15} /> : <CreditCard size={15} />}
             </div>
             <h1 className="text-base sm:text-lg 2xl:text-xl text-white tracking-tight">
-              {isEdit ? `Update ${isLBand ? 'L-Band' : 'Ashton Band'}` : `Create New ${isLBand ? 'L-Band' : 'Ashton Band'}`}
+              {isEdit ? `Update ${bandLabel} Schedule` : `Add ${bandLabel} Schedule`}
             </h1>
           </div>
           <p className="text-[11px] 2xl:text-xs text-slate-400 mt-0.5">
-            {isLBand
-              ? 'Configure L-Band graphic overlay, transparent cutout scaling, and playout recurrence'
-              : 'Configure lower-third Ashton Band banner graphic, video squeeze, and playout recurrence'}
+            Select a created {bandLabel} and configure start/end time, date window, weekdays, and activation status
           </p>
         </div>
 
@@ -276,171 +257,134 @@ export default function BandForm({
         )}
       </div>
 
-      {/* Main 2-Column Grid: Left = Preview, Right = Form */}
+      {/* 2-Column Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
-        {/* ================= LEFT COLUMN: LIVE VISUAL PREVIEW ================= */}
+        {/* Left: Live Preview of selected Band */}
         <div className="lg:col-span-5 space-y-3 lg:sticky lg:top-4">
-          <div className="bg-[#10141e] border border-[#1e2638] rounded-xl 2xl:rounded-2xl p-4 shadow-xl space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                <Eye size={14} className="text-cyan-400" />
-                <span>16:9 Broadcast Playout Preview</span>
-              </span>
-              <button
-                type="button"
-                onClick={() => setIsSimulatingAir((prev) => !prev)}
-                className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border transition flex items-center gap-1.5 cursor-pointer ${isSimulatingAir
-                    ? 'bg-emerald-950/80 text-emerald-300 border-emerald-800'
-                    : 'bg-slate-800/60 text-slate-400 border-slate-700'
-                  }`}
-                title="Toggle overlay display in preview"
-              >
-                <span className={`w-1.5 h-1.5 rounded-full ${isSimulatingAir ? 'bg-emerald-400 animate-pulse' : 'bg-slate-400'}`} />
-                <span>{isSimulatingAir ? 'Overlay ON Air' : 'Overlay OFF'}</span>
-              </button>
-            </div>
+          <BandPreviewScreen
+            type={type}
+            previewUrl={resolveMediaUrl(selectedBand?.imagePath)}
+            channelName={activeChannelName}
+            windowX={selectedBand?.windowX ?? 300}
+            windowY={selectedBand?.windowY ?? 20}
+            windowWidth={selectedBand?.windowWidth ?? 960}
+            windowHeight={selectedBand?.windowHeight ?? 540}
+            ashtonSqueeze={selectedBand?.ashtonSqueeze !== false}
+            ashtonHeight={selectedBand?.ashtonHeight || 160}
+            duration={selectedBand?.duration || 10}
+            emptyHint={`Select a ${bandLabel} on the right to preview broadcast placement`}
+          />
 
-            {/* Simulated 16:9 Broadcast Screen */}
-            <div className="relative w-full aspect-video rounded-xl overflow-hidden bg-[#05070d] border border-[#1c263b] shadow-inner select-none">
-              {/* Program Video Simulation Layer */}
-              <div
-                className="absolute inset-0 transition-all duration-300 overflow-hidden flex flex-col justify-between p-3"
-                style={
-                  !isSimulatingAir
-                    ? { inset: 0 }
-                    : isLBand && previewUrl
-                      ? {
-                        left: cutoutStyles.left,
-                        top: cutoutStyles.top,
-                        width: cutoutStyles.width,
-                        height: cutoutStyles.height,
-                        borderRadius: '4px'
-                      }
-                      : !isLBand && ashtonSqueeze && previewUrl
-                        ? {
-                          left: 0,
-                          top: 0,
-                          width: '100%',
-                          height: '75%'
-                        }
-                        : { inset: 0 }
-                }
-              >
-                {/* Background visual inside video layer */}
-                <div className="absolute inset-0 bg-gradient-to-br from-indigo-950/80 via-slate-900 to-cyan-950/70" />
-
-                {/* Subtitle / channel live watermark */}
-                <div className="relative z-10 flex items-center justify-between text-[9px] font-mono font-bold text-white/80">
-                  <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-rose-600/90 text-white tracking-wider">
-                    <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
-                    LIVE
-                  </span>
-                  <span className="bg-black/60 backdrop-blur px-1.5 py-0.5 rounded text-cyan-300 border border-cyan-500/20">
-                    1080p • 25fps
-                  </span>
-                </div>
-
-                <div className="relative z-10 text-center my-auto">
-                  <Tv size={26} className="mx-auto text-cyan-400/60 mb-1" />
-                  <p className="text-[11px] font-bold text-slate-200 tracking-wide font-mono">
-                    MAIN BROADCAST PROGRAM
-                  </p>
-                  <p className="text-[9px] text-slate-400 font-mono">Live Ingest & Playout Feed</p>
-                </div>
-
-                <div className="relative z-10 text-right text-[8px] text-slate-400 font-mono">
-                  Channel: {channel?.name || 'Live Playout'}
-                </div>
-              </div>
-
-              {/* Graphic Overlay Layer */}
-              {isSimulatingAir && previewUrl && (
-                <>
-                  {isLBand ? (
-                    // L-Band Full Graphic with Cutout
-                    <img
-                      src={previewUrl}
-                      alt="L-Band Preview"
-                      className="absolute inset-0 w-full h-full object-contain pointer-events-none z-20"
-                    />
-                  ) : (
-                    // Ashton Band Lower-Third
-                    <div className="absolute bottom-0 left-0 right-0 h-1/4 z-20 overflow-hidden flex items-center justify-center bg-black/40">
-                      <img
-                        src={previewUrl}
-                        alt="Ashton Preview"
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                  )}
-                </>
-              )}
-
-              {/* Empty placeholder graphic when no image is loaded */}
-              {isSimulatingAir && !previewUrl && (
-                <div className="absolute inset-0 z-20 pointer-events-none flex flex-col items-center justify-center bg-black/40 backdrop-blur-[1px] p-4 text-center">
-                  <div className="p-2.5 rounded-xl bg-cyan-950/70 border border-cyan-800/60 text-cyan-300 mb-2">
-                    <Upload size={18} />
-                  </div>
-                  <span className="text-xs font-mono font-semibold text-slate-200">
-                    No Graphic Selected Yet
-                  </span>
-                  <span className="text-[10px] font-mono text-slate-400 mt-0.5">
-                    Upload an image on the right to see live preview
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* Preview Specifications */}
-            <div className="p-3 bg-[#070a12] border border-[#182236] rounded-xl font-mono text-[11px] space-y-1.5">
-              <div className="flex items-center justify-between text-slate-400">
-                <span>Overlay Type:</span>
-                <span className="text-cyan-300 font-bold uppercase">{isLBand ? 'L-Band Cutout' : 'Ashton Lower Third'}</span>
-              </div>
-              {isLBand ? (
-                <div className="flex items-center justify-between text-slate-400">
-                  <span>Transparent Cutout:</span>
-                  <span className="text-slate-200">{windowWidth}x{windowHeight} at ({windowX}, {windowY})</span>
-                </div>
-              ) : (
-                <div className="flex items-center justify-between text-slate-400">
-                  <span>Playout Mode:</span>
-                  <span className="text-slate-200">{ashtonSqueeze ? 'Video Squeezed (Pushed Up)' : 'Overlay (Floating)'}</span>
-                </div>
-              )}
-              <div className="flex items-center justify-between text-slate-400">
-                <span>Display Duration:</span>
-                <span className="text-emerald-400 font-bold">{duration} seconds</span>
-              </div>
-              <div className="flex items-center justify-between text-slate-400">
-                <span>Interval / Gap:</span>
-                <span className="text-amber-400 font-bold">{gapMinutes > 0 ? `Every ${gapMinutes} minutes` : 'Once per window'}</span>
+          {calculationSummary && (
+            <div className="p-3 bg-cyan-950/20 border border-cyan-800/40 rounded-xl font-mono text-xs text-cyan-300 flex items-start gap-2.5">
+              <Sparkles size={16} className="text-cyan-400 shrink-0 mt-0.5" />
+              <div className="leading-relaxed">
+                <span className="font-bold block text-white text-[11px] mb-0.5">Automated Playout Plan</span>
+                <span className="text-[11px] text-cyan-200/90">
+                  Between <strong className="text-white">{dailyStartTime}</strong> and <strong className="text-white">{dailyEndTime || 'end'}</strong>, the selected {bandLabel} will air for{' '}
+                  <strong className="text-emerald-300">{calculationSummary.duration}s</strong>{' '}
+                  {calculationSummary.gap > 0
+                    ? `every ${calculationSummary.gap} mins (~${calculationSummary.occurrences}x/day)`
+                    : 'once per window'}.
+                </span>
               </div>
             </div>
-
-            {/* Calculation helper box */}
-            {calculationSummary && (
-              <div className="p-3 bg-cyan-950/20 border border-cyan-800/40 rounded-xl font-mono text-xs text-cyan-300 flex items-start gap-2.5">
-                <Sparkles size={16} className="text-cyan-400 shrink-0 mt-0.5" />
-                <div className="leading-relaxed">
-                  <span className="font-bold block text-white text-[11px] mb-0.5">Automated Playout Plan</span>
-                  <span className="text-[11px] text-cyan-200/90">
-                    Between <strong className="text-white">{dailyStartTime}</strong> and <strong className="text-white">{dailyEndTime}</strong> ({calculationSummary.totalWindowMins} mins), this graphic will air for <strong className="text-emerald-300">{duration}s</strong> every <strong className="text-amber-300">{gapMinutes} mins</strong> (approx. <strong className="text-cyan-300">{calculationSummary.occurrences} times</strong>).
-                  </span>
-                </div>
-              </div>
-            )}
-          </div>
+          )}
         </div>
 
-        {/* ================= RIGHT COLUMN: FORM CONTROLS ================= */}
+        {/* Right: Schedule Form */}
         <div className="lg:col-span-7">
           <form
             onSubmit={handleSubmit}
             className="bg-[#10141e] border border-[#1e2638] rounded-xl 2xl:rounded-2xl p-4 sm:p-5 shadow-xl space-y-4 text-xs"
           >
-            {/* Title / Name */}
+            {/* Select L-Band / Ashton Band */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-slate-300 text-xs font-semibold">
+                  Select {bandLabel} <span className="text-cyan-400">*</span>
+                </label>
+                {onCreateBandShortcut && (
+                  <button
+                    type="button"
+                    onClick={onCreateBandShortcut}
+                    className="text-[11px] font-semibold text-cyan-400 hover:text-cyan-300 flex items-center gap-1 transition cursor-pointer"
+                  >
+                    <PlusCircle size={12} />
+                    <span>+ Create {bandLabel}</span>
+                  </button>
+                )}
+              </div>
+
+              {bands.length === 0 && !selectedBand?.imagePath ? (
+                <div className="p-4 rounded-xl bg-[#090d16] border border-amber-500/30 text-center space-y-2">
+                  <p className="text-xs text-amber-300 font-semibold">
+                    No {bandLabel} created yet for this channel
+                  </p>
+                  <p className="text-[11px] text-slate-400">
+                    Create a {bandLabel} with its artwork, duration, and video window first, then schedule it here.
+                  </p>
+                  {onCreateBandShortcut && (
+                    <button
+                      type="button"
+                      onClick={onCreateBandShortcut}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#00bcd4] hover:bg-[#06b6d4] text-black font-bold text-xs transition cursor-pointer"
+                    >
+                      <PlusCircle size={13} />
+                      <span>Create {bandLabel}</span>
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <select
+                    value={bandPresetId}
+                    onChange={(e) => setBandPresetId(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-[#090d16] border border-[#1c2538] focus:border-[#00bcd4] text-slate-100 text-xs focus:outline-none cursor-pointer"
+                  >
+                    {bands.length === 0 && (
+                      <option value="" className="bg-[#0b0e18]">
+                        Current Graphic ({selectedBand?.title || bandLabel})
+                      </option>
+                    )}
+                    {bands.map((b) => (
+                      <option key={b._id} value={b._id} className="bg-[#0b0e18] text-slate-200">
+                        {b.title} ({b.duration || 10}s •{' '}
+                        {isLBand
+                          ? `${b.windowWidth ?? 960}x${b.windowHeight ?? 540} @ (${b.windowX ?? 300},${b.windowY ?? 20})`
+                          : `${b.ashtonSqueeze !== false ? 'Squeeze' : 'Overlay'} H:${b.ashtonHeight || 160}px`}
+                        )
+                      </option>
+                    ))}
+                  </select>
+
+                  {selectedBand && (
+                    <div className="flex items-center gap-3 p-2.5 rounded-lg bg-[#090d16] border border-[#1a2337]">
+                      {selectedBand.imagePath && (
+                        <img
+                          src={resolveMediaUrl(selectedBand.imagePath)}
+                          alt={selectedBand.title}
+                          className="w-16 h-9 object-contain bg-black/50 rounded border border-[#24324d] shrink-0"
+                        />
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <span className="text-xs font-bold text-white block truncate">
+                          {selectedBand.title}
+                        </span>
+                        <span className="text-[10.5px] text-slate-400 font-mono block">
+                          Duration: <strong className="text-emerald-400">{selectedBand.duration || 10}s</strong> •{' '}
+                          {isLBand
+                            ? `Window: ${selectedBand.windowWidth ?? 960}x${selectedBand.windowHeight ?? 540} at (${selectedBand.windowX ?? 300}, ${selectedBand.windowY ?? 20})`
+                            : `${selectedBand.ashtonSqueeze !== false ? 'Squeezed' : 'Overlay'} • Band H: ${selectedBand.ashtonHeight || 160}px`}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Schedule Title */}
             <div>
               <label className="text-slate-300 text-xs font-semibold block mb-1">
                 Schedule Title <span className="text-cyan-400">*</span>
@@ -451,157 +395,18 @@ export default function BandForm({
                   required
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder={isLBand ? 'e.g. Nike Prime Time L-Band' : 'e.g. Breaking News Lower Third'}
+                  placeholder={`e.g. Evening Prime ${bandLabel} Schedule`}
                   className="w-full bg-transparent text-slate-100 placeholder-slate-500 focus:outline-none text-xs"
                 />
               </div>
             </div>
 
-            {/* Graphic Image Upload */}
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-slate-300 text-xs font-semibold">
-                  {isLBand ? 'L-Band Graphic Image' : 'Ashton Band Banner Image'}{' '}
-                  {!isEdit && <span className="text-cyan-400">*</span>}
-                </label>
-                <span className="text-[10px] text-slate-500">PNG / JPG (Transparent PNG recommended)</span>
-              </div>
-
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-                onChange={handleFileChange}
-                className="hidden"
-                id="band-file-upload"
-              />
-
-              <div
-                onClick={() => fileInputRef.current?.click()}
-                className="border-2 border-dashed border-[#1c263b] hover:border-cyan-500/60 bg-[#090d16] hover:bg-[#0c121f] rounded-xl p-4 transition cursor-pointer flex flex-col items-center justify-center gap-2 group"
-              >
-                {previewUrl ? (
-                  <div className="w-full flex items-center justify-between gap-3 bg-[#0d1424] border border-[#1f2d47] p-2.5 rounded-lg">
-                    <div className="flex items-center gap-3 overflow-hidden">
-                      <img
-                        src={previewUrl}
-                        alt="Selected graphic"
-                        className="w-14 h-9 object-contain bg-black/40 rounded border border-[#2b3a58] shrink-0"
-                      />
-                      <div className="truncate">
-                        <span className="text-xs text-white font-bold block truncate">
-                          {imageFile ? imageFile.name : 'Current Image Loaded'}
-                        </span>
-                        <span className="text-[10px] text-cyan-400">Click to replace file</span>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleRemoveImage}
-                      className="p-1 rounded-md text-slate-400 hover:text-rose-400 hover:bg-rose-950/40 transition cursor-pointer"
-                      title="Clear image"
-                    >
-                      <X size={16} />
-                    </button>
-                  </div>
-                ) : (
-                  <>
-                    <div className="w-10 h-10 rounded-xl bg-[#121929] border border-[#222f49] flex items-center justify-center text-cyan-400 group-hover:scale-105 transition">
-                      <Upload size={18} />
-                    </div>
-                    <span className="text-xs text-slate-300 font-semibold">
-                      Click to choose graphic image or drag and drop
-                    </span>
-                    <span className="text-[10px] text-slate-500">
-                      Standard frame: 1280x720 Broadcast Canvas
-                    </span>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {/* Schedule Type (24/7, Weekly, Datewise) */}
-            <div>
-              <label className="text-slate-300 text-xs font-semibold block mb-1">Schedule Airing Pattern</label>
-              <div className="grid grid-cols-3 gap-2">
-                {[
-                  { id: '24/7', label: '24/7 Daily', hint: 'Every day' },
-                  { id: 'weekly', label: 'Weekly', hint: 'Specific days' },
-                  { id: 'datewise', label: 'Datewise', hint: 'Date range' }
-                ].map((opt) => (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    onClick={() => setScheduleOption(opt.id)}
-                    className={`py-2 px-3 rounded-xl border text-center transition cursor-pointer ${scheduleOption === opt.id
-                        ? 'bg-cyan-950/60 border-[#00bcd4] text-cyan-300 shadow-md shadow-cyan-500/10'
-                        : 'bg-[#090d16] border-[#1a2337] text-slate-400 hover:text-slate-200 hover:border-slate-700'
-                      }`}
-                  >
-                    <span className="font-bold block text-xs">{opt.label}</span>
-                    <span className="text-[10px] text-slate-500 block">{opt.hint}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Weekly Days Selector */}
-            {scheduleOption === 'weekly' && (
-              <div className="p-3 bg-[#090d16] border border-[#1a2337] rounded-xl space-y-2">
-                <span className="text-xs text-slate-300 font-bold block">Select Active Days:</span>
-                <div className="flex flex-wrap gap-1.5">
-                  {DAYS_MAP.map((d) => {
-                    const isSelected = daysOfWeek.includes(d.day);
-                    return (
-                      <button
-                        key={d.day}
-                        type="button"
-                        onClick={() => toggleDay(d.day)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition cursor-pointer ${isSelected
-                            ? 'bg-[#00bcd4] text-black border-[#00bcd4] shadow-sm'
-                            : 'bg-[#0e1422] text-slate-400 border-[#1a2337] hover:text-white'
-                          }`}
-                      >
-                        {d.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Datewise Date Range Pickers */}
-            {scheduleOption === 'datewise' && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3 bg-[#090d16] border border-[#1a2337] rounded-xl">
-                <div>
-                  <label className="text-slate-400 text-[11px] block mb-1">Start Date *</label>
-                  <input
-                    type="date"
-                    required={scheduleOption === 'datewise'}
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full bg-[#0e1422] border border-[#1e293d] rounded-lg px-3 py-2 text-slate-100 text-xs focus:border-[#00bcd4] focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="text-slate-400 text-[11px] block mb-1">End Date *</label>
-                  <input
-                    type="date"
-                    required={scheduleOption === 'datewise'}
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="w-full bg-[#0e1422] border border-[#1e293d] rounded-lg px-3 py-2 text-slate-100 text-xs focus:border-[#00bcd4] focus:outline-none"
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Time Window (Start Time & End Time) */}
+            {/* Start Time & End Time */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               <div>
                 <label className="text-slate-300 text-xs font-semibold mb-1 flex items-center gap-1.5">
                   <Clock size={13} className="text-cyan-400" />
-                  <span>Start Time *</span>
+                  <span>Start Time <span className="text-cyan-400">*</span></span>
                 </label>
                 <div className="flex items-center gap-2 px-3 py-1.5 2xl:py-2 rounded-lg bg-[#090d16] border border-[#1c2538] focus-within:border-[#00bcd4] transition">
                   <input
@@ -618,7 +423,7 @@ export default function BandForm({
               <div>
                 <label className="text-slate-300 text-xs font-semibold mb-1 flex items-center gap-1.5">
                   <Clock size={13} className="text-cyan-400" />
-                  <span>End Time *</span>
+                  <span>End Time <span className="text-cyan-400">*</span></span>
                 </label>
                 <div className="flex items-center gap-2 px-3 py-1.5 2xl:py-2 rounded-lg bg-[#090d16] border border-[#1c2538] focus-within:border-[#00bcd4] transition">
                   <input
@@ -633,90 +438,138 @@ export default function BandForm({
               </div>
             </div>
 
-            {/* Duration & Gap */}
+            {/* Start Date & End Date */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               <div>
-                <label className="text-slate-300 text-xs font-semibold mb-1 flex items-center gap-1.5">
-                  <Timer size={13} className="text-emerald-400" />
-                  <span>Display Duration (seconds) *</span>
+                <label className="text-slate-300 text-xs font-semibold mb-1 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <Calendar size={13} className="text-amber-400" />
+                    <span>Start Date</span>
+                  </span>
+                  {startDate && (
+                    <button
+                      type="button"
+                      onClick={() => setStartDate('')}
+                      className="text-[10px] text-slate-400 hover:text-white cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  )}
                 </label>
-                <div className="flex items-center gap-2 px-3 py-1.5 2xl:py-2 rounded-lg bg-[#090d16] border border-[#1c2538] focus-within:border-[#00bcd4] transition">
-                  <input
-                    type="number"
-                    min="2"
-                    max="3600"
-                    required
-                    value={duration}
-                    onChange={(e) => setDuration(Number(e.target.value))}
-                    className="w-full bg-transparent text-slate-100 focus:outline-none text-xs font-mono"
-                    placeholder="e.g. 5"
-                  />
-                  <span className="text-slate-500 font-bold">sec</span>
-                </div>
-                <span className="text-[10px] text-slate-500 mt-1 block">
-                  How long overlay stays visible on air
-                </span>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="w-full bg-[#090d16] border border-[#1c2538] focus:border-[#00bcd4] rounded-lg px-3 py-1.5 2xl:py-2 text-slate-100 text-xs font-mono focus:outline-none"
+                />
               </div>
 
               <div>
-                <label className="text-slate-300 text-xs font-semibold mb-1 flex items-center gap-1.5">
-                  <Clock size={13} className="text-amber-400" />
-                  <span>Playout Gap / Interval (minutes) *</span>
+                <label className="text-slate-300 text-xs font-semibold mb-1 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <Calendar size={13} className="text-amber-400" />
+                    <span>End Date</span>
+                  </span>
+                  {endDate && (
+                    <button
+                      type="button"
+                      onClick={() => setEndDate('')}
+                      className="text-[10px] text-slate-400 hover:text-white cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  )}
                 </label>
-                <div className="flex items-center gap-2 px-3 py-1.5 2xl:py-2 rounded-lg bg-[#090d16] border border-[#1c2538] focus-within:border-[#00bcd4] transition">
-                  <input
-                    type="number"
-                    min="0"
-                    max="1440"
-                    required
-                    value={gapMinutes}
-                    onChange={(e) => setGapMinutes(Number(e.target.value))}
-                    className="w-full bg-transparent text-slate-100 focus:outline-none text-xs font-mono"
-                    placeholder="e.g. 20"
-                  />
-                  <span className="text-slate-500 font-bold">min</span>
-                </div>
-                <span className="text-[10px] text-slate-500 mt-1 block">
-                  Interval between successive shows (0 = once)
-                </span>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="w-full bg-[#090d16] border border-[#1c2538] focus:border-[#00bcd4] rounded-lg px-3 py-1.5 2xl:py-2 text-slate-100 text-xs font-mono focus:outline-none"
+                />
               </div>
             </div>
 
-            {/* Ashton Specific Squeeze Toggle */}
-            {!isLBand && (
-              <div className="p-3.5 bg-[#090d16] border border-[#1a2337] rounded-xl flex items-center justify-between gap-4">
-                <div>
-                  <span className="text-xs font-bold text-slate-200 block">Squeeze Program Video</span>
-                  <span className="text-[10px] text-slate-400">
-                    Push video up smoothly so Ashton graphic doesn't obstruct lower third
-                  </span>
-                </div>
+            {/* Weekdays */}
+            <div className="p-3 bg-[#090d16] border border-[#1a2337] rounded-xl space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-300 font-semibold">Weekdays</span>
                 <button
                   type="button"
-                  onClick={() => setAshtonSqueeze((prev) => !prev)}
-                  className={`w-11 h-6 rounded-full transition p-1 flex items-center cursor-pointer ${ashtonSqueeze ? 'bg-[#00bcd4] justify-end' : 'bg-slate-700 justify-start'
-                    }`}
+                  onClick={toggleAllDays}
+                  className="text-[10.5px] font-semibold text-cyan-400 hover:text-cyan-300 cursor-pointer"
                 >
-                  <span className="w-4 h-4 rounded-full bg-black shadow-md" />
+                  {isAllDays ? 'Unselect All' : 'Select All Days'}
                 </button>
               </div>
-            )}
+              <div className="grid grid-cols-7 gap-1.5">
+                {DAYS_MAP.map((d) => {
+                  const isSelected = daysOfWeek.includes(d.day);
+                  return (
+                    <button
+                      key={d.day}
+                      type="button"
+                      onClick={() => toggleDay(d.day)}
+                      title={d.full}
+                      className={`py-1.5 rounded-lg text-[11px] font-bold border transition cursor-pointer ${
+                        isSelected
+                          ? 'bg-[#00bcd4] text-black border-[#00bcd4] shadow-sm'
+                          : 'bg-[#0e1422] text-slate-400 border-[#1a2337] hover:text-white'
+                      }`}
+                    >
+                      {d.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
-            {/* Active Switch */}
+            {/* Repeat Interval */}
+            <div>
+              <label className="text-slate-300 text-xs font-semibold mb-1 flex items-center gap-1.5">
+                <Clock size={13} className="text-amber-400" />
+                <span>Repeat Interval / Gap (minutes)</span>
+              </label>
+              <div className="flex items-center gap-2 px-3 py-1.5 2xl:py-2 rounded-lg bg-[#090d16] border border-[#1c2538] focus-within:border-[#00bcd4] transition">
+                <input
+                  type="number"
+                  min="0"
+                  max="1440"
+                  value={gapMinutes}
+                  onChange={(e) => setGapMinutes(Number(e.target.value))}
+                  className="w-full bg-transparent text-slate-100 focus:outline-none text-xs font-mono"
+                  placeholder="e.g. 20 (0 = once per window)"
+                />
+                <span className="text-slate-500 font-bold">min</span>
+              </div>
+              <span className="text-[10px] text-slate-500 mt-1 block">
+                Interval between repeat triggers within the Start Time – End Time window (0 = once)
+              </span>
+            </div>
+
+            {/* Enable Schedule Button / Switch */}
             <div className="p-3.5 bg-[#090d16] border border-[#1a2337] rounded-xl flex items-center justify-between gap-4">
-              <div>
-                <span className="text-xs font-bold text-slate-200 block">Enabled on Broadcast</span>
-                <span className="text-[10px] text-slate-400">
-                  When enabled, clock engine will trigger this overlay automatically
-                </span>
+              <div className="flex items-center gap-2.5">
+                <Power size={16} className={enabled ? 'text-emerald-400' : 'text-slate-500'} />
+                <div>
+                  <span className="text-xs font-bold text-slate-200 block">Enable Schedule</span>
+                  <span className="text-[10px] text-slate-400">
+                    {enabled
+                      ? `Active — scheduler will trigger ${bandLabel} automatically on air`
+                      : 'Paused — schedule is saved as disabled until enabled'}
+                  </span>
+                </div>
               </div>
               <button
                 type="button"
                 onClick={() => setEnabled((prev) => !prev)}
-                className={`w-11 h-6 rounded-full transition p-1 flex items-center cursor-pointer ${enabled ? 'bg-emerald-500 justify-end' : 'bg-slate-700 justify-start'
-                  }`}
+                className={`px-3.5 py-1.5 rounded-full text-[11px] font-bold border transition flex items-center gap-1.5 cursor-pointer shrink-0 ${
+                  enabled
+                    ? 'bg-emerald-500 text-black border-emerald-400 shadow-sm shadow-emerald-500/30'
+                    : 'bg-slate-800 text-slate-300 border-slate-600 hover:text-white'
+                }`}
               >
-                <span className="w-4 h-4 rounded-full bg-black shadow-md" />
+                <span className={`w-2 h-2 rounded-full ${enabled ? 'bg-black animate-pulse' : 'bg-slate-400'}`} />
+                <span>{enabled ? 'Enabled' : 'Disabled'}</span>
               </button>
             </div>
 
@@ -731,7 +584,7 @@ export default function BandForm({
               </button>
               <button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={isSubmitting || (bands.length === 0 && !selectedBand?.imagePath)}
                 className="px-4 py-1.5 2xl:py-2 rounded-lg text-xs font-bold bg-[#00bcd4] hover:bg-[#06b6d4] text-black shadow-md shadow-cyan-500/20 transition cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
               >
                 {isSubmitting ? (
@@ -742,7 +595,7 @@ export default function BandForm({
                 ) : (
                   <>
                     <Check size={16} />
-                    <span>{isEdit ? 'Update Schedule' : 'Create Schedule'}</span>
+                    <span>{isEdit ? 'Update Schedule' : 'Save Schedule'}</span>
                   </>
                 )}
               </button>

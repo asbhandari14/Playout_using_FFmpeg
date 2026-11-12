@@ -49,6 +49,12 @@ const scheduleSchema = new mongoose.Schema(
       enum: ['video', 'lband', 'ashton'],
       default: 'video'
     },
+    // Optional link to a reusable BandPreset (L-Band or Ashton Band)
+    bandPreset: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'BandPreset',
+      default: null
+    },
     // Image path for L-Band or Ashton graphic
     imagePath: {
       type: String,

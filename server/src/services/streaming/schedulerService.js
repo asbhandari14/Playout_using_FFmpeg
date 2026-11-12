@@ -114,28 +114,22 @@ class SchedulerService {
       channel: channelIdStr,
       enabled: true,
       type: { $in: ['lband', 'ashton'] }
-    });
+    }).populate('bandPreset');
 
     for (const schedule of overlaySchedules) {
-      // 1. Date range (for datewise)
-      if (schedule.scheduleOption === 'datewise' || schedule.startDate || schedule.endDate) {
-        if (schedule.startDate) {
-          const start = new Date(schedule.startDate);
-          start.setHours(0, 0, 0, 0);
-          if (now < start) continue;
-        }
-        if (schedule.endDate) {
-          const end = new Date(schedule.endDate);
-          end.setHours(23, 59, 59, 999);
-          if (now > end) continue;
-        }
+      // 1. Date range (compare YYYY-MM-DD strings so timezone offsets never shift boundaries)
+      if (schedule.startDate) {
+        const startStr = new Date(schedule.startDate).toISOString().slice(0, 10);
+        if (todayStr < startStr) continue;
+      }
+      if (schedule.endDate) {
+        const endStr = new Date(schedule.endDate).toISOString().slice(0, 10);
+        if (todayStr > endStr) continue;
       }
 
-      // 2. Day of week (for weekly)
-      if (schedule.scheduleOption === 'weekly' || (Array.isArray(schedule.daysOfWeek) && schedule.daysOfWeek.length > 0)) {
-        if (Array.isArray(schedule.daysOfWeek) && schedule.daysOfWeek.length > 0) {
-          if (!schedule.daysOfWeek.includes(currentDayOfWeek)) continue;
-        }
+      // 2. Day of week (empty array means all days)
+      if (Array.isArray(schedule.daysOfWeek) && schedule.daysOfWeek.length > 0) {
+        if (!schedule.daysOfWeek.includes(currentDayOfWeek)) continue;
       }
 
       // 3. Time Window
@@ -179,22 +173,25 @@ class SchedulerService {
       schedule.lastAiredDate = todayStr;
       await schedule.save();
 
-      const dur = Number(schedule.duration) || 5;
+      const preset = schedule.bandPreset;
+      const dur = Number(preset?.duration || schedule.duration) || 10;
+      const imgPath = preset?.imagePath || schedule.imagePath;
 
       if (schedule.type === 'lband') {
         console.log(`[SchedulerService] ⚡ Firing scheduled L-Band "${schedule.title}" (${dur}s duration, gap: ${gapMinutes}m) on channel ${channelIdStr}`);
-        streamManager.fireLBand(channelIdStr, dur, schedule.imagePath, {
-          windowX: schedule.windowX,
-          windowY: schedule.windowY,
-          windowWidth: schedule.windowWidth,
-          windowHeight: schedule.windowHeight
+        streamManager.fireLBand(channelIdStr, dur, imgPath, {
+          windowX: preset?.windowX ?? schedule.windowX,
+          windowY: preset?.windowY ?? schedule.windowY,
+          windowWidth: preset?.windowWidth ?? schedule.windowWidth,
+          windowHeight: preset?.windowHeight ?? schedule.windowHeight
         }).catch((err) => {
           console.error(`[SchedulerService] Error triggering L-Band schedule '${schedule.title}':`, err);
         });
       } else if (schedule.type === 'ashton') {
-        const squeeze = schedule.ashtonSqueeze !== false;
+        const squeeze = preset ? preset.ashtonSqueeze !== false : schedule.ashtonSqueeze !== false;
+        const height = preset?.ashtonHeight ?? schedule.ashtonHeight;
         console.log(`[SchedulerService] ⚡ Firing scheduled Ashton Band "${schedule.title}" (${dur}s duration, squeeze: ${squeeze}, gap: ${gapMinutes}m) on channel ${channelIdStr}`);
-        streamManager.fireAshton(channelIdStr, dur, squeeze, schedule.imagePath, schedule.ashtonHeight).catch((err) => {
+        streamManager.fireAshton(channelIdStr, dur, squeeze, imgPath, height).catch((err) => {
           console.error(`[SchedulerService] Error triggering Ashton schedule '${schedule.title}':`, err);
         });
       }
