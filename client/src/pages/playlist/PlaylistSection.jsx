@@ -21,7 +21,7 @@ export default function PlaylistSection({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-base sm:text-lg 2xl:text-xl font-bold text-white tracking-tight">
+            <h1 className="text-base sm:text-lg 2xl:text-xl text-white tracking-tight">
               {typeConfig.label}
             </h1>
             <span

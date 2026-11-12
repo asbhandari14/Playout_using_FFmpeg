@@ -60,7 +60,7 @@ export default function BroadcastHeader({
           </div>
           <div className="flex flex-col min-w-0 leading-tight">
             <div className="flex items-center gap-1.5">
-              <span className="font-extrabold text-xs 2xl:text-sm tracking-wide text-white uppercase truncate max-w-[130px] sm:max-w-[200px] 2xl:max-w-none">
+              <span className="font-extrabold text-xs 2xl:text-sm tracking-wide text-white uppercase truncate max-w-32.5 sm:max-w-50 2xl:max-w-none">
                 {channel?.name || 'SAI LEELA'}
               </span>
               <span
@@ -83,19 +83,6 @@ export default function BroadcastHeader({
           <span className="font-mono text-[11px] 2xl:text-xs font-semibold tracking-wider">
             {currentTime}
           </span>
-        </div>
-
-        {/* Total Run Time */}
-        <div className="flex items-center gap-1.5 bg-[#12161f] border border-[#222938] px-2.5 py-0.5 2xl:px-3 2xl:py-1 rounded-lg 2xl:rounded-xl shadow-inner leading-tight">
-          <Film size={12} className="text-amber-400" />
-          <div className="flex flex-col">
-            <span className="text-[7px] 2xl:text-[8px] font-bold text-slate-400 uppercase tracking-wider">
-              Total Run Time
-            </span>
-            <span className="font-mono text-[11px] 2xl:text-xs font-semibold text-slate-200">
-              {totalRunTime}
-            </span>
-          </div>
         </div>
       </div>
 

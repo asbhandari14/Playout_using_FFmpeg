@@ -78,7 +78,19 @@ const channelSlice = createSlice({
       if (state.currentChannel) {
         const prevBranding = state.currentChannel.branding || {};
         const nextBranding = { ...prevBranding };
+        const areEqual = (a, b) => {
+          if (Object.is(a, b)) return true;
+          if (!a || !b || typeof a !== 'object' || typeof b !== 'object') return false;
+          if (Array.isArray(a) !== Array.isArray(b)) return false;
+          const keysA = Object.keys(a);
+          const keysB = Object.keys(b);
+          if (keysA.length !== keysB.length) return false;
+          return keysA.every((k) => Object.prototype.hasOwnProperty.call(b, k) && areEqual(a[k], b[k]));
+        };
+
+        let changed = false;
         Object.entries(action.payload || {}).forEach(([key, val]) => {
+          let mergedVal = val;
           if (
             val &&
             typeof val === 'object' &&
@@ -86,12 +98,17 @@ const channelSlice = createSlice({
             prevBranding[key] &&
             typeof prevBranding[key] === 'object'
           ) {
-            nextBranding[key] = { ...prevBranding[key], ...val };
-          } else {
-            nextBranding[key] = val;
+            mergedVal = { ...prevBranding[key], ...val };
+          }
+          if (!areEqual(prevBranding[key], mergedVal)) {
+            nextBranding[key] = mergedVal;
+            changed = true;
           }
         });
-        state.currentChannel.branding = nextBranding;
+
+        if (changed) {
+          state.currentChannel.branding = nextBranding;
+        }
       }
     },
     updateChannelStatus: (state, action) => {

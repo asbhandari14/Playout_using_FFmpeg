@@ -246,7 +246,7 @@ export default function BandForm({
             <div className="w-7 h-7 rounded-lg bg-cyan-950/80 border border-cyan-800/60 flex items-center justify-center text-cyan-400">
               {isLBand ? <PanelBottom size={15} /> : <CreditCard size={15} />}
             </div>
-            <h1 className="text-base sm:text-lg 2xl:text-xl font-bold text-white tracking-tight">
+            <h1 className="text-base sm:text-lg 2xl:text-xl text-white tracking-tight">
               {isEdit ? `Update ${isLBand ? 'L-Band' : 'Ashton Band'}` : `Create New ${isLBand ? 'L-Band' : 'Ashton Band'}`}
             </h1>
           </div>
@@ -289,11 +289,10 @@ export default function BandForm({
               <button
                 type="button"
                 onClick={() => setIsSimulatingAir((prev) => !prev)}
-                className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border transition flex items-center gap-1.5 cursor-pointer ${
-                  isSimulatingAir
+                className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border transition flex items-center gap-1.5 cursor-pointer ${isSimulatingAir
                     ? 'bg-emerald-950/80 text-emerald-300 border-emerald-800'
                     : 'bg-slate-800/60 text-slate-400 border-slate-700'
-                }`}
+                  }`}
                 title="Toggle overlay display in preview"
               >
                 <span className={`w-1.5 h-1.5 rounded-full ${isSimulatingAir ? 'bg-emerald-400 animate-pulse' : 'bg-slate-400'}`} />
@@ -310,21 +309,21 @@ export default function BandForm({
                   !isSimulatingAir
                     ? { inset: 0 }
                     : isLBand && previewUrl
-                    ? {
+                      ? {
                         left: cutoutStyles.left,
                         top: cutoutStyles.top,
                         width: cutoutStyles.width,
                         height: cutoutStyles.height,
                         borderRadius: '4px'
                       }
-                    : !isLBand && ashtonSqueeze && previewUrl
-                    ? {
-                        left: 0,
-                        top: 0,
-                        width: '100%',
-                        height: '75%'
-                      }
-                    : { inset: 0 }
+                      : !isLBand && ashtonSqueeze && previewUrl
+                        ? {
+                          left: 0,
+                          top: 0,
+                          width: '100%',
+                          height: '75%'
+                        }
+                        : { inset: 0 }
                 }
               >
                 {/* Background visual inside video layer */}
@@ -534,11 +533,10 @@ export default function BandForm({
                     key={opt.id}
                     type="button"
                     onClick={() => setScheduleOption(opt.id)}
-                    className={`py-2 px-3 rounded-xl border text-center transition cursor-pointer ${
-                      scheduleOption === opt.id
+                    className={`py-2 px-3 rounded-xl border text-center transition cursor-pointer ${scheduleOption === opt.id
                         ? 'bg-cyan-950/60 border-[#00bcd4] text-cyan-300 shadow-md shadow-cyan-500/10'
                         : 'bg-[#090d16] border-[#1a2337] text-slate-400 hover:text-slate-200 hover:border-slate-700'
-                    }`}
+                      }`}
                   >
                     <span className="font-bold block text-xs">{opt.label}</span>
                     <span className="text-[10px] text-slate-500 block">{opt.hint}</span>
@@ -559,11 +557,10 @@ export default function BandForm({
                         key={d.day}
                         type="button"
                         onClick={() => toggleDay(d.day)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition cursor-pointer ${
-                          isSelected
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition cursor-pointer ${isSelected
                             ? 'bg-[#00bcd4] text-black border-[#00bcd4] shadow-sm'
                             : 'bg-[#0e1422] text-slate-400 border-[#1a2337] hover:text-white'
-                        }`}
+                          }`}
                       >
                         {d.label}
                       </button>
@@ -697,9 +694,8 @@ export default function BandForm({
                 <button
                   type="button"
                   onClick={() => setAshtonSqueeze((prev) => !prev)}
-                  className={`w-11 h-6 rounded-full transition p-1 flex items-center cursor-pointer ${
-                    ashtonSqueeze ? 'bg-[#00bcd4] justify-end' : 'bg-slate-700 justify-start'
-                  }`}
+                  className={`w-11 h-6 rounded-full transition p-1 flex items-center cursor-pointer ${ashtonSqueeze ? 'bg-[#00bcd4] justify-end' : 'bg-slate-700 justify-start'
+                    }`}
                 >
                   <span className="w-4 h-4 rounded-full bg-black shadow-md" />
                 </button>
@@ -717,9 +713,8 @@ export default function BandForm({
               <button
                 type="button"
                 onClick={() => setEnabled((prev) => !prev)}
-                className={`w-11 h-6 rounded-full transition p-1 flex items-center cursor-pointer ${
-                  enabled ? 'bg-emerald-500 justify-end' : 'bg-slate-700 justify-start'
-                }`}
+                className={`w-11 h-6 rounded-full transition p-1 flex items-center cursor-pointer ${enabled ? 'bg-emerald-500 justify-end' : 'bg-slate-700 justify-start'
+                  }`}
               >
                 <span className="w-4 h-4 rounded-full bg-black shadow-md" />
               </button>

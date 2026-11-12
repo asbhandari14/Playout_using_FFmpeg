@@ -130,11 +130,11 @@ export default function CreatePlaylistForm({
                   onChange={set('type')}
                   className={selectClass}
                 >
-                  <option value="emergency" className="bg-[#0b0e18]">Emergency Playlist (Priority 5 - Highest)</option>
-                  <option value="advertisement" className="bg-[#0b0e18]">Advertisement Playlist (Priority 4 - 2nd Highest)</option>
-                  <option value="live_schedule" className="bg-[#0b0e18]">Live Schedule (Priority 3 - 3rd Highest)</option>
-                  <option value="scheduling" className="bg-[#0b0e18]">Scheduling Playlist (Priority 2 - 4th Highest)</option>
-                  <option value="default" className="bg-[#0b0e18]">Default Playlist (Priority 1 - Lowest / Baseline)</option>
+                  <option value="emergency" className="bg-[#0b0e18]">Emergency Playlist</option>
+                  <option value="advertisement" className="bg-[#0b0e18]">Advertisement Playlist</option>
+                  <option value="live_schedule" className="bg-[#0b0e18]">Live Schedule</option>
+                  <option value="scheduling" className="bg-[#0b0e18]">Scheduling Playlist</option>
+                  <option value="default" className="bg-[#0b0e18]">Default Playlist</option>
                 </select>
               </div>
             </Field>

@@ -52,6 +52,20 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
   const bugInputRef = useRef(null);
   const bugPadRef = useRef(null);
   const isDraggingBugRef = useRef(false);
+  const lastChannelIdRef = useRef(null);
+  const lastSyncedSectionsRef = useRef({});
+  const isTickerDirtyRef = useRef(false);
+  const isTimerDirtyRef = useRef(false);
+
+  const updateTickerDraft = (setter, value) => {
+    isTickerDirtyRef.current = true;
+    setter(value);
+  };
+
+  const updateTimerDraft = (setter, value) => {
+    isTimerDirtyRef.current = true;
+    setter(value);
+  };
 
   // Logo state
   const [logoAssetPath, setLogoAssetPath] = useState('');
@@ -105,8 +119,19 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
   const [isDeletingLogo, setIsDeletingLogo] = useState(false);
 
   useEffect(() => {
-    if (channel?.branding) {
-      const bLogo = channel.branding.logo || {};
+    if (!channel?.branding) return;
+
+    if (channel._id !== lastChannelIdRef.current) {
+      lastChannelIdRef.current = channel._id || null;
+      lastSyncedSectionsRef.current = {};
+      isTickerDirtyRef.current = false;
+      isTimerDirtyRef.current = false;
+    }
+
+    const bLogo = channel.branding.logo || {};
+    const logoJson = JSON.stringify(bLogo);
+    if (logoJson !== lastSyncedSectionsRef.current.logo) {
+      lastSyncedSectionsRef.current.logo = logoJson;
       setLogoAssetPath(bLogo.assetPath || '');
       setLogoEnabled(!!bLogo.enabled);
       setLogoPosition(bLogo.position || 'top-right');
@@ -114,8 +139,12 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
       setLogoMarginX(bLogo.marginX !== undefined && bLogo.marginX !== null ? bLogo.marginX : 2);
       setLogoMarginY(bLogo.marginY !== undefined && bLogo.marginY !== null ? bLogo.marginY : 2);
       setLogoShowDuringSchedule(bLogo.showDuringSchedule !== false);
+    }
 
-      const bBug = channel.branding.bug || {};
+    const bBug = channel.branding.bug || {};
+    const bugJson = JSON.stringify(bBug);
+    if (bugJson !== lastSyncedSectionsRef.current.bug && !isDraggingBugRef.current) {
+      lastSyncedSectionsRef.current.bug = bugJson;
       setBugAssetPath(bBug.assetPath || '');
       setBugEnabled(!!bBug.enabled);
       setBugPosition(bBug.position || 'custom');
@@ -151,37 +180,49 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
       const isMov = Boolean(bBug.isMov || (bBug.assetPath && String(bBug.assetPath).toLowerCase().endsWith('.mov')));
       setBugIsMov(isMov);
       setBugIsGif(Boolean(bBug.isGif || (bBug.assetPath && String(bBug.assetPath).toLowerCase().endsWith('.gif'))));
+    }
 
-      const bTicker = channel.branding.ticker || {};
+    const bTicker = channel.branding.ticker || {};
+    const tickerJson = JSON.stringify(bTicker);
+    if (tickerJson !== lastSyncedSectionsRef.current.ticker) {
+      lastSyncedSectionsRef.current.ticker = tickerJson;
       setTickerEnabled(!!bTicker.enabled);
-      if (bTicker.text) setTickerText(bTicker.text);
-      if (bTicker.bgColor) setTickerBgColor(bTicker.bgColor);
-      if (bTicker.textColor) setTickerTextColor(bTicker.textColor);
-      if (bTicker.fontFamily) setTickerFontFamily(bTicker.fontFamily);
-      if (bTicker.fontSize) setTickerFontSize(bTicker.fontSize);
-      if (bTicker.marginBottom !== undefined) setTickerMarginBottom(bTicker.marginBottom);
-      else setTickerMarginBottom(0);
-      if (bTicker.paddingY !== undefined) setTickerPaddingY(bTicker.paddingY);
-      if (bTicker.width !== undefined) setTickerWidth(bTicker.width);
-      if (bTicker.alignment) {
-        const a = String(bTicker.alignment).toLowerCase();
-        if (a === 'left') setTickerAlignment('Left');
-        else if (a === 'right') setTickerAlignment('Right');
-        else setTickerAlignment('Center');
+      if (!isTickerDirtyRef.current) {
+        if (bTicker.text) setTickerText(bTicker.text);
+        if (bTicker.bgColor) setTickerBgColor(bTicker.bgColor);
+        if (bTicker.textColor) setTickerTextColor(bTicker.textColor);
+        if (bTicker.fontFamily) setTickerFontFamily(bTicker.fontFamily);
+        if (bTicker.fontSize) setTickerFontSize(bTicker.fontSize);
+        if (bTicker.marginBottom !== undefined) setTickerMarginBottom(bTicker.marginBottom);
+        else setTickerMarginBottom(0);
+        if (bTicker.paddingY !== undefined) setTickerPaddingY(bTicker.paddingY);
+        if (bTicker.width !== undefined) setTickerWidth(bTicker.width);
+        if (bTicker.alignment) {
+          const a = String(bTicker.alignment).toLowerCase();
+          if (a === 'left') setTickerAlignment('Left');
+          else if (a === 'right') setTickerAlignment('Right');
+          else setTickerAlignment('Center');
+        }
+        if (bTicker.speed !== undefined) setTickerSpeed(bTicker.speed);
       }
-      if (bTicker.speed !== undefined) setTickerSpeed(bTicker.speed);
+    }
 
-      const bTimer = channel.branding.backInTimer || {};
+    const bTimer = channel.branding.backInTimer || {};
+    const timerJson = JSON.stringify(bTimer);
+    if (timerJson !== lastSyncedSectionsRef.current.backInTimer) {
+      lastSyncedSectionsRef.current.backInTimer = timerJson;
       setTimerEnabled(!!bTimer.enabled);
       setTimerShowDuringSchedule(bTimer.showDuringSchedule !== false);
-      setTimerLabel(bTimer.label !== undefined ? bTimer.label : 'BACK IN ');
       setTimerFormat(bTimer.format || 'MM:SS');
       setTimerPosition(bTimer.position || 'top-left');
-      setTimerPositionX(bTimer.positionX !== undefined ? Number(bTimer.positionX) : 5);
-      setTimerPositionY(bTimer.positionY !== undefined ? Number(bTimer.positionY) : 5);
-      setTimerFontSize(bTimer.fontSize || 24);
-      setTimerFontColor(bTimer.fontColor || '#ffffff');
-      setTimerBgColor(bTimer.bgColor || '#000000cc');
+      if (!isTimerDirtyRef.current) {
+        setTimerLabel(bTimer.label !== undefined ? bTimer.label : 'BACK IN ');
+        setTimerPositionX(bTimer.positionX !== undefined ? Number(bTimer.positionX) : 5);
+        setTimerPositionY(bTimer.positionY !== undefined ? Number(bTimer.positionY) : 5);
+        setTimerFontSize(bTimer.fontSize || 24);
+        setTimerFontColor(bTimer.fontColor || '#ffffff');
+        setTimerBgColor(bTimer.bgColor || '#000000cc');
+      }
     }
   }, [channel]);
 
@@ -449,6 +490,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
 
     try {
       const res = await api.put(`/channels/${channel._id}/ticker`, payload);
+      isTickerDirtyRef.current = false;
       setTickerEnabled(true);
       showAlert('success', 'Ticker pushed live to air overlay');
       if (onBrandingUpdated) onBrandingUpdated({ type: 'ticker', data: res.data.ticker });
@@ -504,17 +546,37 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
     try {
       const res = await api.put(`/channels/${channel._id}/timer`, payload);
       const serverTimer = res.data?.timer;
+      if (
+        updates.label !== undefined ||
+        updates.fontSize !== undefined ||
+        updates.fontColor !== undefined ||
+        updates.bgColor !== undefined
+      ) {
+        isTimerDirtyRef.current = false;
+      }
       if (serverTimer) {
         if (serverTimer.enabled !== undefined) setTimerEnabled(!!serverTimer.enabled);
         if (serverTimer.showDuringSchedule !== undefined) setTimerShowDuringSchedule(serverTimer.showDuringSchedule !== false);
-        if (serverTimer.label !== undefined) setTimerLabel(serverTimer.label);
         if (serverTimer.format !== undefined) setTimerFormat(serverTimer.format);
         if (serverTimer.position !== undefined) setTimerPosition(serverTimer.position);
-        if (serverTimer.positionX !== undefined) setTimerPositionX(serverTimer.positionX);
-        if (serverTimer.positionY !== undefined) setTimerPositionY(serverTimer.positionY);
-        if (serverTimer.fontSize !== undefined) setTimerFontSize(serverTimer.fontSize);
-        if (serverTimer.fontColor !== undefined) setTimerFontColor(serverTimer.fontColor);
-        if (serverTimer.bgColor !== undefined) setTimerBgColor(serverTimer.bgColor);
+        if (!isTimerDirtyRef.current || updates.label !== undefined) {
+          if (serverTimer.label !== undefined) setTimerLabel(serverTimer.label);
+        }
+        if (!isTimerDirtyRef.current || updates.positionX !== undefined) {
+          if (serverTimer.positionX !== undefined) setTimerPositionX(serverTimer.positionX);
+        }
+        if (!isTimerDirtyRef.current || updates.positionY !== undefined) {
+          if (serverTimer.positionY !== undefined) setTimerPositionY(serverTimer.positionY);
+        }
+        if (!isTimerDirtyRef.current || updates.fontSize !== undefined) {
+          if (serverTimer.fontSize !== undefined) setTimerFontSize(serverTimer.fontSize);
+        }
+        if (!isTimerDirtyRef.current || updates.fontColor !== undefined) {
+          if (serverTimer.fontColor !== undefined) setTimerFontColor(serverTimer.fontColor);
+        }
+        if (!isTimerDirtyRef.current || updates.bgColor !== undefined) {
+          if (serverTimer.bgColor !== undefined) setTimerBgColor(serverTimer.bgColor);
+        }
       }
       showAlert('success', 'Back In Timer settings updated');
       if (onBrandingUpdated) onBrandingUpdated({ type: 'timer', data: serverTimer || payload });
@@ -1193,7 +1255,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                     <input
                       type="color"
                       value={tickerBgColor.substring(0, 7)}
-                      onChange={(e) => setTickerBgColor(e.target.value)}
+                      onChange={(e) => updateTickerDraft(setTickerBgColor, e.target.value)}
                       className="w-3.5 h-3.5 rounded border-0 cursor-pointer bg-transparent"
                     />
                   </label>
@@ -1202,7 +1264,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                     <input
                       type="color"
                       value={tickerTextColor.substring(0, 7)}
-                      onChange={(e) => setTickerTextColor(e.target.value)}
+                      onChange={(e) => updateTickerDraft(setTickerTextColor, e.target.value)}
                       className="w-3.5 h-3.5 rounded border-0 cursor-pointer bg-transparent"
                     />
                   </label>
@@ -1214,7 +1276,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                 <textarea
                   rows={2}
                   value={tickerText}
-                  onChange={(e) => setTickerText(e.target.value)}
+                  onChange={(e) => updateTickerDraft(setTickerText, e.target.value)}
                   placeholder="Enter Hindi or English ticker text..."
                   className="w-full p-2 bg-[#090c12] border border-[#232a39] rounded-lg text-[11px] 2xl:text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-blue-500 transition-all shadow-inner"
                   style={{
@@ -1243,7 +1305,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
               </div>
               <select
                 value={tickerFontFamily}
-                onChange={(e) => setTickerFontFamily(e.target.value)}
+                onChange={(e) => updateTickerDraft(setTickerFontFamily, e.target.value)}
                 className="w-full bg-[#090c12] border border-[#232a39] text-[11px] 2xl:text-xs text-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-blue-500"
               >
                 {['sans bold', 'sans'].includes(String(tickerFontFamily || '').toLowerCase()) && (
@@ -1270,7 +1332,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                   min="12"
                   max="44"
                   value={tickerFontSize}
-                  onChange={(e) => setTickerFontSize(Number(e.target.value))}
+                  onChange={(e) => updateTickerDraft(setTickerFontSize, Number(e.target.value))}
                   className="w-full accent-blue-600 cursor-pointer h-1.5 bg-[#090c12] rounded-lg"
                 />
               </div>
@@ -1286,7 +1348,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                   min="0"
                   max="20"
                   value={tickerMarginBottom}
-                  onChange={(e) => setTickerMarginBottom(Number(e.target.value))}
+                  onChange={(e) => updateTickerDraft(setTickerMarginBottom, Number(e.target.value))}
                   className="w-full accent-blue-600 cursor-pointer h-1.5 bg-[#090c12] rounded-lg"
                 />
                 <p className="text-[8.5px] 2xl:text-[9px] text-slate-500 mt-0.5">
@@ -1305,7 +1367,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                   min="4"
                   max="30"
                   value={tickerPaddingY}
-                  onChange={(e) => setTickerPaddingY(Number(e.target.value))}
+                  onChange={(e) => updateTickerDraft(setTickerPaddingY, Number(e.target.value))}
                   className="w-full accent-blue-600 cursor-pointer h-1.5 bg-[#090c12] rounded-lg"
                 />
               </div>
@@ -1321,7 +1383,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                   min="50"
                   max="100"
                   value={tickerWidth}
-                  onChange={(e) => setTickerWidth(Number(e.target.value))}
+                  onChange={(e) => updateTickerDraft(setTickerWidth, Number(e.target.value))}
                   className="w-full accent-blue-600 cursor-pointer h-1.5 bg-[#090c12] rounded-lg"
                 />
               </div>
@@ -1333,7 +1395,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                 </label>
                 <select
                   value={tickerAlignment}
-                  onChange={(e) => setTickerAlignment(e.target.value)}
+                  onChange={(e) => updateTickerDraft(setTickerAlignment, e.target.value)}
                   className="w-full bg-[#090c12] border border-[#232a39] text-[11px] 2xl:text-xs text-slate-200 rounded-lg px-2.5 py-1 focus:outline-none focus:border-blue-500"
                 >
                   <option value="Center">Center</option>
@@ -1474,7 +1536,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                 <input
                   type="text"
                   value={timerLabel}
-                  onChange={(e) => setTimerLabel(e.target.value)}
+                  onChange={(e) => updateTimerDraft(setTimerLabel, e.target.value)}
                   placeholder="BACK IN "
                   className="w-full bg-[#090c12] border border-[#232a39] text-[11px] 2xl:text-xs text-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-blue-500 font-mono"
                 />
@@ -1556,7 +1618,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                     min="14"
                     max="48"
                     value={timerFontSize}
-                    onChange={(e) => setTimerFontSize(Number(e.target.value))}
+                    onChange={(e) => updateTimerDraft(setTimerFontSize, Number(e.target.value))}
                     className="w-full accent-blue-600 cursor-pointer h-1.5"
                   />
                 </div>
@@ -1569,7 +1631,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                     <input
                       type="color"
                       value={timerFontColor}
-                      onChange={(e) => setTimerFontColor(e.target.value)}
+                      onChange={(e) => updateTimerDraft(setTimerFontColor, e.target.value)}
                       className="w-7 h-7 rounded border border-slate-700 cursor-pointer bg-transparent"
                     />
                     <span className="text-[11px] text-slate-300 font-mono">{timerFontColor}</span>

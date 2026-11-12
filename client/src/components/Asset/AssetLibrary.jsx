@@ -143,7 +143,7 @@ export default function AssetLibrary({ channelId, onAddToPlaylist }) {
                 </div>
 
                 {/* Thumbnail */}
-                <div className="w-12 h-8 2xl:w-16 2xl:h-11 rounded-md 2xl:rounded-lg bg-[#0a0d13] border border-[#222a3a] overflow-hidden shrink-0 relative flex items-center justify-center">
+                <div className="w-12 h-8 2xl:w-16 2xl:h-11 bg-[#0a0d13] border border-[#222a3a] overflow-hidden shrink-0 relative flex items-center justify-center">
                   {asset.thumbnailPath ? (
                     <img
                       src={`/${asset.thumbnailPath}`}
@@ -172,8 +172,8 @@ export default function AssetLibrary({ channelId, onAddToPlaylist }) {
                   </h4>
 
                   <div className="flex items-center gap-1.5 mt-0.5 text-[9.5px] 2xl:text-[10px] text-slate-400">
-                    <span>{asset.durationFormatted || '00:00'}</span>
-                    <span>•</span>
+                    {/* <span>{asset.durationFormatted || '00:00'}</span> */}
+                    {/* <span>•</span> */}
                     <span>{asset.sizeFormatted}</span>
                   </div>
 
@@ -206,10 +206,10 @@ export default function AssetLibrary({ channelId, onAddToPlaylist }) {
                         e.stopPropagation();
                         onAddToPlaylist(asset);
                       }}
-                      className="w-6 h-6 2xl:w-7 2xl:h-7 rounded-md 2xl:rounded-lg bg-blue-600/20 hover:bg-blue-600 border border-blue-500/30 hover:border-blue-500 text-blue-400 hover:text-white flex items-center justify-center transition shadow-sm cursor-pointer"
+                      className="w-4 h-4 2xl:w-7 2xl:h-7 bg-blue-600/20 hover:bg-blue-600 border border-blue-500/30 hover:border-blue-500 text-blue-400 hover:text-white flex items-center justify-center transition shadow-sm cursor-pointer"
                       title="Add to Playlist"
                     >
-                      <Plus size={12} />
+                      <Plus size={10} />
                     </button>
                   )}
 

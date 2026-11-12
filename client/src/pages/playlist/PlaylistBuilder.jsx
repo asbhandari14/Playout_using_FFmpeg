@@ -648,11 +648,10 @@ export default function PlaylistBuilder({
           {/* Upload Notification Alert */}
           {uploadAlert && (
             <div
-              className={`p-2 px-3 text-[11px] border-b flex items-center gap-2 ${
-                uploadAlert.type === 'success'
+              className={`p-2 px-3 text-[11px] border-b flex items-center gap-2 ${uploadAlert.type === 'success'
                   ? 'bg-emerald-950/40 border-emerald-800 text-emerald-300'
                   : 'bg-rose-950/40 border-rose-800 text-rose-300'
-              }`}
+                }`}
             >
               <CheckCircle2 size={13} />
               <span>{uploadAlert.message}</span>
@@ -687,11 +686,10 @@ export default function PlaylistBuilder({
                   key={cat}
                   type="button"
                   onClick={() => setSelectedCategory(cat)}
-                  className={`px-2 py-0.5 rounded-md text-[10px] font-semibold transition shrink-0 cursor-pointer ${
-                    selectedCategory === cat
+                  className={`px-2 py-0.5 rounded-md text-[10px] font-semibold transition shrink-0 cursor-pointer ${selectedCategory === cat
                       ? `${typeConfig.accentBg} ${typeConfig.accentText} border ${typeConfig.accentBorder}`
                       : 'bg-[#121826] text-slate-400 hover:text-slate-200 border border-[#1c2539]'
-                  }`}
+                    }`}
                 >
                   {cat}
                 </button>
@@ -736,7 +734,7 @@ export default function PlaylistBuilder({
                       <div
                         onClick={() => setPreviewVideo(video)}
                         title="Click to preview video"
-                        className="relative w-16 h-11 rounded-lg bg-black/60 border border-[#222c42] overflow-hidden shrink-0 cursor-pointer group/thumb"
+                        className="relative w-14 h-10 bg-black/60 border border-[#222c42] overflow-hidden shrink-0 cursor-pointer group/thumb"
                       >
                         {video.thumbnailPath ? (
                           <img
@@ -771,17 +769,17 @@ export default function PlaylistBuilder({
                           {video.originalName}
                         </h4>
                         <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-slate-400 font-mono">
-                          <span>{video.resolution || '1280x720'}</span>
+                          {/* <span>{video.resolution || '1280x720'}</span> */}
                           <span>•</span>
-                          <span>{formatBytes(video.size, 1)}</span>
-                          {video.category && (
+                          <span className='text-xs'>{formatBytes(video.size, 1)}</span>
+                          {/* {video.category && (
                             <>
                               <span>•</span>
                               <span className="px-1 py-0.2 rounded bg-[#182136] text-slate-300">
                                 {video.category}
                               </span>
                             </>
-                          )}
+                          )} */}
                         </div>
                         {countInPlaylist > 0 && (
                           <span className={`inline-block mt-1 text-[9px] font-bold ${typeConfig.accentText} ${typeConfig.accentBg} px-1.5 py-0.2 rounded border ${typeConfig.accentBorder} font-mono`}>
@@ -836,11 +834,10 @@ export default function PlaylistBuilder({
           }}
           onDragLeave={() => setIsDropZoneActive(false)}
           onDrop={(e) => handleDropAsset(e, playlistItems.length)}
-          className={`lg:col-span-5 h-full flex flex-col bg-[#0b0e17] border rounded-2xl overflow-hidden shadow-2xl transition-all ${
-            isDropZoneActive
+          className={`lg:col-span-5 h-full flex flex-col bg-[#0b0e17] border rounded-2xl overflow-hidden shadow-2xl transition-all ${isDropZoneActive
               ? typeConfig.dropHighlight
               : 'border-[#182032]'
-          }`}
+            }`}
         >
           {/* Column 2 Header */}
           <div className="p-3.5 border-b border-[#182032] bg-[#0e121e] flex flex-wrap items-center justify-between gap-2">
@@ -897,11 +894,10 @@ export default function PlaylistBuilder({
           <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
             {playlistItems.length === 0 ? (
               <div
-                className={`h-full min-h-[300px] flex flex-col items-center justify-center border-2 border-dashed rounded-xl p-6 text-center transition ${
-                  isDropZoneActive
+                className={`h-full min-h-[300px] flex flex-col items-center justify-center border-2 border-dashed rounded-xl p-6 text-center transition ${isDropZoneActive
                     ? `${typeConfig.accentBorder} ${typeConfig.accentBg}`
                     : 'border-[#1e273a] text-slate-500'
-                }`}
+                  }`}
               >
                 <div className={`w-12 h-12 rounded-2xl ${typeConfig.accentBg} border ${typeConfig.accentBorder} flex items-center justify-center ${typeConfig.accentText} mb-3 shadow-lg`}>
                   <TypeIcon size={24} />
@@ -932,11 +928,10 @@ export default function PlaylistBuilder({
                     }}
                     onDragLeave={() => setDragOverIndex(null)}
                     onDrop={(e) => handleDropAsset(e, index)}
-                    className={`px-3 py-2 rounded-xl border grid grid-cols-[28px_24px_1fr_65px_65px_70px] items-center gap-2 text-xs transition group ${
-                      isDragOver
+                    className={`px-3 py-2 rounded-xl border grid grid-cols-[28px_24px_1fr_65px_65px_70px] items-center gap-2 text-xs transition group ${isDragOver
                         ? typeConfig.dragOverRow
                         : `border-[#1a2336] bg-[#0e1320] hover:bg-[#12192a]`
-                    }`}
+                      }`}
                   >
                     {/* Index # */}
                     <div className="text-center font-mono text-[11px] font-bold text-slate-400">
@@ -1171,11 +1166,10 @@ export default function PlaylistBuilder({
                     key={opt.id}
                     type="button"
                     onClick={() => setFormData((prev) => ({ ...prev, scheduleOption: opt.id }))}
-                    className={`p-2 rounded-xl border text-center transition flex flex-col items-center justify-center cursor-pointer ${
-                      (formData.scheduleOption || 'none') === opt.id
+                    className={`p-2 rounded-xl border text-center transition flex flex-col items-center justify-center cursor-pointer ${(formData.scheduleOption || 'none') === opt.id
                         ? `${typeConfig.accentBg} ${typeConfig.accentBorder} ${typeConfig.accentText} font-bold`
                         : 'bg-[#090d16] border-[#1a2337] text-slate-400 hover:border-slate-600'
-                    }`}
+                      }`}
                   >
                     <span className="text-[11px]">{opt.label}</span>
                     <span className="text-[9px] opacity-70 mt-0.5">{opt.desc}</span>
@@ -1220,11 +1214,10 @@ export default function PlaylistBuilder({
                         key={d.value}
                         type="button"
                         onClick={() => handleToggleDayOfWeek(d.value)}
-                        className={`py-1 rounded text-[10px] font-bold transition cursor-pointer ${
-                          isSelected
+                        className={`py-1 rounded text-[10px] font-bold transition cursor-pointer ${isSelected
                             ? `${typeConfig.accentBg} ${typeConfig.accentText} border ${typeConfig.accentBorder} font-black`
                             : 'bg-[#111624] text-slate-400 border border-[#1a2337] hover:border-slate-500'
-                        }`}
+                          }`}
                       >
                         {d.label}
                       </button>
@@ -1283,11 +1276,10 @@ export default function PlaylistBuilder({
 
               <div className="space-y-1.5">
                 {/* Logo Toggle */}
-                <label className={`flex items-center justify-between p-2 rounded-xl border cursor-pointer transition ${
-                  formData.showLogo !== false
+                <label className={`flex items-center justify-between p-2 rounded-xl border cursor-pointer transition ${formData.showLogo !== false
                     ? 'bg-[#00bcd4]/10 border-[#00bcd4]/40 text-slate-200'
                     : 'bg-[#090d16] border-[#1a2337] text-slate-400 opacity-60'
-                }`}>
+                  }`}>
                   <div className="flex flex-col">
                     <span className="font-semibold text-xs">Channel Logo</span>
                     <span className="text-[9px] opacity-70">Show main station logo</span>
@@ -1301,11 +1293,10 @@ export default function PlaylistBuilder({
                 </label>
 
                 {/* Bug Toggle */}
-                <label className={`flex items-center justify-between p-2 rounded-xl border cursor-pointer transition ${
-                  formData.showBug !== false
+                <label className={`flex items-center justify-between p-2 rounded-xl border cursor-pointer transition ${formData.showBug !== false
                     ? 'bg-[#00bcd4]/10 border-[#00bcd4]/40 text-slate-200'
                     : 'bg-[#090d16] border-[#1a2337] text-slate-400 opacity-60'
-                }`}>
+                  }`}>
                   <div className="flex flex-col">
                     <span className="font-semibold text-xs">Station Bug</span>
                     <span className="text-[9px] opacity-70">Show watermark / animated bug</span>
@@ -1319,11 +1310,10 @@ export default function PlaylistBuilder({
                 </label>
 
                 {/* Ticker Toggle */}
-                <label className={`flex items-center justify-between p-2 rounded-xl border cursor-pointer transition ${
-                  formData.showTicker !== false
+                <label className={`flex items-center justify-between p-2 rounded-xl border cursor-pointer transition ${formData.showTicker !== false
                     ? 'bg-[#00bcd4]/10 border-[#00bcd4]/40 text-slate-200'
                     : 'bg-[#090d16] border-[#1a2337] text-slate-400 opacity-60'
-                }`}>
+                  }`}>
                   <div className="flex flex-col">
                     <span className="font-semibold text-xs">Bottom Ticker</span>
                     <span className="text-[9px] opacity-70">Show running news ticker</span>
@@ -1338,11 +1328,10 @@ export default function PlaylistBuilder({
 
                 {/* Advertisement Only: Back-In Countdown Timer */}
                 {activeType === 'advertisement' && (
-                  <label className={`flex items-center justify-between p-2 rounded-xl border cursor-pointer transition ${
-                    formData.showBackInTimer === true
+                  <label className={`flex items-center justify-between p-2 rounded-xl border cursor-pointer transition ${formData.showBackInTimer === true
                       ? 'bg-amber-500/15 border-amber-500/50 text-amber-200'
                       : 'bg-[#090d16] border-[#1a2337] text-slate-400 opacity-60'
-                  }`}>
+                    }`}>
                     <div className="flex flex-col">
                       <span className="font-semibold text-xs text-amber-300 flex items-center gap-1">
                         <Timer size={12} />
