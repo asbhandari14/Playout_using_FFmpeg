@@ -19,6 +19,48 @@ const triggerSchedulerDirect = () => {
   }).catch(() => { });
 };
 
+// Dynamic helper to stop an active band sequence if it belongs to this scheduleId
+const stopSequenceIfOwned = async (channelId, scheduleId, type) => {
+  if (type !== 'lband' && type !== 'ashton') return;
+  try {
+    const { streamManager } = await import('../services/streaming/streamManager.js');
+    if (streamManager.getRunningBandSequenceScheduleId(channelId, type) === String(scheduleId)) {
+      await streamManager.stopBandSequence(channelId, type);
+    }
+  } catch (err) {
+    console.warn('[ScheduleController] Stop active band sequence warning:', err.message);
+  }
+};
+
+// Parse ordered array of BandPreset IDs preserving order & duplicates
+const parseOrderedBandIds = (body) => {
+  const rawList = body.bandPresetIds !== undefined
+    ? body.bandPresetIds
+    : (body.bandPresets !== undefined ? body.bandPresets : undefined);
+
+  if (rawList !== undefined) {
+    let arr = rawList;
+    if (typeof rawList === 'string') {
+      try {
+        arr = JSON.parse(rawList);
+      } catch {
+        arr = rawList.split(',').map((s) => s.trim());
+      }
+    }
+    if (!Array.isArray(arr)) arr = arr ? [arr] : [];
+    return arr
+      .map((item) => (typeof item === 'object' && item?._id ? String(item._id) : String(item || '').trim()))
+      .filter(Boolean);
+  }
+
+  const single = body.bandPresetId ?? body.bandPreset;
+  if (single !== undefined) {
+    return single ? [typeof single === 'object' && single?._id ? String(single._id) : String(single)] : [];
+  }
+
+  return undefined;
+};
+
 // Helper to normalize HH:mm to HH:mm:ss
 const normalizeTimeStr = (timeStr) => {
   if (!timeStr) return '00:00:00';
@@ -55,6 +97,7 @@ export const getSchedules = async (req, res, next) => {
     }
 
     const schedules = await Schedule.find(query)
+      .populate('bandPresets')
       .populate('bandPreset')
       .populate('assets', 'originalName filePath duration durationFormatted thumbnailPath category')
       .populate('asset', 'originalName filePath duration durationFormatted thumbnailPath category')
@@ -91,14 +134,21 @@ export const createSchedule = async (req, res, next) => {
     }
 
     const scheduleType = ['video', 'lband', 'ashton'].includes(type) ? type : 'video';
-    const rawBandPresetId = req.body.bandPresetId || req.body.bandPreset || null;
+    const requestedBandIds = parseOrderedBandIds(req.body);
 
+    let orderedPresets = [];
     let linkedPreset = null;
-    if (rawBandPresetId && (scheduleType === 'lband' || scheduleType === 'ashton')) {
-      linkedPreset = await BandPreset.findOne({ _id: rawBandPresetId, channel: channelId });
-      if (!linkedPreset) {
-        return res.status(404).json({ message: `Selected ${scheduleType === 'lband' ? 'L-Band' : 'Ashton Band'} was not found` });
+    if (requestedBandIds && requestedBandIds.length > 0 && (scheduleType === 'lband' || scheduleType === 'ashton')) {
+      const uniqueIds = [...new Set(requestedBandIds)];
+      const foundDocs = await BandPreset.find({ _id: { $in: uniqueIds }, channel: channelId });
+      const docMap = new Map(foundDocs.map((d) => [String(d._id), d]));
+      orderedPresets = requestedBandIds.map((id) => docMap.get(id)).filter(Boolean);
+      if (orderedPresets.length !== requestedBandIds.length) {
+        return res.status(404).json({
+          message: `One or more selected ${scheduleType === 'lband' ? 'L-Band' : 'Ashton Band'} items were not found`
+        });
       }
+      linkedPreset = orderedPresets[0] || null;
     }
 
     let imageRelativePath = linkedPreset?.imagePath || req.body.imagePath || '';
@@ -118,9 +168,9 @@ export const createSchedule = async (req, res, next) => {
       }
     }
 
-    if ((scheduleType === 'lband' || scheduleType === 'ashton') && !imageRelativePath) {
+    if ((scheduleType === 'lband' || scheduleType === 'ashton') && orderedPresets.length === 0 && !imageRelativePath) {
       return res.status(400).json({
-        message: `Please select an existing ${scheduleType === 'lband' ? 'L-Band' : 'Ashton Band'} or upload a graphic image`
+        message: `Please add at least one ${scheduleType === 'lband' ? 'L-Band' : 'Ashton Band'} to this schedule`
       });
     }
 
@@ -148,7 +198,9 @@ export const createSchedule = async (req, res, next) => {
       totalAssetDuration =
         duration && Number(duration) > 0
           ? Number(duration)
-          : (linkedPreset?.duration ? Number(linkedPreset.duration) : 10);
+          : (orderedPresets.length > 0
+              ? orderedPresets.reduce((sum, p) => sum + (Number(p.duration) || 10), 0)
+              : 10);
     }
 
     if (!dailyStartTime) {
@@ -182,15 +234,41 @@ export const createSchedule = async (req, res, next) => {
     }
 
     const hasVal = (v) => v !== undefined && v !== null && String(v).trim() !== '';
+    const isOverlayType = scheduleType === 'lband' || scheduleType === 'ashton';
+    const repeatForever = isOverlayType
+      ? true
+      : (req.body.repeatForever !== undefined
+          ? (req.body.repeatForever === true || req.body.repeatForever === 'true')
+          : true);
+
+    let finalGapSeconds = null;
+    let finalGapMinutes = 20;
+    if (isOverlayType) {
+      if (hasVal(req.body.gapSeconds)) {
+        finalGapSeconds = Math.max(0, Number(req.body.gapSeconds) || 0);
+        finalGapMinutes = Number((finalGapSeconds / 60).toFixed(2));
+      } else if (hasVal(req.body.gapMinutes)) {
+        finalGapMinutes = Math.max(0, Number(req.body.gapMinutes) || 0);
+        finalGapSeconds = Math.round(finalGapMinutes * 60);
+      } else {
+        finalGapSeconds = 60;
+        finalGapMinutes = 1;
+      }
+    } else if (hasVal(req.body.gapMinutes)) {
+      finalGapMinutes = Number(req.body.gapMinutes);
+    }
 
     const schedule = new Schedule({
       channel: channelId,
       title: title.trim(),
       type: scheduleType,
+      bandPresets: orderedPresets.map((p) => p._id),
       bandPreset: linkedPreset?._id || null,
+      repeatForever,
       imagePath: imageRelativePath,
       scheduleOption: req.body.scheduleOption || (normalizedDays.length > 0 && normalizedDays.length < 7 ? 'weekly' : (startDate || endDate ? 'datewise' : '24/7')),
-      gapMinutes: hasVal(req.body.gapMinutes) ? Number(req.body.gapMinutes) : 20,
+      gapMinutes: finalGapMinutes,
+      gapSeconds: finalGapSeconds,
       ashtonSqueeze: linkedPreset
         ? linkedPreset.ashtonSqueeze !== false
         : (ashtonSqueeze !== false && ashtonSqueeze !== 'false'),
@@ -218,6 +296,7 @@ export const createSchedule = async (req, res, next) => {
     triggerSchedulerDirect();
 
     const populated = await Schedule.findById(schedule._id)
+      .populate('bandPresets')
       .populate('bandPreset')
       .populate('assets', 'originalName filePath duration durationFormatted thumbnailPath category')
       .populate('asset', 'originalName filePath duration durationFormatted thumbnailPath category');
@@ -272,23 +351,29 @@ export const updateSchedule = async (req, res, next) => {
       schedule.ashtonSqueeze = ashtonSqueeze !== false && ashtonSqueeze !== 'false';
     }
 
-    const rawBandPresetId = req.body.bandPresetId ?? req.body.bandPreset;
-    if (rawBandPresetId !== undefined) {
-      if (rawBandPresetId) {
-        const linkedPreset = await BandPreset.findOne({ _id: rawBandPresetId, channel: channelId });
-        if (!linkedPreset) {
-          return res.status(404).json({ message: 'Selected Band preset was not found' });
+    const requestedBandIds = parseOrderedBandIds(req.body);
+    if (requestedBandIds !== undefined) {
+      if (requestedBandIds.length > 0) {
+        const uniqueIds = [...new Set(requestedBandIds)];
+        const foundDocs = await BandPreset.find({ _id: { $in: uniqueIds }, channel: channelId });
+        const docMap = new Map(foundDocs.map((d) => [String(d._id), d]));
+        const orderedPresets = requestedBandIds.map((id) => docMap.get(id)).filter(Boolean);
+        if (orderedPresets.length !== requestedBandIds.length) {
+          return res.status(404).json({ message: 'One or more selected Band presets were not found' });
         }
-        schedule.bandPreset = linkedPreset._id;
-        schedule.imagePath = linkedPreset.imagePath;
-        schedule.duration = linkedPreset.duration;
-        schedule.windowX = linkedPreset.windowX;
-        schedule.windowY = linkedPreset.windowY;
-        schedule.windowWidth = linkedPreset.windowWidth;
-        schedule.windowHeight = linkedPreset.windowHeight;
-        schedule.ashtonSqueeze = linkedPreset.ashtonSqueeze;
-        schedule.ashtonHeight = linkedPreset.ashtonHeight;
+        const firstPreset = orderedPresets[0];
+        schedule.bandPresets = orderedPresets.map((p) => p._id);
+        schedule.bandPreset = firstPreset._id;
+        schedule.imagePath = firstPreset.imagePath;
+        schedule.duration = orderedPresets.reduce((sum, p) => sum + (Number(p.duration) || 10), 0);
+        schedule.windowX = firstPreset.windowX;
+        schedule.windowY = firstPreset.windowY;
+        schedule.windowWidth = firstPreset.windowWidth;
+        schedule.windowHeight = firstPreset.windowHeight;
+        schedule.ashtonSqueeze = firstPreset.ashtonSqueeze;
+        schedule.ashtonHeight = firstPreset.ashtonHeight;
       } else {
+        schedule.bandPresets = [];
         schedule.bandPreset = null;
       }
     }
@@ -315,7 +400,17 @@ export const updateSchedule = async (req, res, next) => {
     }
 
     if (req.body.scheduleOption) schedule.scheduleOption = req.body.scheduleOption;
-    if (req.body.gapMinutes !== undefined && req.body.gapMinutes !== '') schedule.gapMinutes = Number(req.body.gapMinutes);
+    if (req.body.gapSeconds !== undefined && req.body.gapSeconds !== '') {
+      const sec = Math.max(0, Number(req.body.gapSeconds) || 0);
+      schedule.gapSeconds = sec;
+      schedule.gapMinutes = Number((sec / 60).toFixed(2));
+    } else if (req.body.gapMinutes !== undefined && req.body.gapMinutes !== '') {
+      const mins = Math.max(0, Number(req.body.gapMinutes) || 0);
+      schedule.gapMinutes = mins;
+      if (schedule.type === 'lband' || schedule.type === 'ashton') {
+        schedule.gapSeconds = Math.round(mins * 60);
+      }
+    }
     if (req.body.ashtonHeight !== undefined && req.body.ashtonHeight !== '') schedule.ashtonHeight = Number(req.body.ashtonHeight);
     if (req.body.windowX !== undefined && req.body.windowX !== '') schedule.windowX = Number(req.body.windowX);
     if (req.body.windowY !== undefined && req.body.windowY !== '') schedule.windowY = Number(req.body.windowY);
@@ -367,18 +462,27 @@ export const updateSchedule = async (req, res, next) => {
         schedule.daysOfWeek = daysOfWeek.map(Number).filter((d) => !isNaN(d) && d >= 0 && d <= 6);
       }
     }
+    if (schedule.type === 'lband' || schedule.type === 'ashton') {
+      schedule.repeatForever = true;
+    } else if (req.body.repeatForever !== undefined) {
+      schedule.repeatForever = req.body.repeatForever === true || req.body.repeatForever === 'true';
+    }
     if (priority !== undefined) schedule.priority = Number(priority);
     if (enabled !== undefined) schedule.enabled = enabled === true || enabled === 'true';
 
-    // Reset lastAiredDate so updated schedule is eligible to air immediately
+    // Reset lastAiredDate & lastBandIndex so updated schedule starts fresh from band #1
     schedule.lastAiredDate = '';
+    schedule.lastBandIndex = -1;
 
     await schedule.save();
+
+    await stopSequenceIfOwned(channelId, scheduleId, schedule.type);
 
     // Immediately evaluate scheduler so active ad/schedule begins airing directly without waiting
     triggerSchedulerDirect();
 
     const populated = await Schedule.findById(schedule._id)
+      .populate('bandPresets')
       .populate('bandPreset')
       .populate('assets', 'originalName filePath duration durationFormatted thumbnailPath category')
       .populate('asset', 'originalName filePath duration durationFormatted thumbnailPath category');
@@ -412,10 +516,13 @@ export const toggleSchedule = async (req, res, next) => {
     schedule.enabled = !schedule.enabled;
     await schedule.save();
 
+    await stopSequenceIfOwned(channelId, scheduleId, schedule.type);
+
     // Immediately evaluate scheduler so active ad/schedule begins airing directly without waiting
     triggerSchedulerDirect();
 
     const populated = await Schedule.findById(schedule._id)
+      .populate('bandPresets')
       .populate('bandPreset')
       .populate('assets', 'originalName filePath duration durationFormatted thumbnailPath category')
       .populate('asset', 'originalName filePath duration durationFormatted thumbnailPath category');
@@ -446,6 +553,8 @@ export const deleteSchedule = async (req, res, next) => {
       return res.status(404).json({ message: 'Schedule not found' });
     }
 
+    await stopSequenceIfOwned(channelId, scheduleId, deleted.type);
+
     const io = getIO(req);
     if (io) {
       io.to(`channel:${channelId}`).emit('schedules_updated', {
@@ -469,6 +578,7 @@ export const playScheduleNow = async (req, res, next) => {
   try {
     const { channelId, scheduleId } = req.params;
     const schedule = await Schedule.findOne({ _id: scheduleId, channel: channelId })
+      .populate('bandPresets')
       .populate('bandPreset')
       .populate('assets')
       .populate('asset');
@@ -485,29 +595,17 @@ export const playScheduleNow = async (req, res, next) => {
       });
     }
 
-    const preset = schedule.bandPreset;
-    if (schedule.type === 'lband') {
-      const dur = Number(preset?.duration || schedule.duration) || 10;
-      const imgPath = preset?.imagePath || schedule.imagePath;
-      await streamManager.fireLBand(channelId, dur, imgPath, {
-        windowX: preset?.windowX ?? schedule.windowX,
-        windowY: preset?.windowY ?? schedule.windowY,
-        windowWidth: preset?.windowWidth ?? schedule.windowWidth,
-        windowHeight: preset?.windowHeight ?? schedule.windowHeight
-      });
+    if (schedule.type === 'lband' || schedule.type === 'ashton') {
+      const seqResult = await streamManager.startBandSequence(channelId, schedule, { forceOnce: true });
+      if (!seqResult?.started) {
+        return res.status(400).json({
+          message: `No valid ${schedule.type === 'lband' ? 'L-Band' : 'Ashton Band'} graphic found for schedule "${schedule.title}".`
+        });
+      }
+      const label = schedule.type === 'lband' ? 'L-Band' : 'Ashton Band';
       return res.status(200).json({
         success: true,
-        message: `L-Band graphic "${schedule.title}" fired live on air for ${dur}s!`
-      });
-    } else if (schedule.type === 'ashton') {
-      const dur = Number(preset?.duration || schedule.duration) || 10;
-      const squeeze = preset ? preset.ashtonSqueeze !== false : schedule.ashtonSqueeze !== false;
-      const imgPath = preset?.imagePath || schedule.imagePath;
-      const height = preset?.ashtonHeight ?? schedule.ashtonHeight;
-      await streamManager.fireAshton(channelId, dur, squeeze, imgPath, height);
-      return res.status(200).json({
-        success: true,
-        message: `Ashton Band "${schedule.title}" fired live on air for ${dur}s!`
+        message: `${label} sequence "${schedule.title}" (${seqResult.count} item${seqResult.count === 1 ? '' : 's'}) started live on air!`
       });
     } else {
       // Direct video / ad playback

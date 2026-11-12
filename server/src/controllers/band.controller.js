@@ -240,6 +240,10 @@ export const deleteBand = async (req, res, next) => {
       { channel: channelId, bandPreset: bandId },
       { $set: { bandPreset: null } }
     );
+    await Schedule.updateMany(
+      { channel: channelId, bandPresets: bandId },
+      { $pull: { bandPresets: bandId } }
+    );
 
     await unlinkIfUnused(deleted.imagePath);
 

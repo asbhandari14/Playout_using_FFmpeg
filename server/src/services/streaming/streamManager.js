@@ -9,12 +9,16 @@ import { FeederService } from './feederService.js';
 import { CHANNEL_STATUS } from '../../config/constants.js';
 import { createFlussonicStream, sanitizeStreamKey } from '../flussonicService.js';
 import { io } from '../../server.js';
+import { safeWriteFileSync } from './brandingAssets.js';
+import { Schedule } from '../../models/schedule.model.js';
+import { isOverlayScheduleActiveNow, resolveOrderedBandsForSchedule, getOverlayGapMs } from './bandScheduleUtils.js';
 
 class StreamManager {
   constructor() {
     this.activeStreams = new Map();
     this.nextZmqPort = 5600;
     this.fireTimers = new Map();
+    this.activeBandSequences = new Map();
     this.recoveryMap = new Map();
     this.reloadingChannels = new Set();
   }
@@ -285,6 +289,8 @@ class StreamManager {
 
     this.clearFireTimer(chIdStr, 'lband');
     this.clearFireTimer(chIdStr, 'ashton');
+    this.stopBandSequence(chIdStr, 'lband', { closeOverlay: false });
+    this.stopBandSequence(chIdStr, 'ashton', { closeOverlay: false });
     this.activeStreams.delete(chIdStr);
 
     // If reloading for live asset updates, maintain LIVE status and do not broadcast IDLE
@@ -442,11 +448,20 @@ class StreamManager {
   /**
    * Instantly fire L-Band for a given duration (default 60s), then automatically close
    */
-  async fireLBand(channelId, duration = 60, customImagePath = null, cutout = null) {
+  async fireLBand(
+    channelId,
+    duration = 60,
+    customImagePath = null,
+    cutout = null,
+    { skipAutoClose = false, fromSequence = false } = {}
+  ) {
     const dur = Math.max(1, Math.min(3600, Number(duration) || 60));
     const channelIdStr = String(channelId);
     console.log(`[StreamManager] 🔥 Quick Fire L-Band triggered for channel ${channelIdStr} (${dur}s duration)`);
 
+    if (!fromSequence) {
+      await this.stopBandSequence(channelIdStr, 'lband', { closeOverlay: false });
+    }
     this.clearFireTimer(channelIdStr, 'lband');
 
     // If custom image path is provided for this specific L-Band schedule
@@ -459,7 +474,7 @@ class StreamManager {
         }
         const targetLBandFile = path.join(channelStreamDir, 'lband.png');
         try {
-          fs.copyFileSync(fullCustomPath, targetLBandFile);
+          safeWriteFileSync(targetLBandFile, fs.readFileSync(fullCustomPath));
           console.log(`[StreamManager] Applied custom L-Band graphic: ${customImagePath}`);
         } catch (copyErr) {
           console.warn(`[StreamManager] Warning copying custom L-Band file:`, copyErr.message);
@@ -514,34 +529,38 @@ class StreamManager {
     }
 
     const expiresAt = Date.now() + dur * 1000;
-    const timerId = setTimeout(async () => {
-      console.log(`[StreamManager] ⏱️ L-Band ${dur}s duration expired for channel ${channelIdStr}. Closing automatically...`);
-      this.fireTimers.delete(`${channelIdStr}:lband`);
-      try {
-        await Channel.findByIdAndUpdate(channelIdStr, {
-          $set: { 'branding.lband.enabled': false }
-        });
-        const currentStream = this.getStream(channelIdStr);
-        if (currentStream && currentStream.encoder) {
-          if (currentStream.encoder.channel?.branding?.lband) {
-            currentStream.encoder.channel.branding.lband.enabled = false;
-          }
-          await currentStream.encoder.setLBandEnabled(false);
-        }
-        if (io) {
-          io.to(`channel:${channelIdStr}`).emit('branding_updated', {
-            type: 'lband',
-            lband: {
-              ...channel.branding.lband,
-              enabled: false,
-              fireActive: false
-            }
+    let timerId = null;
+
+    if (!skipAutoClose) {
+      timerId = setTimeout(async () => {
+        console.log(`[StreamManager] ⏱️ L-Band ${dur}s duration expired for channel ${channelIdStr}. Closing automatically...`);
+        this.fireTimers.delete(`${channelIdStr}:lband`);
+        try {
+          await Channel.findByIdAndUpdate(channelIdStr, {
+            $set: { 'branding.lband.enabled': false }
           });
+          const currentStream = this.getStream(channelIdStr);
+          if (currentStream && currentStream.encoder) {
+            if (currentStream.encoder.channel?.branding?.lband) {
+              currentStream.encoder.channel.branding.lband.enabled = false;
+            }
+            await currentStream.encoder.setLBandEnabled(false);
+          }
+          if (io) {
+            io.to(`channel:${channelIdStr}`).emit('branding_updated', {
+              type: 'lband',
+              lband: {
+                ...channel.branding.lband,
+                enabled: false,
+                fireActive: false
+              }
+            });
+          }
+        } catch (err) {
+          console.error(`[StreamManager] Error auto-closing fired L-Band on channel ${channelIdStr}:`, err);
         }
-      } catch (err) {
-        console.error(`[StreamManager] Error auto-closing fired L-Band on channel ${channelIdStr}:`, err);
-      }
-    }, dur * 1000);
+      }, dur * 1000);
+    }
 
     this.fireTimers.set(`${channelIdStr}:lband`, {
       timerId,
@@ -573,8 +592,11 @@ class StreamManager {
   /**
    * Cancel active fired L-Band and close immediately
    */
-  async cancelFireLBand(channelId) {
+  async cancelFireLBand(channelId, { fromSequence = false } = {}) {
     const channelIdStr = String(channelId);
+    if (!fromSequence) {
+      await this.stopBandSequence(channelIdStr, 'lband', { closeOverlay: false });
+    }
     this.clearFireTimer(channelIdStr, 'lband');
 
     await Channel.findByIdAndUpdate(channelIdStr, {
@@ -605,11 +627,21 @@ class StreamManager {
   /**
    * Instantly fire Ashton Band for a given duration (default 60s), then automatically close
    */
-  async fireAshton(channelId, duration = 60, squeeze = true, customImagePath = null, customHeight = null) {
+  async fireAshton(
+    channelId,
+    duration = 60,
+    squeeze = true,
+    customImagePath = null,
+    customHeight = null,
+    { skipAutoClose = false, fromSequence = false } = {}
+  ) {
     const dur = Math.max(1, Math.min(3600, Number(duration) || 60));
     const channelIdStr = String(channelId);
     console.log(`[StreamManager] 🔥 Quick Fire Ashton Band triggered for channel ${channelIdStr} (${dur}s duration, squeeze: ${squeeze})`);
 
+    if (!fromSequence) {
+      await this.stopBandSequence(channelIdStr, 'ashton', { closeOverlay: false });
+    }
     this.clearFireTimer(channelIdStr, 'ashton');
 
     // If custom image path is provided for this specific Ashton Band schedule
@@ -622,7 +654,7 @@ class StreamManager {
         }
         const targetAshtonFile = path.join(channelStreamDir, 'ashton.png');
         try {
-          fs.copyFileSync(fullCustomPath, targetAshtonFile);
+          safeWriteFileSync(targetAshtonFile, fs.readFileSync(fullCustomPath));
           console.log(`[StreamManager] Applied custom Ashton Band graphic: ${customImagePath}`);
         } catch (copyErr) {
           console.warn(`[StreamManager] Warning copying custom Ashton file:`, copyErr.message);
@@ -662,34 +694,38 @@ class StreamManager {
     }
 
     const expiresAt = Date.now() + dur * 1000;
-    const timerId = setTimeout(async () => {
-      console.log(`[StreamManager] ⏱️ Ashton Band ${dur}s duration expired for channel ${channelIdStr}. Closing automatically...`);
-      this.fireTimers.delete(`${channelIdStr}:ashton`);
-      try {
-        await Channel.findByIdAndUpdate(channelIdStr, {
-          $set: { 'branding.ashton.enabled': false }
-        });
-        const currentStream = this.getStream(channelIdStr);
-        if (currentStream && currentStream.encoder) {
-          if (currentStream.encoder.channel?.branding?.ashton) {
-            currentStream.encoder.channel.branding.ashton.enabled = false;
-          }
-          await currentStream.encoder.setAshtonLive(false, !!squeeze);
-        }
-        if (io) {
-          io.to(`channel:${channelIdStr}`).emit('branding_updated', {
-            type: 'ashton',
-            ashton: {
-              ...channel.branding.ashton,
-              enabled: false,
-              fireActive: false
-            }
+    let timerId = null;
+
+    if (!skipAutoClose) {
+      timerId = setTimeout(async () => {
+        console.log(`[StreamManager] ⏱️ Ashton Band ${dur}s duration expired for channel ${channelIdStr}. Closing automatically...`);
+        this.fireTimers.delete(`${channelIdStr}:ashton`);
+        try {
+          await Channel.findByIdAndUpdate(channelIdStr, {
+            $set: { 'branding.ashton.enabled': false }
           });
+          const currentStream = this.getStream(channelIdStr);
+          if (currentStream && currentStream.encoder) {
+            if (currentStream.encoder.channel?.branding?.ashton) {
+              currentStream.encoder.channel.branding.ashton.enabled = false;
+            }
+            await currentStream.encoder.setAshtonLive(false, !!squeeze);
+          }
+          if (io) {
+            io.to(`channel:${channelIdStr}`).emit('branding_updated', {
+              type: 'ashton',
+              ashton: {
+                ...channel.branding.ashton,
+                enabled: false,
+                fireActive: false
+              }
+            });
+          }
+        } catch (err) {
+          console.error(`[StreamManager] Error auto-closing fired Ashton Band on channel ${channelIdStr}:`, err);
         }
-      } catch (err) {
-        console.error(`[StreamManager] Error auto-closing fired Ashton Band on channel ${channelIdStr}:`, err);
-      }
-    }, dur * 1000);
+      }, dur * 1000);
+    }
 
     this.fireTimers.set(`${channelIdStr}:ashton`, {
       timerId,
@@ -722,8 +758,11 @@ class StreamManager {
   /**
    * Cancel active fired Ashton Band and close immediately
    */
-  async cancelFireAshton(channelId) {
+  async cancelFireAshton(channelId, { fromSequence = false } = {}) {
     const channelIdStr = String(channelId);
+    if (!fromSequence) {
+      await this.stopBandSequence(channelIdStr, 'ashton', { closeOverlay: false });
+    }
     this.clearFireTimer(channelIdStr, 'ashton');
 
     await Channel.findByIdAndUpdate(channelIdStr, {
@@ -755,9 +794,258 @@ class StreamManager {
     const key = `${channelId}:${type}`;
     if (this.fireTimers.has(key)) {
       const item = this.fireTimers.get(key);
-      clearTimeout(item.timerId);
+      if (item?.timerId) {
+        clearTimeout(item.timerId);
+      }
       this.fireTimers.delete(key);
     }
+  }
+
+  isBandSequenceRunning(channelId, type) {
+    const key = `${String(channelId)}:${type}`;
+    const state = this.activeBandSequences.get(key);
+    return Boolean(state && !state.cancelled);
+  }
+
+  getRunningBandSequenceScheduleId(channelId, type) {
+    const key = `${String(channelId)}:${type}`;
+    const state = this.activeBandSequences.get(key);
+    return state && !state.cancelled ? state.scheduleId : null;
+  }
+
+  async stopBandSequence(channelId, type, { closeOverlay = true } = {}) {
+    const channelIdStr = String(channelId);
+    const key = `${channelIdStr}:${type}`;
+    const state = this.activeBandSequences.get(key);
+    if (state) {
+      state.cancelled = true;
+      if (typeof state.wake === 'function') {
+        state.wake();
+      }
+      this.activeBandSequences.delete(key);
+    }
+    if (closeOverlay) {
+      try {
+        if (type === 'lband') {
+          await this.cancelFireLBand(channelIdStr, { fromSequence: true });
+        } else if (type === 'ashton') {
+          await this.cancelFireAshton(channelIdStr, { fromSequence: true });
+        }
+      } catch (err) {
+        console.warn(`[StreamManager] Warning closing ${type} during sequence stop:`, err.message);
+      }
+    }
+  }
+
+  async sleepInterruptible(ms, shouldStop, state = null) {
+    const deadline = Date.now() + Math.max(0, ms);
+    while (Date.now() < deadline) {
+      if (shouldStop()) return false;
+      const chunk = Math.min(1000, deadline - Date.now());
+      if (chunk <= 0) break;
+      await new Promise((resolve) => {
+        const timer = setTimeout(() => {
+          if (state && state.wake === wakeNow) state.wake = null;
+          resolve();
+        }, chunk);
+        const wakeNow = () => {
+          clearTimeout(timer);
+          if (state && state.wake === wakeNow) state.wake = null;
+          resolve();
+        };
+        if (state) {
+          state.wake = wakeNow;
+        }
+      });
+    }
+    return !shouldStop();
+  }
+
+  /**
+   * Run ordered multi-band sequence for an L-Band or Ashton Band schedule.
+   * Plays each band in order for its duration, waits for FFmpeg's smootherstep exit
+   * transition to finish before swapping graphics, and repeats until dailyEndTime
+   * (or runs once if forceOnce / repeatForever === false).
+   */
+  async startBandSequence(channelId, schedule, { forceOnce = false } = {}) {
+    if (!schedule || (schedule.type !== 'lband' && schedule.type !== 'ashton')) {
+      return { started: false, reason: 'Invalid schedule type' };
+    }
+
+    const channelIdStr = String(channelId);
+    const type = schedule.type;
+    const scheduleId = schedule._id ? String(schedule._id) : null;
+    const key = `${channelIdStr}:${type}`;
+    const BAND_TRANSITION_SETTLE_MS = 3200;
+
+    await this.stopBandSequence(channelIdStr, type, { closeOverlay: false });
+
+    const initialBands = await resolveOrderedBandsForSchedule(schedule);
+    if (initialBands.length === 0) {
+      console.warn(`[StreamManager] Cannot start ${type} sequence for schedule "${schedule.title}": no bands resolved.`);
+      return { started: false, reason: 'No bands resolved' };
+    }
+
+    const state = {
+      channelId: channelIdStr,
+      type,
+      scheduleId,
+      cancelled: false,
+      wake: null
+    };
+    this.activeBandSequences.set(key, state);
+
+    console.log(
+      `[StreamManager] 🎬 Starting ${type.toUpperCase()} sequence "${schedule.title}" on channel ${channelIdStr} ` +
+      `(${initialBands.length} band(s), repeatForever=${schedule.repeatForever !== false}, forceOnce=${forceOnce})`
+    );
+
+    const getLocalTodayStr = () => {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    };
+
+    const run = async () => {
+      let overlayCurrentlyOpen = false;
+      try {
+        const initialToday = getLocalTodayStr();
+        const sameDayOnStart = schedule.lastAiredDate === initialToday;
+        let stepIndex =
+          !forceOnce &&
+          sameDayOnStart &&
+          Number.isInteger(schedule.lastBandIndex) &&
+          schedule.lastBandIndex >= 0
+            ? (schedule.lastBandIndex + 1) % initialBands.length
+            : 0;
+
+        while (!state.cancelled && this.activeBandSequences.get(key) === state && this.getStream(channelIdStr)) {
+          let liveSchedule = schedule;
+          if (scheduleId) {
+            const dbDoc = await Schedule.findById(scheduleId)
+              .populate('bandPresets')
+              .populate('bandPreset')
+              .lean();
+            if (!dbDoc) break;
+            liveSchedule = dbDoc;
+          }
+
+          if (!forceOnce && !isOverlayScheduleActiveNow(liveSchedule, new Date())) {
+            console.log(`[StreamManager] ⏹️ ${type.toUpperCase()} sequence "${liveSchedule.title}" window ended. Stopping loop.`);
+            break;
+          }
+
+          const bands = await resolveOrderedBandsForSchedule(liveSchedule);
+          if (bands.length === 0) {
+            console.warn(`[StreamManager] ${type.toUpperCase()} sequence "${liveSchedule.title}" has 0 bands. Stopping.`);
+            break;
+          }
+
+          const safeIdx = stepIndex % bands.length;
+          const band = bands[safeIdx];
+          const dur = Math.max(1, Math.min(3600, Number(band.duration) || 10));
+
+          const shouldStopNow = () =>
+            state.cancelled ||
+            this.activeBandSequences.get(key) !== state ||
+            !this.getStream(channelIdStr) ||
+            (!forceOnce && !isOverlayScheduleActiveNow(liveSchedule, new Date()));
+
+          if (shouldStopNow()) {
+            break;
+          }
+
+          console.log(
+            `[StreamManager] 🎯 [${liveSchedule.title}] Firing ${type.toUpperCase()} #${safeIdx + 1}/${bands.length}: ` +
+            `"${band.title || 'Band'}" (${dur}s)`
+          );
+
+          if (type === 'lband') {
+            await this.fireLBand(
+              channelIdStr,
+              dur,
+              band.imagePath || null,
+              {
+                windowX: band.windowX,
+                windowY: band.windowY,
+                windowWidth: band.windowWidth,
+                windowHeight: band.windowHeight
+              },
+              { skipAutoClose: true, fromSequence: true }
+            );
+          } else {
+            await this.fireAshton(
+              channelIdStr,
+              dur,
+              band.ashtonSqueeze !== false,
+              band.imagePath || null,
+              band.ashtonHeight || null,
+              { skipAutoClose: true, fromSequence: true }
+            );
+          }
+          overlayCurrentlyOpen = true;
+
+          const completedDuration = await this.sleepInterruptible(dur * 1000, shouldStopNow, state);
+
+          // Always close current band cleanly after its duration or cancellation
+          if (type === 'lband') {
+            await this.cancelFireLBand(channelIdStr, { fromSequence: true });
+          } else {
+            await this.cancelFireAshton(channelIdStr, { fromSequence: true });
+          }
+          overlayCurrentlyOpen = false;
+
+          if (scheduleId) {
+            await Schedule.findByIdAndUpdate(scheduleId, {
+              lastFiredAt: new Date(),
+              lastAiredDate: getLocalTodayStr(),
+              lastBandIndex: safeIdx
+            }).catch(() => {});
+          }
+
+          if (!completedDuration || shouldStopNow()) {
+            break;
+          }
+
+          const isLastBandInList = safeIdx >= bands.length - 1;
+
+          // Scheduled L-Band and Ashton sequences always repeat in order infinitely until dailyEndTime;
+          // manual "Play Now" (forceOnce) runs the full ordered sequence once.
+          if (forceOnce && isLastBandInList) {
+            break;
+          }
+
+          stepIndex = (safeIdx + 1) % bands.length;
+
+          const gapMs = getOverlayGapMs(liveSchedule);
+          const waitMs = forceOnce
+            ? BAND_TRANSITION_SETTLE_MS
+            : Math.max(BAND_TRANSITION_SETTLE_MS, gapMs);
+
+          const waited = await this.sleepInterruptible(waitMs, shouldStopNow, state);
+          if (!waited) {
+            break;
+          }
+        }
+      } catch (err) {
+        console.error(`[StreamManager] Error inside ${type} sequence for channel ${channelIdStr}:`, err);
+      } finally {
+        if (overlayCurrentlyOpen) {
+          try {
+            if (type === 'lband') {
+              await this.cancelFireLBand(channelIdStr, { fromSequence: true });
+            } else {
+              await this.cancelFireAshton(channelIdStr, { fromSequence: true });
+            }
+          } catch {}
+        }
+        if (this.activeBandSequences.get(key) === state) {
+          this.activeBandSequences.delete(key);
+        }
+      }
+    };
+
+    run();
+    return { started: true, count: initialBands.length };
   }
 
   getFireStatus(channelId, type) {

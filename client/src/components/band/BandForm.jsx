@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   ArrowLeft,
+  ArrowUp,
+  ArrowDown,
   Calendar,
   Clock,
   Sparkles,
@@ -9,7 +11,9 @@ import {
   PanelBottom,
   CreditCard,
   PlusCircle,
-  Power
+  Power,
+  Trash2,
+  ListOrdered
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import BandPreviewScreen from './BandPreviewScreen.jsx';
@@ -41,16 +45,28 @@ export default function BandForm({
   const isLBand = type === 'lband';
   const bandLabel = isLBand ? 'L-Band' : 'Ashton Band';
 
-  const initialPresetId =
-    initialData?.bandPreset?._id ||
-    initialData?.bandPreset ||
-    bands[0]?._id ||
-    '';
+  const initialBandIds = useMemo(() => {
+    if (Array.isArray(initialData?.bandPresets) && initialData.bandPresets.length > 0) {
+      return initialData.bandPresets
+        .map((b) => (typeof b === 'object' && b?._id ? b._id : b))
+        .filter(Boolean);
+    }
+    if (initialData?.bandPreset) {
+      const id = typeof initialData.bandPreset === 'object' ? initialData.bandPreset._id : initialData.bandPreset;
+      return id ? [id] : [];
+    }
+    if (!initialData?.imagePath && bands[0]?._id) {
+      return [bands[0]._id];
+    }
+    return [];
+  }, [initialData, bands]);
 
   const [channelId, setChannelId] = useState(
     initialData?.channel?._id || initialData?.channel || channel?._id || channels[0]?._id || ''
   );
-  const [bandPresetId, setBandPresetId] = useState(initialPresetId);
+  const [selectedBandIds, setSelectedBandIds] = useState(initialBandIds);
+  const [pickerBandId, setPickerBandId] = useState(bands[0]?._id || '');
+  const [previewIndex, setPreviewIndex] = useState(0);
   const [title, setTitle] = useState(initialData?.title || '');
   const [dailyStartTime, setDailyStartTime] = useState(
     initialData?.dailyStartTime ? initialData.dailyStartTime.substring(0, 8) : '14:00:00'
@@ -69,43 +85,94 @@ export default function BandForm({
       ? initialData.daysOfWeek
       : [0, 1, 2, 3, 4, 5, 6]
   );
-  const [gapMinutes, setGapMinutes] = useState(
-    initialData?.gapMinutes !== undefined ? initialData.gapMinutes : 20
+  const [gapSeconds, setGapSeconds] = useState(
+    initialData?.gapSeconds !== undefined && initialData?.gapSeconds !== null
+      ? Number(initialData.gapSeconds)
+      : (initialData?.gapMinutes !== undefined ? Math.round(Number(initialData.gapMinutes) * 60) : 60)
   );
   const [enabled, setEnabled] = useState(
     initialData?.enabled !== undefined ? initialData.enabled : true
   );
 
-  // Sync default band selection if bands finish loading after mount
+  // Sync default picker and initial band selection if bands finish loading after mount
   useEffect(() => {
-    if (!bandPresetId && bands.length > 0 && !initialData?.imagePath) {
-      setBandPresetId(bands[0]._id);
+    if (!pickerBandId && bands.length > 0) {
+      setPickerBandId(bands[0]._id);
     }
-  }, [bands, bandPresetId, initialData]);
+    if (selectedBandIds.length === 0 && bands.length > 0 && !initialData?.imagePath && !isEdit) {
+      setSelectedBandIds([bands[0]._id]);
+    }
+  }, [bands, pickerBandId, selectedBandIds.length, initialData, isEdit]);
 
-  const selectedBand = useMemo(() => {
-    if (bandPresetId) {
-      const found = bands.find((b) => String(b._id) === String(bandPresetId));
-      if (found) return found;
-      if (initialData?.bandPreset && typeof initialData.bandPreset === 'object') {
-        return initialData.bandPreset;
-      }
+  const initialPresetObjectsMap = useMemo(() => {
+    const map = new Map();
+    if (Array.isArray(initialData?.bandPresets)) {
+      initialData.bandPresets.forEach((b) => {
+        if (b && typeof b === 'object' && b._id) map.set(String(b._id), b);
+      });
     }
-    if (initialData?.imagePath) {
-      return {
-        title: initialData.title || bandLabel,
-        imagePath: initialData.imagePath,
-        duration: initialData.duration || 10,
-        windowX: initialData.windowX ?? 300,
-        windowY: initialData.windowY ?? 20,
-        windowWidth: initialData.windowWidth ?? 960,
-        windowHeight: initialData.windowHeight ?? 540,
-        ashtonSqueeze: initialData.ashtonSqueeze !== false,
-        ashtonHeight: initialData.ashtonHeight || 160
-      };
+    if (initialData?.bandPreset && typeof initialData.bandPreset === 'object' && initialData.bandPreset._id) {
+      map.set(String(initialData.bandPreset._id), initialData.bandPreset);
     }
-    return null;
-  }, [bands, bandPresetId, initialData, bandLabel]);
+    return map;
+  }, [initialData]);
+
+  const selectedBands = useMemo(() => {
+    const list = selectedBandIds
+      .map((id) => bands.find((b) => String(b._id) === String(id)) || initialPresetObjectsMap.get(String(id)))
+      .filter(Boolean);
+
+    if (list.length === 0 && initialData?.imagePath) {
+      return [
+        {
+          title: initialData.title || bandLabel,
+          imagePath: initialData.imagePath,
+          duration: initialData.duration || 10,
+          windowX: initialData.windowX ?? 300,
+          windowY: initialData.windowY ?? 20,
+          windowWidth: initialData.windowWidth ?? 960,
+          windowHeight: initialData.windowHeight ?? 540,
+          ashtonSqueeze: initialData.ashtonSqueeze !== false,
+          ashtonHeight: initialData.ashtonHeight || 160
+        }
+      ];
+    }
+    return list;
+  }, [bands, selectedBandIds, initialPresetObjectsMap, initialData, bandLabel]);
+
+  const activePreviewBand = selectedBands[previewIndex] || selectedBands[0] || null;
+
+  const handleAddBandToSequence = (bandIdToAdd = pickerBandId) => {
+    if (!bandIdToAdd) {
+      toast.error(`Please select a ${bandLabel} first`);
+      return;
+    }
+    setSelectedBandIds((prev) => {
+      const next = [...prev, bandIdToAdd];
+      setPreviewIndex(next.length - 1);
+      return next;
+    });
+  };
+
+  const handleMoveBand = (index, direction) => {
+    const target = index + direction;
+    if (target < 0 || target >= selectedBandIds.length) return;
+    setSelectedBandIds((prev) => {
+      const next = [...prev];
+      const [moved] = next.splice(index, 1);
+      next.splice(target, 0, moved);
+      return next;
+    });
+    setPreviewIndex(target);
+  };
+
+  const handleRemoveBand = (index) => {
+    setSelectedBandIds((prev) => {
+      const next = prev.filter((_, idx) => idx !== index);
+      setPreviewIndex((curr) => Math.max(0, Math.min(curr, next.length - 1)));
+      return next;
+    });
+  };
 
   const toggleDay = (dayNum) => {
     setDaysOfWeek((prev) =>
@@ -127,19 +194,26 @@ export default function BandForm({
     let totalWindowMins = endMins >= startMins ? endMins - startMins : 1440 - startMins + endMins;
     if (totalWindowMins === 0) totalWindowMins = 1440;
 
-    const gap = Number(gapMinutes) || 0;
-    let occurrences = 1;
-    if (gap > 0 && totalWindowMins > 0) {
-      occurrences = Math.max(1, Math.floor(totalWindowMins / gap));
-    }
+    const totalCycleSec =
+      selectedBands.reduce((sum, b) => sum + (Number(b.duration) || 10), 0) ||
+      Number(initialData?.duration) ||
+      10;
+    const count = Math.max(1, selectedBands.length);
+    const avgDurSec = Math.round(totalCycleSec / count);
+    const gap = Math.max(0, Number(gapSeconds) || 0);
+    const stepPeriodSec = gap > 0 ? avgDurSec + gap : avgDurSec + 3;
+    const totalWindowSec = totalWindowMins * 60;
+    const estimatedPlays = Math.max(1, Math.floor(totalWindowSec / stepPeriodSec));
 
     return {
       totalWindowMins,
-      occurrences: gap > 0 ? occurrences : 1,
       gap,
-      duration: Number(selectedBand?.duration || initialData?.duration) || 10
+      count: selectedBands.length,
+      avgDurSec,
+      totalCycleSec,
+      estimatedPlays
     };
-  }, [dailyStartTime, dailyEndTime, gapMinutes, selectedBand, initialData]);
+  }, [dailyStartTime, dailyEndTime, gapSeconds, selectedBands, initialData]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -148,8 +222,8 @@ export default function BandForm({
       return;
     }
 
-    if (!bandPresetId && !selectedBand?.imagePath) {
-      toast.error(`Please select a created ${bandLabel} first`);
+    if (selectedBandIds.length === 0 && !selectedBands[0]?.imagePath) {
+      toast.error(`Please add at least one ${bandLabel} to the sequence`);
       return;
     }
 
@@ -170,31 +244,35 @@ export default function BandForm({
           ? 'weekly'
           : '24/7';
 
+    const firstBand = selectedBands[0] || null;
     const payload = {
       title: title.trim(),
       type,
-      bandPresetId: bandPresetId || null,
+      bandPresetIds: selectedBandIds,
+      bandPresetId: selectedBandIds[0] || null,
+      repeatForever: true,
       scheduleOption,
       dailyStartTime: dailyStartTime.length === 5 ? `${dailyStartTime}:00` : dailyStartTime,
       dailyEndTime: dailyEndTime ? (dailyEndTime.length === 5 ? `${dailyEndTime}:00` : dailyEndTime) : '',
-      gapMinutes: Number(gapMinutes) || 0,
+      gapSeconds: Math.max(0, Number(gapSeconds) || 0),
+      gapMinutes: Number((Math.max(0, Number(gapSeconds) || 0) / 60).toFixed(2)),
       daysOfWeek,
       startDate: startDate || '',
       endDate: endDate || '',
       enabled
     };
 
-    if (selectedBand) {
-      payload.duration = Number(selectedBand.duration) || 10;
-      payload.imagePath = selectedBand.imagePath || '';
+    if (firstBand) {
+      payload.duration = selectedBands.reduce((sum, b) => sum + (Number(b.duration) || 10), 0) || 10;
+      payload.imagePath = firstBand.imagePath || '';
       if (isLBand) {
-        payload.windowX = selectedBand.windowX ?? 300;
-        payload.windowY = selectedBand.windowY ?? 20;
-        payload.windowWidth = selectedBand.windowWidth ?? 960;
-        payload.windowHeight = selectedBand.windowHeight ?? 540;
+        payload.windowX = firstBand.windowX ?? 300;
+        payload.windowY = firstBand.windowY ?? 20;
+        payload.windowWidth = firstBand.windowWidth ?? 960;
+        payload.windowHeight = firstBand.windowHeight ?? 540;
       } else {
-        payload.ashtonSqueeze = selectedBand.ashtonSqueeze !== false;
-        payload.ashtonHeight = selectedBand.ashtonHeight || 160;
+        payload.ashtonSqueeze = firstBand.ashtonSqueeze !== false;
+        payload.ashtonHeight = firstBand.ashtonHeight || 160;
       }
     }
 
@@ -234,7 +312,7 @@ export default function BandForm({
             </h1>
           </div>
           <p className="text-[11px] 2xl:text-xs text-slate-400 mt-0.5">
-            Select a created {bandLabel} and configure start/end time, date window, weekdays, and activation status
+            Add one or more {bandLabel}s in playback order and configure start/end time, loop behavior, dates, and weekdays
           </p>
         </div>
 
@@ -259,21 +337,33 @@ export default function BandForm({
 
       {/* 2-Column Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
-        {/* Left: Live Preview of selected Band */}
+        {/* Left: Live Preview of active Band in sequence */}
         <div className="lg:col-span-5 space-y-3 lg:sticky lg:top-4">
           <BandPreviewScreen
             type={type}
-            previewUrl={resolveMediaUrl(selectedBand?.imagePath)}
+            previewUrl={resolveMediaUrl(activePreviewBand?.imagePath)}
             channelName={activeChannelName}
-            windowX={selectedBand?.windowX ?? 300}
-            windowY={selectedBand?.windowY ?? 20}
-            windowWidth={selectedBand?.windowWidth ?? 960}
-            windowHeight={selectedBand?.windowHeight ?? 540}
-            ashtonSqueeze={selectedBand?.ashtonSqueeze !== false}
-            ashtonHeight={selectedBand?.ashtonHeight || 160}
-            duration={selectedBand?.duration || 10}
-            emptyHint={`Select a ${bandLabel} on the right to preview broadcast placement`}
+            windowX={activePreviewBand?.windowX ?? 300}
+            windowY={activePreviewBand?.windowY ?? 20}
+            windowWidth={activePreviewBand?.windowWidth ?? 960}
+            windowHeight={activePreviewBand?.windowHeight ?? 540}
+            ashtonSqueeze={activePreviewBand?.ashtonSqueeze !== false}
+            ashtonHeight={activePreviewBand?.ashtonHeight || 160}
+            duration={activePreviewBand?.duration || 10}
+            emptyHint={`Add a ${bandLabel} on the right and click any step to preview broadcast placement`}
           />
+
+          {selectedBands.length > 0 && (
+            <div className="px-3 py-2 bg-[#0d121d] border border-[#1d273b] rounded-lg text-[11px] text-slate-300 flex items-center justify-between">
+              <span className="truncate">
+                Previewing <strong className="text-cyan-300">#{Math.min(previewIndex, selectedBands.length - 1) + 1}</strong> of {selectedBands.length}:{' '}
+                <strong className="text-white">{activePreviewBand?.title}</strong>
+              </span>
+              <span className="text-emerald-400 font-mono font-bold shrink-0 ml-2">
+                {activePreviewBand?.duration || 10}s
+              </span>
+            </div>
+          )}
 
           {calculationSummary && (
             <div className="p-3 bg-cyan-950/20 border border-cyan-800/40 rounded-xl font-mono text-xs text-cyan-300 flex items-start gap-2.5">
@@ -281,11 +371,20 @@ export default function BandForm({
               <div className="leading-relaxed">
                 <span className="font-bold block text-white text-[11px] mb-0.5">Automated Playout Plan</span>
                 <span className="text-[11px] text-cyan-200/90">
-                  Between <strong className="text-white">{dailyStartTime}</strong> and <strong className="text-white">{dailyEndTime || 'end'}</strong>, the selected {bandLabel} will air for{' '}
-                  <strong className="text-emerald-300">{calculationSummary.duration}s</strong>{' '}
+                  Between <strong className="text-white">{dailyStartTime}</strong> and <strong className="text-white">{dailyEndTime || 'end'}</strong>,{' '}
+                  {calculationSummary.count > 1 ? (
+                    <>
+                      each trigger plays the next {bandLabel} in order (#1 → #2 → ... across{' '}
+                      <strong className="text-white">{calculationSummary.count}</strong> bands)
+                    </>
+                  ) : (
+                    <>selected {bandLabel} airs</>
+                  )}{' '}
+                  for <strong className="text-emerald-300">~{calculationSummary.avgDurSec}s</strong>{' '}
                   {calculationSummary.gap > 0
-                    ? `every ${calculationSummary.gap} mins (~${calculationSummary.occurrences}x/day)`
-                    : 'once per window'}.
+                    ? `with ${calculationSummary.gap}s gap between plays (~${calculationSummary.estimatedPlays} plays)`
+                    : `continuously back-to-back (~${calculationSummary.estimatedPlays} plays)`}{' '}
+                  repeating in order until End Time.
                 </span>
               </div>
             </div>
@@ -298,11 +397,12 @@ export default function BandForm({
             onSubmit={handleSubmit}
             className="bg-[#10141e] border border-[#1e2638] rounded-xl 2xl:rounded-2xl p-4 sm:p-5 shadow-xl space-y-4 text-xs"
           >
-            {/* Select L-Band / Ashton Band */}
+            {/* Select & Order Multiple L-Bands / Ashton Bands */}
             <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-slate-300 text-xs font-semibold">
-                  Select {bandLabel} <span className="text-cyan-400">*</span>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-slate-300 text-xs font-semibold flex items-center gap-1.5">
+                  <ListOrdered size={14} className="text-cyan-400" />
+                  <span>{bandLabel} Sequence Queue (Order Matters) <span className="text-cyan-400">*</span></span>
                 </label>
                 {onCreateBandShortcut && (
                   <button
@@ -316,13 +416,13 @@ export default function BandForm({
                 )}
               </div>
 
-              {bands.length === 0 && !selectedBand?.imagePath ? (
+              {bands.length === 0 && selectedBands.length === 0 ? (
                 <div className="p-4 rounded-xl bg-[#090d16] border border-amber-500/30 text-center space-y-2">
                   <p className="text-xs text-amber-300 font-semibold">
                     No {bandLabel} created yet for this channel
                   </p>
                   <p className="text-[11px] text-slate-400">
-                    Create a {bandLabel} with its artwork, duration, and video window first, then schedule it here.
+                    Create a {bandLabel} with its artwork, duration, and video window first, then build your sequence here.
                   </p>
                   {onCreateBandShortcut && (
                     <button
@@ -336,48 +436,113 @@ export default function BandForm({
                   )}
                 </div>
               ) : (
-                <div className="space-y-2">
-                  <select
-                    value={bandPresetId}
-                    onChange={(e) => setBandPresetId(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-[#090d16] border border-[#1c2538] focus:border-[#00bcd4] text-slate-100 text-xs focus:outline-none cursor-pointer"
-                  >
-                    {bands.length === 0 && (
-                      <option value="" className="bg-[#0b0e18]">
-                        Current Graphic ({selectedBand?.title || bandLabel})
-                      </option>
-                    )}
-                    {bands.map((b) => (
-                      <option key={b._id} value={b._id} className="bg-[#0b0e18] text-slate-200">
-                        {b.title} ({b.duration || 10}s •{' '}
-                        {isLBand
-                          ? `${b.windowWidth ?? 960}x${b.windowHeight ?? 540} @ (${b.windowX ?? 300},${b.windowY ?? 20})`
-                          : `${b.ashtonSqueeze !== false ? 'Squeeze' : 'Overlay'} H:${b.ashtonHeight || 160}px`}
-                        )
-                      </option>
-                    ))}
-                  </select>
+                <div className="space-y-2.5">
+                  {/* Add Band Picker Row */}
+                  {bands.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={pickerBandId}
+                        onChange={(e) => setPickerBandId(e.target.value)}
+                        className="flex-1 px-3 py-2 rounded-lg bg-[#090d16] border border-[#1c2538] focus:border-[#00bcd4] text-slate-100 text-xs focus:outline-none cursor-pointer"
+                      >
+                        {bands.map((b) => (
+                          <option key={b._id} value={b._id} className="bg-[#0b0e18] text-slate-200">
+                            {b.title} ({b.duration || 10}s •{' '}
+                            {isLBand
+                              ? `${b.windowWidth ?? 960}x${b.windowHeight ?? 540} @ (${b.windowX ?? 300},${b.windowY ?? 20})`
+                              : `${b.ashtonSqueeze !== false ? 'Squeeze' : 'Overlay'} H:${b.ashtonHeight || 160}px`}
+                            )
+                          </option>
+                        ))}
+                      </select>
 
-                  {selectedBand && (
-                    <div className="flex items-center gap-3 p-2.5 rounded-lg bg-[#090d16] border border-[#1a2337]">
-                      {selectedBand.imagePath && (
-                        <img
-                          src={resolveMediaUrl(selectedBand.imagePath)}
-                          alt={selectedBand.title}
-                          className="w-16 h-9 object-contain bg-black/50 rounded border border-[#24324d] shrink-0"
-                        />
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <span className="text-xs font-bold text-white block truncate">
-                          {selectedBand.title}
-                        </span>
-                        <span className="text-[10.5px] text-slate-400 font-mono block">
-                          Duration: <strong className="text-emerald-400">{selectedBand.duration || 10}s</strong> •{' '}
-                          {isLBand
-                            ? `Window: ${selectedBand.windowWidth ?? 960}x${selectedBand.windowHeight ?? 540} at (${selectedBand.windowX ?? 300}, ${selectedBand.windowY ?? 20})`
-                            : `${selectedBand.ashtonSqueeze !== false ? 'Squeezed' : 'Overlay'} • Band H: ${selectedBand.ashtonHeight || 160}px`}
-                        </span>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleAddBandToSequence(pickerBandId)}
+                        className="px-3 py-2 rounded-lg bg-[#00bcd4] hover:bg-[#06b6d4] text-black font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shrink-0 shadow-sm"
+                      >
+                        <PlusCircle size={13} />
+                        <span>Add</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Ordered Sequence List */}
+                  {selectedBands.length > 0 ? (
+                    <div className="space-y-1.5 max-h-56 overflow-y-auto pr-0.5">
+                      {selectedBands.map((band, idx) => {
+                        const isActivePreview = idx === Math.min(previewIndex, selectedBands.length - 1);
+                        return (
+                          <div
+                            key={`${band._id || band.title}-${idx}`}
+                            onClick={() => setPreviewIndex(idx)}
+                            className={`flex items-center gap-2.5 p-2 rounded-lg border transition cursor-pointer ${
+                              isActivePreview
+                                ? 'bg-cyan-950/30 border-cyan-500/70'
+                                : 'bg-[#090d16] border-[#1a2337] hover:border-slate-600'
+                            }`}
+                          >
+                            <span className="w-6 h-6 rounded-md bg-[#00bcd4]/15 border border-[#00bcd4]/40 text-cyan-300 font-mono font-bold text-[11px] flex items-center justify-center shrink-0">
+                              #{idx + 1}
+                            </span>
+
+                            {band.imagePath && (
+                              <img
+                                src={resolveMediaUrl(band.imagePath)}
+                                alt={band.title}
+                                className="w-12 h-7 object-contain bg-black/50 rounded border border-[#24324d] shrink-0"
+                              />
+                            )}
+
+                            <div className="min-w-0 flex-1">
+                              <span className="text-xs font-bold text-white block truncate">
+                                {band.title}
+                              </span>
+                              <span className="text-[10px] text-slate-400 font-mono block truncate">
+                                <strong className="text-emerald-400">{band.duration || 10}s</strong> •{' '}
+                                {isLBand
+                                  ? `${band.windowWidth ?? 960}x${band.windowHeight ?? 540} (${band.windowX ?? 300},${band.windowY ?? 20})`
+                                  : `${band.ashtonSqueeze !== false ? 'Squeeze' : 'Overlay'} H:${band.ashtonHeight || 160}px`}
+                              </span>
+                            </div>
+
+                            {selectedBandIds.length > 0 && (
+                              <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                                <button
+                                  type="button"
+                                  disabled={idx === 0}
+                                  onClick={() => handleMoveBand(idx, -1)}
+                                  title="Move Up"
+                                  className="p-1 rounded bg-[#111827] border border-[#1f2a40] text-slate-300 hover:text-cyan-300 disabled:opacity-30 cursor-pointer"
+                                >
+                                  <ArrowUp size={12} />
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={idx === selectedBandIds.length - 1}
+                                  onClick={() => handleMoveBand(idx, 1)}
+                                  title="Move Down"
+                                  className="p-1 rounded bg-[#111827] border border-[#1f2a40] text-slate-300 hover:text-cyan-300 disabled:opacity-30 cursor-pointer"
+                                >
+                                  <ArrowDown size={12} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveBand(idx)}
+                                  title="Remove from Sequence"
+                                  className="p-1 rounded bg-[#111827] border border-[#1f2a40] text-slate-400 hover:text-rose-400 cursor-pointer"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="p-3 rounded-lg bg-[#090d16] border border-dashed border-[#24324d] text-center text-[11px] text-slate-400">
+                      Select a {bandLabel} above and click <strong className="text-cyan-300">+ Add</strong> to build your playback order.
                     </div>
                   )}
                 </div>
@@ -523,26 +688,26 @@ export default function BandForm({
               </div>
             </div>
 
-            {/* Repeat Interval */}
+            {/* Gap Between Each Band Play (seconds) */}
             <div>
               <label className="text-slate-300 text-xs font-semibold mb-1 flex items-center gap-1.5">
                 <Clock size={13} className="text-amber-400" />
-                <span>Repeat Interval / Gap (minutes)</span>
+                <span>Gap Between Each Band Play (seconds)</span>
               </label>
               <div className="flex items-center gap-2 px-3 py-1.5 2xl:py-2 rounded-lg bg-[#090d16] border border-[#1c2538] focus-within:border-[#00bcd4] transition">
                 <input
                   type="number"
                   min="0"
-                  max="1440"
-                  value={gapMinutes}
-                  onChange={(e) => setGapMinutes(Number(e.target.value))}
+                  max="86400"
+                  value={gapSeconds}
+                  onChange={(e) => setGapSeconds(Number(e.target.value))}
                   className="w-full bg-transparent text-slate-100 focus:outline-none text-xs font-mono"
-                  placeholder="e.g. 20 (0 = once per window)"
+                  placeholder="e.g. 60 (0 = continuous back-to-back)"
                 />
-                <span className="text-slate-500 font-bold">min</span>
+                <span className="text-slate-500 font-bold">sec</span>
               </div>
               <span className="text-[10px] text-slate-500 mt-1 block">
-                Interval between repeat triggers within the Start Time – End Time window (0 = once)
+                Wait time in seconds after each band closes before the next band plays (#1 → wait → #2 → ... looping infinitely until End Time). Use 0 for continuous play.
               </span>
             </div>
 
@@ -584,7 +749,7 @@ export default function BandForm({
               </button>
               <button
                 type="submit"
-                disabled={isSubmitting || (bands.length === 0 && !selectedBand?.imagePath)}
+                disabled={isSubmitting || (selectedBandIds.length === 0 && !selectedBands[0]?.imagePath)}
                 className="px-4 py-1.5 2xl:py-2 rounded-lg text-xs font-bold bg-[#00bcd4] hover:bg-[#06b6d4] text-black shadow-md shadow-cyan-500/20 transition cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
               >
                 {isSubmitting ? (

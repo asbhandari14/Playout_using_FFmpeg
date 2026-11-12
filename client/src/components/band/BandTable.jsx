@@ -61,11 +61,26 @@ export default function BandTable({
     return b.title && b.title.toLowerCase().includes(q);
   });
 
+  const resolveScheduleBands = (item) => {
+    if (Array.isArray(item.bandPresets) && item.bandPresets.length > 0) {
+      return item.bandPresets
+        .map((b) => (typeof b === 'object' && b?._id ? b : bands.find((x) => x._id === b)))
+        .filter(Boolean);
+    }
+    if (item.bandPreset) {
+      const b = typeof item.bandPreset === 'object' ? item.bandPreset : bands.find((x) => x._id === item.bandPreset);
+      return b ? [b] : [];
+    }
+    return [];
+  };
+
   const filteredSchedules = schedules.filter((s) => {
     if (!q) return true;
+    const seqTitles = resolveScheduleBands(s).map((b) => b.title?.toLowerCase() || '').join(' ');
     return (
       (s.title && s.title.toLowerCase().includes(q)) ||
       (s.bandPreset?.title && s.bandPreset.title.toLowerCase().includes(q)) ||
+      seqTitles.includes(q) ||
       (s.dailyStartTime && s.dailyStartTime.includes(q))
     );
   });
@@ -363,8 +378,16 @@ export default function BandTable({
                   </div>
                 ) : (
                   filteredSchedules.map((item) => {
-                    const linkedBand = item.bandPreset;
-                    const imgUrl = resolveMediaUrl(linkedBand?.imagePath || item.imagePath);
+                    const seqBands = resolveScheduleBands(item);
+                    const firstBand = seqBands[0] || item.bandPreset;
+                    const imgUrl = resolveMediaUrl(firstBand?.imagePath || item.imagePath);
+                    const totalCycleSec = seqBands.length > 0
+                      ? seqBands.reduce((sum, b) => sum + (Number(b.duration) || 10), 0)
+                      : (Number(item.duration) || 10);
+                    const gapSec =
+                      item.gapSeconds !== undefined && item.gapSeconds !== null
+                        ? Math.max(0, Number(item.gapSeconds) || 0)
+                        : Math.max(0, Math.round((Number(item.gapMinutes) || 0) * 60));
                     const isFiring = firingId === item._id;
 
                     return (
@@ -372,7 +395,7 @@ export default function BandTable({
                         key={item._id}
                         className={`${SCHEDULE_GRID_COLS} px-4 py-2.5 2xl:px-5 2xl:py-3 hover:bg-[#141b29] transition text-xs`}
                       >
-                        <div>
+                        <div className="relative w-12">
                           {imgUrl ? (
                             <div className="w-12 h-8 rounded-md bg-black/60 border border-[#202c44] overflow-hidden flex items-center justify-center">
                               <img src={imgUrl} alt={item.title} className="w-full h-full object-contain" />
@@ -382,6 +405,11 @@ export default function BandTable({
                               No Img
                             </div>
                           )}
+                          {seqBands.length > 1 && (
+                            <span className="absolute -top-1.5 -right-1.5 px-1.5 py-0.2 rounded-full bg-[#00bcd4] text-black font-bold text-[9px] shadow">
+                              {seqBands.length}
+                            </span>
+                          )}
                         </div>
 
                         <div className="truncate">
@@ -390,8 +418,10 @@ export default function BandTable({
                           </span>
                           <span className="text-[10px] text-cyan-400 flex items-center gap-1 truncate mt-0.5">
                             <Layers size={10} className="shrink-0" />
-                            <span className="truncate">
-                              {linkedBand?.title || (isLBand ? `Cutout ${item.windowWidth || 960}x${item.windowHeight || 540}` : 'Custom Ashton')}
+                            <span className="truncate" title={seqBands.map((b, i) => `${i + 1}. ${b.title}`).join(' → ')}>
+                              {seqBands.length > 1
+                                ? `${seqBands.length} ordered: ${seqBands.map((b, i) => `#${i + 1} ${b.title}`).join(' → ')}`
+                                : (firstBand?.title || (isLBand ? `Cutout ${item.windowWidth || 960}x${item.windowHeight || 540}` : 'Custom Ashton'))}
                             </span>
                           </span>
                         </div>
@@ -422,12 +452,14 @@ export default function BandTable({
                         <div>
                           <div className="flex items-center gap-1">
                             <Timer size={12} className="text-emerald-400 shrink-0" />
-                            <span className="text-emerald-400 font-bold">
-                              {linkedBand?.duration || item.duration || 10}s
+                            <span className="text-emerald-400 font-bold truncate" title={`Total cycle: ${totalCycleSec}s`}>
+                              {seqBands.length > 1
+                                ? `${seqBands.slice(0, 3).map((b) => `${b.duration || 10}s`).join(' / ')}${seqBands.length > 3 ? '…' : ''}`
+                                : `${totalCycleSec}s`}
                             </span>
                           </div>
                           <span className="text-[10px] text-amber-400/90 block mt-0.5">
-                            {item.gapMinutes > 0 ? `Every ${item.gapMinutes}m` : 'Once'}
+                            {gapSec > 0 ? `${gapSec}s gap • Loop ∞` : 'Loop ∞'}
                           </span>
                         </div>
 

@@ -49,11 +49,23 @@ const scheduleSchema = new mongoose.Schema(
       enum: ['video', 'lband', 'ashton'],
       default: 'video'
     },
-    // Optional link to a reusable BandPreset (L-Band or Ashton Band)
+    // Ordered list of BandPresets to display sequentially (e.g. L-Band 1 -> L-Band 2 -> L-Band 3)
+    bandPresets: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'BandPreset'
+      }
+    ],
+    // Primary BandPreset fallback reference
     bandPreset: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'BandPreset',
       default: null
+    },
+    // Repeat ordered sequence continuously until dailyEndTime
+    repeatForever: {
+      type: Boolean,
+      default: true
     },
     // Image path for L-Band or Ashton graphic
     imagePath: {
@@ -67,15 +79,25 @@ const scheduleSchema = new mongoose.Schema(
       enum: ['24/7', 'weekly', 'datewise'],
       default: '24/7'
     },
-    // Interval/gap between successive triggers in minutes (e.g. 20)
+    // Interval/gap between successive triggers in minutes (e.g. 20 for video ads)
     gapMinutes: {
       type: Number,
       default: 20
+    },
+    // Interval/gap in seconds for L-Band and Ashton Band sequences (takes priority when set)
+    gapSeconds: {
+      type: Number,
+      default: null
     },
     // Timestamp when this schedule was last fired live
     lastFiredAt: {
       type: Date,
       default: null
+    },
+    // Index of the last BandPreset played within bandPresets (for sequential rotation)
+    lastBandIndex: {
+      type: Number,
+      default: -1
     },
     // For ashton schedule: true = squeeze, false = overlay
     ashtonSqueeze: {

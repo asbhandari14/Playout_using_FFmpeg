@@ -1,5 +1,6 @@
 import { Schedule } from '../../models/schedule.model.js';
 import { streamManager } from './streamManager.js';
+import { isOverlayScheduleActiveNow, getOverlayGapMs } from './bandScheduleUtils.js';
 
 class SchedulerService {
   constructor() {
@@ -103,97 +104,45 @@ class SchedulerService {
 
   /**
    * Check and fire all active L-Band and Ashton Band overlay schedules for a channel.
-   * Supports 24/7, weekly, datewise, and repeat gap intervals.
+   * Supports ordered multi-band sequences, infinite repeat till end time, weekly, datewise, and repeat gap intervals.
    */
   async checkOverlaySchedules(channelIdStr, now = new Date()) {
     const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-    const currentDayOfWeek = now.getDay();
-    const currentSecOfDay = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
 
     const overlaySchedules = await Schedule.find({
       channel: channelIdStr,
       enabled: true,
       type: { $in: ['lband', 'ashton'] }
-    }).populate('bandPreset');
+    })
+      .sort({ createdAt: 1 })
+      .populate('bandPresets')
+      .populate('bandPreset');
 
     for (const schedule of overlaySchedules) {
-      // 1. Date range (compare YYYY-MM-DD strings so timezone offsets never shift boundaries)
-      if (schedule.startDate) {
-        const startStr = new Date(schedule.startDate).toISOString().slice(0, 10);
-        if (todayStr < startStr) continue;
-      }
-      if (schedule.endDate) {
-        const endStr = new Date(schedule.endDate).toISOString().slice(0, 10);
-        if (todayStr > endStr) continue;
+      if (streamManager.isBandSequenceRunning(channelIdStr, schedule.type)) {
+        continue;
       }
 
-      // 2. Day of week (empty array means all days)
-      if (Array.isArray(schedule.daysOfWeek) && schedule.daysOfWeek.length > 0) {
-        if (!schedule.daysOfWeek.includes(currentDayOfWeek)) continue;
+      if (!isOverlayScheduleActiveNow(schedule, now)) {
+        continue;
       }
 
-      // 3. Time Window
-      if (!schedule.dailyStartTime) continue;
-      const [sh, sm, ss] = schedule.dailyStartTime.split(':').map(Number);
-      const startSec = (sh || 0) * 3600 + (sm || 0) * 60 + (ss || 0);
+      const gapMs = getOverlayGapMs(schedule);
 
-      let endSec = startSec + 3600;
-      if (schedule.dailyEndTime) {
-        const [eh, em, es] = schedule.dailyEndTime.split(':').map(Number);
-        endSec = (eh || 0) * 3600 + (em || 0) * 60 + (es || 0);
-      }
-
-      let inWindow = false;
-      if (endSec > startSec) {
-        inWindow = currentSecOfDay >= startSec && currentSecOfDay <= endSec;
-      } else {
-        inWindow = currentSecOfDay >= startSec || currentSecOfDay <= (endSec % 86400);
-      }
-
-      if (!inWindow) continue;
-
-      // 4. Interval / Gap checking
-      const gapMinutes = Number(schedule.gapMinutes) || 0;
-      const gapMs = gapMinutes * 60 * 1000;
-
-      if (schedule.lastFiredAt) {
+      if (gapMs > 0 && schedule.lastFiredAt) {
         const elapsedMs = now.getTime() - new Date(schedule.lastFiredAt).getTime();
-        if (gapMs > 0) {
-          if (elapsedMs < gapMs) {
-            continue; // Wait for gap interval
-          }
-        } else {
-          // If no gap specified, only fire once per day/window
-          if (schedule.lastAiredDate === todayStr) continue;
-        }
+        if (elapsedMs < gapMs) continue;
       }
 
-      // 5. Fire the overlay schedule!
-      schedule.lastFiredAt = now;
-      schedule.lastAiredDate = todayStr;
-      await schedule.save();
-
-      const preset = schedule.bandPreset;
-      const dur = Number(preset?.duration || schedule.duration) || 10;
-      const imgPath = preset?.imagePath || schedule.imagePath;
-
-      if (schedule.type === 'lband') {
-        console.log(`[SchedulerService] ⚡ Firing scheduled L-Band "${schedule.title}" (${dur}s duration, gap: ${gapMinutes}m) on channel ${channelIdStr}`);
-        streamManager.fireLBand(channelIdStr, dur, imgPath, {
-          windowX: preset?.windowX ?? schedule.windowX,
-          windowY: preset?.windowY ?? schedule.windowY,
-          windowWidth: preset?.windowWidth ?? schedule.windowWidth,
-          windowHeight: preset?.windowHeight ?? schedule.windowHeight
-        }).catch((err) => {
-          console.error(`[SchedulerService] Error triggering L-Band schedule '${schedule.title}':`, err);
-        });
-      } else if (schedule.type === 'ashton') {
-        const squeeze = preset ? preset.ashtonSqueeze !== false : schedule.ashtonSqueeze !== false;
-        const height = preset?.ashtonHeight ?? schedule.ashtonHeight;
-        console.log(`[SchedulerService] ⚡ Firing scheduled Ashton Band "${schedule.title}" (${dur}s duration, squeeze: ${squeeze}, gap: ${gapMinutes}m) on channel ${channelIdStr}`);
-        streamManager.fireAshton(channelIdStr, dur, squeeze, imgPath, height).catch((err) => {
-          console.error(`[SchedulerService] Error triggering Ashton schedule '${schedule.title}':`, err);
-        });
+      try {
+        const result = await streamManager.startBandSequence(channelIdStr, schedule);
+        if (result?.started) {
+          schedule.lastFiredAt = now;
+          schedule.lastAiredDate = todayStr;
+          await schedule.save();
+        }
+      } catch (err) {
+        console.error(`[SchedulerService] Error starting ${schedule.type} sequence '${schedule.title}':`, err);
       }
     }
   }
