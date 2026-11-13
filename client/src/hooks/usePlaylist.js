@@ -1,6 +1,7 @@
 import { toast } from 'react-hot-toast';
 import { useEffect, useMemo, useCallback, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import api from '../api/axios.js';
 import {
   fetchPlaylists,
   fetchActivePlaylist,
@@ -14,7 +15,9 @@ import {
   removeItem,
   moveItem,
   duplicateItem,
-  formatTime
+  formatTime,
+  setLivePlaying,
+  clearItems
 } from '../store/slices/playlistSlice.js';
 
 export const PLAYLIST_TYPE_CONFIG = {
@@ -265,12 +268,13 @@ export function usePlaylist(channelId) {
     hasUnsavedChanges,
     loading,
     error,
-    saveSuccess
+    saveSuccess,
+    livePlaying
   } = useSelector((state) => state.playlist);
 
   const [currentTick, setCurrentTick] = useState(() => Date.now());
 
-  // Initial fetch and 10s poll for active on-air playlist
+  // 1. Initial fetch and 10s poll for active on-air playlist
   useEffect(() => {
     if (channelId) {
       dispatch(fetchPlaylists(channelId));
@@ -283,6 +287,60 @@ export function usePlaylist(channelId) {
 
       return () => clearInterval(interval);
     }
+  }, [channelId, dispatch]);
+
+  // 2. Real-time 2-second polling for currently playing video and on-air playout telemetry
+  useEffect(() => {
+    if (!channelId) return;
+
+    let isMounted = true;
+    const pollNowPlaying = async () => {
+      try {
+        const res = await api.get(`/channels/${channelId}/now-playing`);
+        if (!isMounted || !res.data) return;
+
+        const data = res.data;
+        if (data.isLive && data.video) {
+          dispatch(
+            setLivePlaying({
+              isLive: true,
+              playoutSource: data.playoutSource || 'playlist',
+              playlistId: data.scheduling?.id ? String(data.scheduling.id) : null,
+              itemIndex: Number.isInteger(data.video.itemIndex) ? data.video.itemIndex : null,
+              assetId: data.video.assetId ? String(data.video.assetId) : null,
+              title: data.video.originalName || data.video.title || '',
+              elapsedSeconds: data.video.elapsedSeconds || 0,
+              remainingSeconds: data.video.remainingSeconds || 0,
+              progressPercent: data.video.progressPercent || 0
+            })
+          );
+        } else {
+          dispatch(
+            setLivePlaying({
+              isLive: Boolean(data.isLive),
+              playoutSource: data.playoutSource || 'idle',
+              playlistId: null,
+              itemIndex: null,
+              assetId: null,
+              title: '',
+              elapsedSeconds: 0,
+              remainingSeconds: 0,
+              progressPercent: 0
+            })
+          );
+        }
+      } catch (err) {
+        // quiet fallback for network blips
+      }
+    };
+
+    pollNowPlaying();
+    const intervalId = setInterval(pollNowPlaying, 2000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(intervalId);
+    };
   }, [channelId, dispatch]);
 
   // Derived playlists list sorted by priority (highest priority 5 first, down to 1)
@@ -391,20 +449,11 @@ export function usePlaylist(channelId) {
     }
   }, [channelId, currentPlaylist, items, dispatch]);
 
-  const handleClearCurrent = useCallback(async () => {
+  const handleClearCurrent = useCallback(() => {
     if (!currentPlaylist) return;
-    try {
-      await dispatch(
-        clearPlaylistThunk({
-          channelId,
-          playlistId: currentPlaylist._id
-        })
-      ).unwrap();
-      toast.success('Broadcast playlist cleared');
-    } catch (err) {
-      toast.error(err || 'Failed to clear playlist');
-    }
-  }, [channelId, currentPlaylist, dispatch]);
+    dispatch(clearItems());
+    toast('Playlist cleared locally. Click "Save" to commit changes to broadcast.', { icon: '🗑️' });
+  }, [currentPlaylist, dispatch]);
 
   const handleAddItem = useCallback(
     (asset) => {
@@ -451,6 +500,7 @@ export function usePlaylist(channelId) {
     loading,
     error,
     saveSuccess,
+    livePlaying,
     activeStatusMap,
     resolvedActivePlaylist,
     playlistCountsByType,

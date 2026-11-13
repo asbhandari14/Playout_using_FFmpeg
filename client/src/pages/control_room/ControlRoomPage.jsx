@@ -14,7 +14,8 @@ import {
   fetchPlaylists,
   fetchActivePlaylist,
   setPlaylistState,
-  addItem
+  addItem,
+  setLivePlaying
 } from '../../store/slices/playlistSlice.js';
 import api from '../../api/axios.js';
 
@@ -87,6 +88,36 @@ export default function ControlRoomPage() {
             setCurrentOnAirSchedule(res.data.scheduling);
           } else {
             setCurrentOnAirSchedule(null);
+          }
+
+          if (res.data.isLive && res.data.video) {
+            dispatch(
+              setLivePlaying({
+                isLive: true,
+                playoutSource: res.data.playoutSource || 'playlist',
+                playlistId: res.data.scheduling?.id ? String(res.data.scheduling.id) : null,
+                itemIndex: Number.isInteger(res.data.video.itemIndex) ? res.data.video.itemIndex : null,
+                assetId: res.data.video.assetId ? String(res.data.video.assetId) : null,
+                title: res.data.video.originalName || res.data.video.title || '',
+                elapsedSeconds: res.data.video.elapsedSeconds || 0,
+                remainingSeconds: res.data.video.remainingSeconds || 0,
+                progressPercent: res.data.video.progressPercent || 0
+              })
+            );
+          } else {
+            dispatch(
+              setLivePlaying({
+                isLive: Boolean(res.data.isLive),
+                playoutSource: res.data.playoutSource || 'idle',
+                playlistId: null,
+                itemIndex: null,
+                assetId: null,
+                title: '',
+                elapsedSeconds: 0,
+                remainingSeconds: 0,
+                progressPercent: 0
+              })
+            );
           }
         }
       } catch (err) {

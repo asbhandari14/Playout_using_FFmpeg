@@ -37,6 +37,7 @@ export default function PlaylistTable({ channelId, onPlayFromIndex }) {
     hasUnsavedChanges,
     saveSuccess,
     loading,
+    livePlaying,
     handleSelectPlaylist,
     handleCreatePlaylist,
     handleUpdatePlaylist,
@@ -130,7 +131,13 @@ export default function PlaylistTable({ channelId, onPlayFromIndex }) {
     ? PLAYLIST_TYPE_CONFIG[currentPlaylist.type] || PLAYLIST_TYPE_CONFIG.default
     : PLAYLIST_TYPE_CONFIG.default;
 
-  const isOnAir = activeOnAirPlaylist && currentPlaylist && activeOnAirPlaylist._id === currentPlaylist._id;
+  const isThisPlaylistOnAir = Boolean(
+    livePlaying?.isLive &&
+    currentPlaylist?._id &&
+    livePlaying?.playlistId &&
+    String(currentPlaylist._id) === String(livePlaying.playlistId)
+  );
+  const isOnAir = isThisPlaylistOnAir || Boolean(activeOnAirPlaylist && currentPlaylist && activeOnAirPlaylist._id === currentPlaylist._id);
   const scheduleSummary = formatScheduleSummary(currentPlaylist);
 
   return (
@@ -152,8 +159,8 @@ export default function PlaylistTable({ channelId, onPlayFromIndex }) {
             </h3>
 
             {/* On-Air badge if currently live */}
-            {isOnAir && (
-              <span className="w-1.5 h-1.5 rounded-full animate-ping bg-red-600">
+            {(isOnAir || isThisPlaylistOnAir) && (
+              <span className="w-1.5 h-1.5 rounded-full animate-ping bg-red-600" title="On Air Now">
               </span>
             )}
           </div>
@@ -256,8 +263,8 @@ export default function PlaylistTable({ channelId, onPlayFromIndex }) {
             ) : (
               items.map((item, index) => {
                 const asset = item.asset || {};
-                const isPlaying = item.status === 'playing';
-                const isPlayed = item.status === 'played';
+                const isPlaying = Boolean(isThisPlaylistOnAir && livePlaying?.itemIndex === index);
+                const isPlayed = Boolean(isThisPlaylistOnAir && livePlaying?.itemIndex !== null && index < livePlaying.itemIndex);
                 const isDragOver = dragOverIndex === index;
 
                 return (
@@ -337,7 +344,7 @@ export default function PlaylistTable({ channelId, onPlayFromIndex }) {
                             : 'bg-slate-800/80 text-slate-300 border border-slate-700/60'
                         }`}
                       >
-                        {item.status || 'QUEUED'}
+                        {isPlaying ? 'PLAYING' : isPlayed ? 'PLAYED' : (item.status && item.status !== 'playing' ? item.status.toUpperCase() : 'QUEUED')}
                       </span>
                     </div>
 

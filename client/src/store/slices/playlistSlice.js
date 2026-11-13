@@ -157,7 +157,18 @@ const playlistSlice = createSlice({
     hasUnsavedChanges: false,
     loading: false,
     error: null,
-    saveSuccess: false
+    saveSuccess: false,
+    livePlaying: {
+      isLive: false,
+      playoutSource: 'idle',
+      playlistId: null,
+      itemIndex: null,
+      assetId: null,
+      title: '',
+      elapsedSeconds: 0,
+      remainingSeconds: 0,
+      progressPercent: 0
+    }
   },
   reducers: {
     setCurrentPlaylist: (state, action) => {
@@ -243,6 +254,15 @@ const playlistSlice = createSlice({
     },
     clearSaveAlert: (state) => {
       state.saveSuccess = false;
+    },
+    setLivePlaying: (state, action) => {
+      state.livePlaying = { ...state.livePlaying, ...action.payload };
+    },
+    clearItems: (state) => {
+      state.items = [];
+      state.totalDuration = 0;
+      state.totalDurationFormatted = '00:00:00';
+      state.hasUnsavedChanges = true;
     }
   },
   extraReducers: (builder) => {
@@ -396,7 +416,9 @@ export const {
   reorderItems,
   updateItemStatus,
   setPlaylistState,
-  clearSaveAlert
+  clearSaveAlert,
+  setLivePlaying,
+  clearItems
 } = playlistSlice.actions;
 
 export default playlistSlice.reducer;
