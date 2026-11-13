@@ -68,6 +68,7 @@ api.interceptors.response.use(
       const refreshToken = localStorage.getItem('refresh_token');
 
       if (!refreshToken) {
+        processQueue(error, null);
         isRefreshing = false;
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');

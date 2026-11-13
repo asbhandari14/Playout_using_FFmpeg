@@ -159,8 +159,15 @@ export const isPlaylistCurrentlyActive = (playlist, now = new Date()) => {
  * - If no playlist matches its schedule, returns null (Standby slate broadcasted to keep stream alive).
  *   NEVER falls back to playing scheduled playlists out of their scheduled windows!
  */
-export const resolveChannelActivePlaylist = async (channelId, now = new Date()) => {
-  const playlists = await Playlist.find({ channel: channelId, isActive: true })
+export const resolveChannelActivePlaylist = async (channelId, now = new Date(), excludedPlaylistIds = null) => {
+  const query = { channel: channelId, isActive: true };
+  if (excludedPlaylistIds && (excludedPlaylistIds.size > 0 || (Array.isArray(excludedPlaylistIds) && excludedPlaylistIds.length > 0))) {
+    const ids = Array.from(excludedPlaylistIds.keys ? excludedPlaylistIds.keys() : excludedPlaylistIds);
+    if (ids.length > 0) {
+      query._id = { $nin: ids };
+    }
+  }
+  const playlists = await Playlist.find(query)
     .populate({
       path: 'items.asset',
       select: 'originalName filePath thumbnailPath duration durationFormatted size resolution codec status category'

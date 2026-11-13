@@ -24,6 +24,7 @@ export class EncoderService {
     this.lastReportedAt = Date.now();
     this.streamStartTime = Date.now();
     this.watchdogTimer = null;
+    this.isTransitioning = false;
 
     // Stream working directory
     this.channelDir = path.join(STREAMS_DIR, String(channel._id));
@@ -837,8 +838,14 @@ export class EncoderService {
     }
     this.watchdogTimer = setInterval(() => {
       if (!this.isRunning || this.isStopping) return;
+      if (this.isTransitioning) {
+        // Feeder is actively loading asset, probing video, or switching items; reset watchdog time
+        this.lastReportedAt = Date.now();
+        return;
+      }
       const idleMs = Date.now() - (this.lastReportedAt || this.streamStartTime || Date.now());
-      const stallThresholdMs = this.hasFirstPts ? 15000 : 30000;
+      // Generous threshold: 35s when running, 45s on initial startup before first PTS
+      const stallThresholdMs = this.hasFirstPts ? 35000 : 45000;
       if (idleMs > stallThresholdMs) {
         console.warn(`[Encoder:${streamKey}] Watchdog detected frozen PTS for ${(idleMs / 1000).toFixed(1)}s. Triggering auto-recovery.`);
         this.triggerFailure(`FFmpeg PTS stalled for ${(idleMs / 1000).toFixed(1)}s`);
@@ -852,6 +859,7 @@ export class EncoderService {
       if (this.watchdogTimer) {
         clearInterval(this.watchdogTimer);
         this.watchdogTimer = null;
+    this.isTransitioning = false;
       }
       if (this.zmqSocket) {
         try {
@@ -953,10 +961,19 @@ export class EncoderService {
     });
   }
 
+  setTransitioning(isTrans) {
+    this.isTransitioning = Boolean(isTrans);
+    this.lastReportedAt = Date.now();
+  }
+
+  resetWatchdog() {
+    this.lastReportedAt = Date.now();
+  }
+
   /**
    * Send live runtime ZMQ command directly into FFmpeg filtergraph with strict serialization & timeout
    */
-  async sendZmqCommand(commandString, timeoutMs = 1500) {
+  async sendZmqCommand(commandString, timeoutMs = 2500) {
     if (!this.isRunning) return null;
 
     const execute = async () => {
@@ -1003,6 +1020,7 @@ export class EncoderService {
           if (this.isRunning) {
             this.zmqSocket = new zmq.Request();
             this.zmqSocket.connect(`tcp://127.0.0.1:${this.zmqPort}`);
+            await new Promise((r) => setTimeout(r, 40));
           } else {
             this.zmqSocket = null;
           }
@@ -1924,6 +1942,7 @@ export class EncoderService {
     if (this.watchdogTimer) {
       clearInterval(this.watchdogTimer);
       this.watchdogTimer = null;
+    this.isTransitioning = false;
     }
     if (this.zmqSocket) {
       try {

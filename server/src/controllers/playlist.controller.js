@@ -376,9 +376,20 @@ export const deletePlaylist = async (req, res, next) => {
   try {
     const { channelId, playlistId } = req.params;
 
+    if (req.user.role === ROLES.USER) {
+      const ch = await Channel.findById(channelId);
+      if (String(ch?.assignedUser) !== String(req.user._id)) {
+        return res.status(403).json({ message: 'Forbidden: You do not have access to this channel' });
+      }
+    }
+
     const playlist = await Playlist.findOne({ _id: playlistId, channel: channelId });
     if (!playlist) {
       return res.status(404).json({ message: 'Playlist not found' });
+    }
+
+    if (playlist.type === PLAYLIST_TYPE.DEFAULT) {
+      return res.status(400).json({ message: 'Cannot delete the Default playlist. You may clear its items instead.' });
     }
 
     await Playlist.findByIdAndDelete(playlistId);

@@ -37,13 +37,11 @@ export default function ConfirmDeleteModal({
       if (!isOpen) return;
       if (e.key === 'Escape' && !isLoading) {
         handleClose();
-      } else if (e.key === 'Enter' && !isLoading) {
-        handleConfirm();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, handleClose, handleConfirm, isLoading]);
+  }, [isOpen, handleClose, isLoading]);
 
   if (!isOpen) return null;
 

@@ -3,6 +3,7 @@ import path from 'path';
 import { Asset } from '../models/asset.model.js';
 import { Channel } from '../models/channel.model.js';
 import { Playlist } from '../models/playlist.model.js';
+import { Schedule } from '../models/schedule.model.js';
 import { ASSET_STATUS, ROLES } from '../config/constants.js';
 import { checkStorageQuota, mergeChunks, processUploadedAsset } from '../services/assetService.js';
 import { calculateChannelStorage, validateStorageAvailability } from '../services/channel.service.js';
@@ -238,10 +239,14 @@ export const deleteAsset = async (req, res, next) => {
       }
     }
 
-    // Remove asset references from playlist
-    await Playlist.updateOne(
+    // Remove asset references from all playlists and schedules of this channel
+    await Playlist.updateMany(
       { channel: asset.channel },
       { $pull: { items: { asset: asset._id } } }
+    );
+    await Schedule.updateMany(
+      { channel: asset.channel },
+      { $pull: { assets: asset._id } }
     );
 
     await Asset.findByIdAndDelete(req.params.id);

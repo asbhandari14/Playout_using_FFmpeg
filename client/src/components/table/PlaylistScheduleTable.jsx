@@ -4,7 +4,7 @@ import { PLAYLIST_TYPE_CONFIG, formatScheduleSummary, isPlaylistActiveNow } from
 import TableScrollContainer from './TableScrollContainer.jsx';
 
 const SCHEDULE_GRID_COLS =
-  'grid grid-cols-[126px_minmax(130px,1.3fr)_minmax(90px,0.9fr)_minmax(120px,1.1fr)_106px_84px_98px_92px] items-center gap-2';
+  'grid grid-cols-[200px_minmax(130px,1.3fr)_minmax(90px,0.9fr)_minmax(120px,1.1fr)_106px_84px_98px] items-center gap-2';
 
 export default function PlaylistScheduleTable({
   playlists = [],
@@ -22,7 +22,7 @@ export default function PlaylistScheduleTable({
         <div className="w-full min-w-[936px]">
           {/* Grid Header */}
           <div className={`px-4 py-2.5 2xl:px-5 2xl:py-3 bg-[#131926] border-b border-[#1e2638] text-[10px] 2xl:text-[10.5px] uppercase font-bold text-slate-400 tracking-wider ${SCHEDULE_GRID_COLS}`}>
-            <div>Priority & Type</div>
+            {/* <div>Priority & Type</div> */}
             <div>Playlist Name</div>
             <div>Channel</div>
             <div>Schedule Window</div>
@@ -51,7 +51,7 @@ export default function PlaylistScheduleTable({
                     className={`px-4 py-2.5 2xl:px-5 2xl:py-3 hover:bg-[#141b29] transition text-xs ${SCHEDULE_GRID_COLS}`}
                   >
                     {/* Priority & Type */}
-                    <div>
+                    {/* <div>
                       <span
                         className={`inline-flex items-center gap-1 font-mono text-[9.5px] font-bold px-2 py-0.5 rounded-md border uppercase tracking-wider ${typeConfig.colorClass}`}
                       >
@@ -59,7 +59,7 @@ export default function PlaylistScheduleTable({
                         <span>•</span>
                         <span>{typeConfig.shortLabel}</span>
                       </span>
-                    </div>
+                    </div> */}
 
                     {/* Playlist Name */}
                     <div>

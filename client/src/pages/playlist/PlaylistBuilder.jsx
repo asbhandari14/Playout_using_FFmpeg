@@ -561,9 +561,9 @@ export default function PlaylistBuilder({
               <h1 className="text-base 2xl:text-lg font-bold text-white tracking-tight">
                 {mode === 'edit' ? `Edit ${typeConfig.title}` : `Create ${typeConfig.title}`}
               </h1>
-              <span className={`font-mono text-[9.5px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider ${typeConfig.accentBg} ${typeConfig.accentText} ${typeConfig.accentBorder}`}>
+              {/* <span className={`font-mono text-[9.5px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider ${typeConfig.accentBg} ${typeConfig.accentText} ${typeConfig.accentBorder}`}>
                 {typeConfig.badge}
-              </span>
+              </span> */}
             </div>
             <p className="text-[11px] text-slate-400 mt-0.5">
               {typeConfig.description}

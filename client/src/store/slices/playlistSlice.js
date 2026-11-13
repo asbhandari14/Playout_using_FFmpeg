@@ -18,7 +18,7 @@ export const formatTime = (seconds) => {
 export const recalculateTimings = (items) => {
   let cumulative = 0;
   return items.map((item, index) => {
-    const duration = item.asset?.duration || 0;
+    const duration = Number(typeof item.asset === 'object' ? item.asset?.duration : item.duration) || 0;
     const offset = cumulative;
     cumulative += duration;
     return {
@@ -183,7 +183,7 @@ const playlistSlice = createSlice({
       };
       const updated = [...state.items, newItem];
       state.items = recalculateTimings(updated);
-      state.totalDuration += asset.duration || 0;
+      state.totalDuration = Number(state.totalDuration || 0) + (Number(asset?.duration) || 0);
       state.totalDurationFormatted = formatTime(state.totalDuration);
       state.hasUnsavedChanges = true;
     },
@@ -191,7 +191,7 @@ const playlistSlice = createSlice({
       const index = action.payload;
       const updated = state.items.filter((_, idx) => idx !== index);
       state.items = recalculateTimings(updated);
-      state.totalDuration = state.items.reduce((acc, curr) => acc + (curr.asset?.duration || 0), 0);
+      state.totalDuration = state.items.reduce((acc, curr) => acc + (Number(curr.asset?.duration || curr.duration) || 0), 0);
       state.totalDurationFormatted = formatTime(state.totalDuration);
       state.hasUnsavedChanges = true;
     },

@@ -62,6 +62,8 @@ export default function ScheduleModal({
   const [scheduleType, setScheduleType] = useState('video'); // 'video' | 'lband' | 'ashton'
   const [overlayDuration, setOverlayDuration] = useState(60);
   const [ashtonSqueeze, setAshtonSqueeze] = useState(true);
+  const [availablePresets, setAvailablePresets] = useState([]);
+  const [selectedPresetIds, setSelectedPresetIds] = useState([]);
   const [title, setTitle] = useState('');
   const [selectedAssetIds, setSelectedAssetIds] = useState([]);
   const [assetToAdd, setAssetToAdd] = useState('');
@@ -165,11 +167,25 @@ export default function ScheduleModal({
     }
   };
 
+  useEffect(() => {
+    if (!channelId || scheduleType === 'video') return;
+    api.get(`/channels/${channelId}/bands`, { params: { type: scheduleType } })
+      .then((res) => {
+        const list = res.data?.presets || [];
+        setAvailablePresets(list);
+        if (list.length > 0 && selectedPresetIds.length === 0) {
+          setSelectedPresetIds([list[0]._id]);
+        }
+      })
+      .catch(() => setAvailablePresets([]));
+  }, [channelId, scheduleType]);
+
   const resetForm = () => {
     setTitle('');
     setScheduleType('video');
     setOverlayDuration(60);
     setAshtonSqueeze(true);
+    setSelectedPresetIds([]);
     setSelectedAssetIds([]);
     setAssetToAdd(assets.length > 0 ? assets[0]._id : '');
     setDailyStartTime(getNowTimeString());
@@ -221,6 +237,15 @@ export default function ScheduleModal({
       setSelectedAssetIds([sched.asset?._id || sched.asset]);
     } else {
       setSelectedAssetIds([]);
+    }
+
+    // Populate band presets
+    if (Array.isArray(sched.bandPresets) && sched.bandPresets.length > 0) {
+      setSelectedPresetIds(sched.bandPresets.map((p) => p?._id || p));
+    } else if (sched.bandPreset) {
+      setSelectedPresetIds([sched.bandPreset?._id || sched.bandPreset]);
+    } else {
+      setSelectedPresetIds([]);
     }
 
     if (assets.length > 0) {
@@ -289,6 +314,8 @@ export default function ScheduleModal({
         payload.assetId = selectedAssetIds[0];
       } else {
         payload.duration = Number(overlayDuration) || 60;
+        payload.bandPresetIds = selectedPresetIds;
+        payload.bandPreset = selectedPresetIds[0] || null;
         if (scheduleType === 'ashton') {
           payload.ashtonSqueeze = ashtonSqueeze;
         }
@@ -630,6 +657,44 @@ export default function ScheduleModal({
                 ) : (
                   /* Overlay Duration & Mode Settings for L-Band and Ashton */
                   <div className="bg-[#0a0d14] border border-[#222b3e] rounded-xl p-4 space-y-3">
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                        Select {scheduleType === 'lband' ? 'L-Band' : 'Ashton Band'} Preset(s) <span className="text-red-400">*</span>
+                      </label>
+                      {availablePresets.length === 0 ? (
+                        <div className="text-xs text-amber-400/90 bg-amber-950/20 border border-amber-900/40 rounded-lg p-2.5">
+                          No {scheduleType === 'lband' ? 'L-Band' : 'Ashton Band'} presets found. Please create one first in the Band tab.
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-1">
+                          {availablePresets.map((preset) => {
+                            const isSelected = selectedPresetIds.includes(preset._id);
+                            return (
+                              <button
+                                key={preset._id}
+                                type="button"
+                                onClick={() => {
+                                  if (isSelected) {
+                                    setSelectedPresetIds(selectedPresetIds.filter((id) => id !== preset._id));
+                                  } else {
+                                    setSelectedPresetIds([...selectedPresetIds, preset._id]);
+                                  }
+                                }}
+                                className={`p-2 rounded-lg border text-left flex items-center justify-between transition ${
+                                  isSelected
+                                    ? (scheduleType === 'lband' ? 'bg-blue-600/20 border-blue-500 text-white' : 'bg-purple-600/20 border-purple-500 text-white')
+                                    : 'bg-[#121722] border-[#222b3e] text-slate-400 hover:text-white'
+                                }`}
+                              >
+                                <span className="text-xs font-bold truncate">{preset.title || 'Untitled'}</span>
+                                <span className="text-[10px] opacity-75 font-mono">{preset.duration || 10}s</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
                     <div className="flex items-center justify-between">
                       <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
                         <Timer size={13} className={scheduleType === 'lband' ? 'text-blue-400' : 'text-purple-400'} />

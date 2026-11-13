@@ -4,8 +4,9 @@ import { Channel } from '../models/channel.model.js';
 import { ensureChannelUploadDirs } from '../config/paths.js';
 
 const getChannelSubdir = async (req, subfolderKey) => {
-  const channelId = req.params?.channelId || req.body?.channelId || 'default';
+  const channelId = req.params?.channelId || "default";
   let channelName = req.body?.channelName;
+
   if (!channelName && channelId !== 'default') {
     try {
       const ch = await Channel.findById(channelId).select('name');
@@ -17,12 +18,12 @@ const getChannelSubdir = async (req, subfolderKey) => {
 };
 
 const imageFilter = (req, file, cb) => {
-  const allowed = ['.png', '.jpg', '.jpeg', '.webp'];
+  const allowed = ['.png'];
   const ext = path.extname(file.originalname).toLowerCase();
   if (allowed.includes(ext) || file.mimetype.startsWith('image/')) {
     cb(null, true);
   } else {
-    cb(new Error('Invalid image type. Please upload transparent PNG or JPG.'), false);
+    cb(new Error('Invalid image type. Please upload transparent PNG'), false);
   }
 };
 

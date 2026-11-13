@@ -11,13 +11,20 @@ export const isOverlayScheduleActiveNow = (schedule, now = new Date()) => {
   const currentDayOfWeek = now.getDay();
   const currentSecOfDay = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
 
+  const formatLocalDate = (d) => {
+    if (!d) return '';
+    const dt = new Date(d);
+    if (isNaN(dt.getTime())) return '';
+    return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+  };
+
   if (schedule.startDate) {
-    const startStr = new Date(schedule.startDate).toISOString().slice(0, 10);
-    if (todayStr < startStr) return false;
+    const startStr = formatLocalDate(schedule.startDate);
+    if (startStr && todayStr < startStr) return false;
   }
   if (schedule.endDate) {
-    const endStr = new Date(schedule.endDate).toISOString().slice(0, 10);
-    if (todayStr > endStr) return false;
+    const endStr = formatLocalDate(schedule.endDate);
+    if (endStr && todayStr > endStr) return false;
   }
 
   if (Array.isArray(schedule.daysOfWeek) && schedule.daysOfWeek.length > 0) {

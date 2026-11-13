@@ -88,17 +88,18 @@ export default function useChannel() {
 
   const logout = useCallback(async() => {
     try {
-    setIsProfileMenuOpen(false);
-    const result = await dispatch(logoutUser());
-    console.log("logout result", result);
-
-    if(result && result?.payload && result.payload.success) {
-      toast.success(result?.payload?.message);
-      navigate('/login');
-    }
-    } catch(err) {
-      toast.error('Logout failed. Please try again.');
+      setIsProfileMenuOpen(false);
+      const result = await dispatch(logoutUser());
+      if (result?.payload?.message) {
+        toast.success(result.payload.message);
+      }
+    } catch (err) {
       console.error('Logout failed:', err);
+    } finally {
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+      localStorage.removeItem('user');
+      navigate('/login');
     }
   }, [dispatch, navigate]);
 

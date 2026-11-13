@@ -135,7 +135,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
       isTimerDirtyRef.current = false;
     }
 
-    const bLogo = channel.branding.logo || {};
+    const bLogo = channel?.branding?.logo || {};
     const logoJson = JSON.stringify(bLogo);
     if (logoJson !== lastSyncedSectionsRef.current.logo) {
       lastSyncedSectionsRef.current.logo = logoJson;
@@ -148,7 +148,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
       setLogoShowDuringSchedule(bLogo.showDuringSchedule !== false);
     }
 
-    const bBug = channel.branding.bug || {};
+    const bBug = channel?.branding?.bug || {};
     const bugJson = JSON.stringify(bBug);
     if (bugJson !== lastSyncedSectionsRef.current.bug && !isDraggingBugRef.current) {
       lastSyncedSectionsRef.current.bug = bugJson;
@@ -192,7 +192,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
       setBugIsGif(Boolean(bBug.isGif || (bBug.assetPath && String(bBug.assetPath).toLowerCase().endsWith('.gif'))));
     }
 
-    const bTicker = channel.branding.ticker || {};
+    const bTicker = channel?.branding?.ticker || {};
     const tickerJson = JSON.stringify(bTicker);
     if (tickerJson !== lastSyncedSectionsRef.current.ticker) {
       lastSyncedSectionsRef.current.ticker = tickerJson;
@@ -217,7 +217,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
       }
     }
 
-    const bTimer = channel.branding.backInTimer || {};
+    const bTimer = channel?.branding?.backInTimer || {};
     const timerJson = JSON.stringify(bTimer);
     if (timerJson !== lastSyncedSectionsRef.current.backInTimer) {
       lastSyncedSectionsRef.current.backInTimer = timerJson;
@@ -271,6 +271,8 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
   // Upload custom logo image
   const handleLogoUpload = async (e) => {
     const file = e.target.files?.[0];
+
+    // File and Channel ID validation
     if (!file || !channel?._id) {
       toast.error("No file selected or channel not available");
       return;

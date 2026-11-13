@@ -52,9 +52,13 @@ export const logoutUser = createAsyncThunk('auth/logoutUser', async () => {
   }
 });
 
-const initialUser = localStorage.getItem('user')
-  ? JSON.parse(localStorage.getItem('user'))
-  : null;
+let initialUser = null;
+try {
+  const rawUser = localStorage.getItem('user');
+  initialUser = rawUser && rawUser !== 'undefined' ? JSON.parse(rawUser) : null;
+} catch {
+  localStorage.removeItem('user');
+}
 const initialToken = localStorage.getItem('access_token') || null;
 
 const authSlice = createSlice({

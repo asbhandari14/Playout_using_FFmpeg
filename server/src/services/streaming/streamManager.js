@@ -33,6 +33,23 @@ class StreamManager {
     this.reloadingChannels.delete(chIdStr);
   }
 
+  getAvailableZmqPort() {
+    const activePorts = new Set();
+    for (const stream of this.activeStreams.values()) {
+      if (stream?.zmqPort) activePorts.add(Number(stream.zmqPort));
+    }
+    for (let i = 0; i < 400; i++) {
+      if (this.nextZmqPort > 5999) {
+        this.nextZmqPort = 5600;
+      }
+      const port = this.nextZmqPort++;
+      if (!activePorts.has(port)) {
+        return port;
+      }
+    }
+    return 5600 + Math.floor(Math.random() * 400);
+  }
+
   /**
    * Continuous auto-recovery retry loop with exponential backoff for network outages
    */
@@ -122,11 +139,8 @@ class StreamManager {
       throw new Error(`Channel ${chIdStr} not found`);
     }
 
-    // Allocate ZMQ port (wrap within 5600-5999)
-    if (this.nextZmqPort > 5999) {
-      this.nextZmqPort = 5600;
-    }
-    const zmqPort = this.nextZmqPort++;
+    // Allocate ZMQ port ensuring no port collisions with active channels
+    const zmqPort = this.getAvailableZmqPort();
 
     console.log(`[StreamManager] Initializing stream for channel '${channel.name}' (Port: ${zmqPort})`);
 

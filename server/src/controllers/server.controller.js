@@ -1,4 +1,5 @@
 import { Server } from '../models/server.model.js';
+import { Channel } from '../models/channel.model.js';
 import {
   isValidId,
   isAdmin,
@@ -214,6 +215,14 @@ export const deleteServer = async (req, res) => {
       return res.status(403).json({
         success: false,
         message: 'You cannot delete a server that you do not own'
+      });
+    }
+
+    const assignedChannelsCount = await Channel.countDocuments({ server: id });
+    if (assignedChannelsCount > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot delete server: ${assignedChannelsCount} channel(s) are assigned to it. Reassign or delete those channels first.`
       });
     }
 

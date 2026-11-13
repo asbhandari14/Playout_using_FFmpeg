@@ -1,6 +1,7 @@
 import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs';
+import { killProcessTree } from './processHelper.js';
 
 /**
  * Format seconds into HH:MM:SS or MM:SS
@@ -34,6 +35,14 @@ export const probeVideo = (filePath) => {
     const proc = spawn('ffprobe', args);
     let stdout = '';
     let stderr = '';
+    let isSettled = false;
+
+    const timer = setTimeout(() => {
+      if (isSettled) return;
+      isSettled = true;
+      killProcessTree(proc).catch(() => { });
+      reject(new Error(`ffprobe timed out after 10000ms for file: ${filePath}`));
+    }, 10000);
 
     proc.stdout.on('data', (data) => {
       stdout += data.toString();
@@ -44,6 +53,10 @@ export const probeVideo = (filePath) => {
     });
 
     proc.on('close', (code) => {
+      if (isSettled) return;
+      isSettled = true;
+      clearTimeout(timer);
+
       if (code !== 0) {
         return reject(new Error(`ffprobe failed with code ${code}: ${stderr}`));
       }
@@ -86,6 +99,9 @@ export const probeVideo = (filePath) => {
     });
 
     proc.on('error', (err) => {
+      if (isSettled) return;
+      isSettled = true;
+      clearTimeout(timer);
       reject(new Error(`ffprobe process execution error: ${err.message}`));
     });
   });
@@ -131,6 +147,9 @@ export const generateThumbnail = (videoPath, outputPath, duration = 10) => {
           outputPath
         ];
         const fallbackProc = spawn('ffmpeg', fallbackArgs);
+        fallbackProc.on('error', (fErr) => {
+          reject(new Error(`ffmpeg thumbnail fallback error: ${fErr.message}`));
+        });
         fallbackProc.on('close', (fCode) => {
           if (fCode === 0 && fs.existsSync(outputPath)) {
             resolve(outputPath);

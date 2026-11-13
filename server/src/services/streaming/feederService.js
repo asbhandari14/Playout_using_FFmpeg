@@ -12,6 +12,65 @@ import { buildBackInTimerFilter } from './brandingAssets.js';
 import { killProcessTree } from '../../utils/processHelper.js';
 import { formatDuration, probeVideo } from '../../utils/media.js';
 
+/**
+ * Computes exact remaining seconds for an Advertisement Playlist Back-In countdown.
+ * Sums remaining items from `itemIndex` onward, respects daily `endTime` windows
+ * (including "00:00:00" and midnight wraparound), and distinguishes looping vs non-looping breaks.
+ */
+export const computeAdBackInRemainingSeconds = (playlist, itemIndex, currentAsset, now = new Date()) => {
+  const items = Array.isArray(playlist?.items) ? playlist.items : [];
+  let remainingItemsSec = Math.max(0, Number(currentAsset?.duration) || 30);
+
+  for (let idx = itemIndex + 1; idx < items.length; idx++) {
+    const nextAsset = items[idx]?.asset;
+    if (!nextAsset) continue;
+    const dur = Number(nextAsset.duration);
+    if (Number.isFinite(dur) && dur > 0) {
+      remainingItemsSec += dur;
+    }
+  }
+
+  const hasEnd = Boolean(playlist?.endTime && String(playlist.endTime).trim());
+  if (!hasEnd) {
+    return remainingItemsSec;
+  }
+
+  const endSec = parseTimeToSeconds(playlist.endTime);
+  if (endSec === null || !Number.isFinite(endSec)) {
+    return remainingItemsSec;
+  }
+
+  const curSec =
+    now.getHours() * 3600 +
+    now.getMinutes() * 60 +
+    now.getSeconds() +
+    now.getMilliseconds() / 1000;
+
+  const hasStart = Boolean(playlist?.startTime && String(playlist.startTime).trim());
+  const startSec = hasStart ? parseTimeToSeconds(playlist.startTime) : null;
+
+  let remainingWindowSec = null;
+  if (startSec !== null && Number.isFinite(startSec) && startSec > endSec) {
+    // Overnight slot wrapping midnight (e.g. 23:55:00 -> 00:05:00)
+    if (curSec >= startSec) {
+      remainingWindowSec = (86400 - curSec) + endSec;
+    } else if (curSec <= endSec) {
+      remainingWindowSec = endSec - curSec;
+    }
+  } else if (endSec >= curSec) {
+    remainingWindowSec = endSec - curSec;
+  }
+
+  if (remainingWindowSec === null) {
+    return remainingItemsSec;
+  }
+
+  const safeWindowSec = Math.max(0.5, remainingWindowSec);
+  return playlist.loop === false
+    ? Math.min(remainingItemsSec, safeWindowSec)
+    : safeWindowSec;
+};
+
 export class FeederService {
   constructor(channelId, encoderProcess, options = {}, encoder = null) {
     this.channelId = channelId;
@@ -36,6 +95,8 @@ export class FeederService {
     this.currentScheduleAssetIndex = 0;
     this.currentScheduleTargetEndTime = null;
     this.wasPreemptedByPriority = false;
+    this.interruptedPlaylistStates = new Map();
+    this.completedNonLoopingPlaylists = new Map();
     this.priorityCheckTimer = null;
     this.audioProbeCache = new Map();
     this.lastAppliedBrandingKey = null;
@@ -368,7 +429,15 @@ export class FeederService {
    */
   async resolveActivePlaylist() {
     try {
-      const active = await resolveChannelActivePlaylist(this.channelId, new Date());
+      const now = new Date();
+      if (this.completedNonLoopingPlaylists && this.completedNonLoopingPlaylists.size > 0) {
+        for (const [id, expireTime] of this.completedNonLoopingPlaylists.entries()) {
+          if (Date.now() > expireTime) {
+            this.completedNonLoopingPlaylists.delete(id);
+          }
+        }
+      }
+      const active = await resolveChannelActivePlaylist(this.channelId, now, this.completedNonLoopingPlaylists);
       return active || null;
     } catch (err) {
       console.warn(`[Feeder:${this.channelId}] Error resolving active playlist:`, err.message);
@@ -400,6 +469,25 @@ export class FeederService {
           `\nPreempting currently playing video decoder to switch immediately.`
         );
 
+        // Mid-video state capture: If the playlist being preempted was playing a video,
+        // capture its exact playback offset so it can seamlessly resume at this exact second
+        if (this.currentPlayingPlaylist?._id && this.currentDecoder) {
+          const pos = this.getCurrentPlaybackPosition();
+          const prevId = String(this.currentPlayingPlaylist._id);
+          const currentItem = this.currentPlayingPlaylist.items?.[this.currentIndex];
+          this.interruptedPlaylistStates.set(prevId, {
+            index: this.currentIndex,
+            offsetSeconds: pos.offsetSeconds,
+            assetId: currentItem?.asset?._id ? String(currentItem.asset._id) : (this.currentAsset?._id ? String(this.currentAsset._id) : null),
+            videoPath: this.currentVideoPath,
+            duration: this.currentAssetDuration,
+            savedAt: Date.now()
+          });
+          console.log(
+            `[Feeder:${this.channelId}] Saved mid-video resume state for playlist "${this.currentPlayingPlaylist.name}": item #${this.currentIndex + 1} at ${pos.offsetSeconds.toFixed(1)}s`
+          );
+        }
+
         this.wasPreemptedByPriority = true;
         this.currentPlayingPlaylist = targetPlaylist;
 
@@ -409,13 +497,15 @@ export class FeederService {
         }
 
         if (this.currentDecoder) {
-          try {
-            this.currentDecoder.stdout.unpipe();
-          } catch { }
-          try {
-            killProcessTree(this.currentDecoder);
-          } catch { }
+          const dec = this.currentDecoder;
           this.currentDecoder = null;
+          try {
+            dec.stdout.unpipe();
+            dec.stdout.destroy();
+          } catch { }
+          try {
+            await killProcessTree(dec);
+          } catch { }
         }
 
         return true;
@@ -500,14 +590,53 @@ export class FeederService {
           continue;
         }
 
-        // If active playlist changed to a different one, reset index to 0
-        if (currentPlaylistId && String(currentPlaylistId) !== String(playlist._id)) {
-          console.log(
-            `[Feeder:${this.channelId}] Active playlist changed to "${playlist.name}" (${playlist.type}, priority ${playlist.priority}). Starting from beginning.`
-          );
-          this.currentIndex = 0;
+        // If active playlist changed to a different one, restore saved state or reset to 0
+        const targetPlaylistId = String(playlist._id);
+        const isSwitchingPlaylist = !currentPlaylistId || String(currentPlaylistId) !== targetPlaylistId;
+
+        if (isSwitchingPlaylist) {
+          const savedState = this.interruptedPlaylistStates.get(targetPlaylistId);
+          if (savedState) {
+            this.interruptedPlaylistStates.delete(targetPlaylistId);
+            const isValidIndex = Number.isInteger(savedState.index) && savedState.index >= 0 && savedState.index < (playlist.items?.length || 0);
+            if (isValidIndex) {
+              const candidateItem = playlist.items[savedState.index];
+              const candidateAssetId = candidateItem?.asset?._id ? String(candidateItem.asset._id) : null;
+              if (!savedState.assetId || savedState.assetId === candidateAssetId) {
+                this.currentIndex = savedState.index;
+                this.startOffsetSeconds = Math.max(0, savedState.offsetSeconds || 0);
+                console.log(
+                  `[Feeder:${this.channelId}] Resuming playlist "${playlist.name}" (${playlist.type}) from saved position: ` +
+                  `item #${this.currentIndex + 1}/${playlist.items.length} ("${candidateItem?.asset?.originalName || 'video'}") ` +
+                  `at offset ${this.startOffsetSeconds.toFixed(1)}s`
+                );
+              } else {
+                const shiftedIdx = playlist.items.findIndex((it) => String(it?.asset?._id || '') === savedState.assetId);
+                if (shiftedIdx !== -1) {
+                  this.currentIndex = shiftedIdx;
+                  this.startOffsetSeconds = Math.max(0, savedState.offsetSeconds || 0);
+                  console.log(
+                    `[Feeder:${this.channelId}] Resuming playlist "${playlist.name}" from shifted item #${this.currentIndex + 1} at offset ${this.startOffsetSeconds.toFixed(1)}s`
+                  );
+                } else {
+                  console.warn(`[Feeder:${this.channelId}] Saved asset no longer in playlist "${playlist.name}". Starting from beginning.`);
+                  this.currentIndex = 0;
+                  this.startOffsetSeconds = 0;
+                }
+              }
+            } else {
+              this.currentIndex = 0;
+              this.startOffsetSeconds = 0;
+            }
+          } else if (currentPlaylistId) {
+            console.log(
+              `[Feeder:${this.channelId}] Active playlist changed to "${playlist.name}" (${playlist.type}, priority ${playlist.priority}). Starting from beginning.`
+            );
+            this.currentIndex = 0;
+            this.startOffsetSeconds = 0;
+          }
         }
-        currentPlaylistId = String(playlist._id);
+        currentPlaylistId = targetPlaylistId;
         this.currentPlayingPlaylist = playlist;
         this.schedulePlaylistBranding(playlist);
 
@@ -528,6 +657,11 @@ export class FeederService {
         for (let i = this.currentIndex; i < playlist.items.length; i++) {
           if (!this.isRunning) break;
 
+          // Gate: if a scheduled broadcast is active, wait until it finishes before starting next item
+          while (this.isScheduleActive && this.isRunning) {
+            await new Promise((r) => setTimeout(r, 250));
+          }
+
           // Before playing next item, check if active playlist has changed or expired!
           const activeCheck = await this.resolveActivePlaylist();
           const activeCheckId = activeCheck?._id ? String(activeCheck._id) : null;
@@ -535,7 +669,17 @@ export class FeederService {
             console.log(
               `[Feeder:${this.channelId}] Active playlist changed or expired (now: "${activeCheck?.name || 'Standby Slate'}"). Switching immediately.`
             );
+            if (playlist._id) {
+              const currentItem = playlist.items[i];
+              this.interruptedPlaylistStates.set(String(playlist._id), {
+                index: i,
+                offsetSeconds: 0,
+                assetId: currentItem?.asset?._id ? String(currentItem.asset._id) : null,
+                savedAt: Date.now()
+              });
+            }
             this.currentIndex = 0;
+            this.startOffsetSeconds = 0;
             currentPlaylistId = activeCheckId;
             this.currentPlayingPlaylist = activeCheck;
             break;
@@ -588,19 +732,8 @@ export class FeederService {
               const freshCh = await Channel.findById(this.channelId).select('branding.backInTimer');
               const timerCfg = freshCh?.branding?.backInTimer || {};
 
-              // Compute countdown seconds:
-              // If daily endTime is configured for this ad playlist, countdown to window end;
-              // otherwise, countdown to end of the current ad video!
-              let countdownSec = asset.duration || 30;
-              if (playlist.endTime) {
-                const now = new Date();
-                const curSec = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
-                const endSec = parseTimeToSeconds(playlist.endTime);
-                if (endSec && endSec > curSec) {
-                  countdownSec = Math.min(countdownSec, endSec - curSec);
-                }
-              }
-              timerFilter = buildBackInTimerFilter(timerCfg, Math.max(1, countdownSec));
+              const countdownSec = computeAdBackInRemainingSeconds(playlist, i, asset);
+              timerFilter = buildBackInTimerFilter(timerCfg, countdownSec);
               console.log(
                 `[Feeder:${this.channelId}] Applied Back-In Countdown Timer (${Math.ceil(countdownSec)}s) to ad playlist "${playlist.name}"`
               );
@@ -620,20 +753,21 @@ export class FeederService {
               `[Feeder:${this.channelId}] Playout preempted by priority transition. Advancing immediately to new active playlist.`
             );
             this.wasPreemptedByPriority = false;
-            this.currentIndex = 0;
             break;
           }
 
           // If playback was paused by a scheduled video broadcast, wait until schedule finishes
-          if (this.wasInterruptedBySchedule) {
+          if (this.isScheduleActive) {
             console.log(`[Feeder:${this.channelId}] Regular play loop waiting for scheduled video to complete...`);
             while (this.isScheduleActive && this.isRunning) {
-              await new Promise((r) => setTimeout(r, 400));
+              await new Promise((r) => setTimeout(r, 250));
             }
-            this.wasInterruptedBySchedule = false;
-            // Decrement i so next for-loop iteration re-enters the same item with this.startOffsetSeconds
-            i = this.currentIndex - 1;
-            continue;
+            if (this.wasInterruptedBySchedule) {
+              this.wasInterruptedBySchedule = false;
+              // Decrement i so next for-loop iteration re-enters the same item with this.startOffsetSeconds
+              i = this.currentIndex - 1;
+              continue;
+            }
           }
 
           // Mark item PLAYED (non-blocking)
@@ -659,11 +793,24 @@ export class FeederService {
           if (playlist.type !== PLAYLIST_TYPE.DEFAULT) {
             console.log(`[Feeder:${this.channelId}] Finished non-looping ${playlist.type} playlist. Returning to default loop.`);
             this.currentIndex = 0;
+            this.startOffsetSeconds = 0;
+            const now = new Date();
+            let expireTime = Date.now() + 60000;
+            if (playlist.endTime) {
+              const endSec = parseTimeToSeconds(playlist.endTime);
+              if (endSec !== null) {
+                const curSec = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+                const remainingSec = endSec >= curSec ? (endSec - curSec) : 60;
+                expireTime = Date.now() + (remainingSec + 5) * 1000;
+              }
+            }
+            this.completedNonLoopingPlaylists.set(String(playlist._id), expireTime);
             continue;
           }
           // Default playlist must never terminate a live broadcast channel when reaching the end
           console.warn(`[Feeder:${this.channelId}] Default playlist has loop=false; forcing continuous loop to keep channel live.`);
           this.currentIndex = 0;
+          this.startOffsetSeconds = 0;
           Playlist.updateOne(
             { _id: playlist._id },
             { $set: { 'items.$[].status': PLAYLIST_ITEM_STATUS.QUEUED } }
@@ -673,6 +820,7 @@ export class FeederService {
 
         // Reset to beginning of playlist for seamless loop (non-blocking)
         this.currentIndex = 0;
+        this.startOffsetSeconds = 0;
         Playlist.updateOne(
           { _id: playlist._id },
           { $set: { 'items.$[].status': PLAYLIST_ITEM_STATUS.QUEUED } }
@@ -693,8 +841,27 @@ export class FeederService {
       return;
     }
 
+    // Ensure any previously running decoder is cleanly detached and killed before launching next
+    if (this.currentDecoder) {
+      const oldDec = this.currentDecoder;
+      this.currentDecoder = null;
+      try {
+        oldDec.stdout.unpipe();
+        oldDec.stdout.destroy();
+      } catch { }
+      try {
+        await killProcessTree(oldDec);
+      } catch { }
+    }
+
+    const enc = this.getEncoder();
+    if (enc) {
+      enc.setTransitioning(true);
+    }
+
     const hasAudio = await this.checkVideoHasAudio(videoPath);
     if (!this.isRunning || !this.encoderProcess?.stdin?.writable) {
+      if (enc) enc.setTransitioning(false);
       return;
     }
 
@@ -743,6 +910,10 @@ export class FeederService {
 
       this.currentDecoder = decoder;
 
+      if (enc) {
+        enc.setTransitioning(false);
+      }
+
       if (decoder.stderr) {
         decoder.stderr.on('data', (chunk) => {
           const msg = chunk.toString();
@@ -779,6 +950,9 @@ export class FeederService {
       }
 
       const cleanupDecoder = () => {
+        if (enc) {
+          enc.resetWatchdog();
+        }
         if (this.priorityCheckTimer) {
           clearInterval(this.priorityCheckTimer);
           this.priorityCheckTimer = null;
@@ -895,7 +1069,7 @@ export class FeederService {
 
     const hadRegularVideoPlaying = Boolean(this.currentVideoPath && this.currentDecoder);
     this.isScheduleActive = true;
-    this.wasInterruptedBySchedule = hadRegularVideoPlaying;
+    this.wasInterruptedBySchedule = true;
 
     // 1. Capture exact paused position of currently playing video (or start at beginning if startup gate)
     const pos = this.getCurrentPlaybackPosition();
@@ -988,14 +1162,15 @@ export class FeederService {
 
     // 3. Kill current regular decoder so it immediately stops streaming regular frames
     if (this.currentDecoder) {
-      try {
-        this.currentDecoder.stdout.unpipe();
-      } catch { }
-      try {
-        killProcessTree(this.currentDecoder);
-      } catch { }
+      const dec = this.currentDecoder;
       this.currentDecoder = null;
-      await new Promise((r) => setTimeout(r, 80));
+      try {
+        dec.stdout.unpipe();
+        dec.stdout.destroy();
+      } catch { }
+      try {
+        await killProcessTree(dec);
+      } catch { }
     }
 
     // 3. Emit schedule_started event to UI
@@ -1227,6 +1402,12 @@ export class FeederService {
     this.isScheduleActive = false;
     this.wasInterruptedBySchedule = false;
     this.interruptedState = null;
+    if (this.interruptedPlaylistStates) {
+      this.interruptedPlaylistStates.clear();
+    }
+    if (this.completedNonLoopingPlaylists) {
+      this.completedNonLoopingPlaylists.clear();
+    }
     if (this.currentDecoder) {
       try {
         if (this.currentDecoder.stdout) {

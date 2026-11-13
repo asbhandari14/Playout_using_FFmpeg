@@ -53,6 +53,13 @@ const createRelativeMovBugPreview = async (movAbsPath, duration = 0) => {
 export const updateLogoBranding = async (req, res, next) => {
   try {
     const { channelId } = req.params;
+
+    if(!channelId){
+      return res.status(404).json({
+        success: false,
+        message: "Channel Id not found"
+      })
+    }
     const { assetPath, enabled, position, sizePercent, marginX, marginY, showDuringSchedule } = req.body || {};
 
     const channel = await Channel.findById(channelId);
@@ -269,21 +276,27 @@ export const uploadLogoFile = async (req, res, next) => {
       return res.status(404).json({ message: 'Channel not found' });
     }
 
-    // Validate storage quota
+    // ==========================================================================================================================================
+    //    01.   Validate storage quota ( Check whether the user have enough storage to store the uploaded logo )
+    // ==========================================================================================================================================
     const storageValidation = await validateStorageAvailability(channelId, req.file.size);
     if (!storageValidation.allowed) {
       if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
       return res.status(400).json({ message: storageValidation.message });
     }
 
-    // 1. Automatically inspect uploaded logo, crop outer transparent padding to keep only actual visible logo content
-    const trimResult = await normalizeAndTrimLogo(req.file.path);
 
+    // ==========================================================================================================================================
+    //    02.   Use normalizeAndTrimLogo function ( to automatically inspect uploaded logo, crop outer transparent padding to keep only actual visible logo content )
+    // ==========================================================================================================================================
+    const trimResult = await normalizeAndTrimLogo(req.file.path);
     const relativePath = path.relative(SERVER_ROOT, req.file.path).replace(/\\/g, '/');
 
+    // ==========================================================================================================================================
     // 2. Prepare target logo.png in channel stream directory with resolution-appropriate sizing:
     // If resolution is 1280x720 -> height 70px
     // If resolution is 1920x1080 -> height 100px
+    // ==========================================================================================================================================
     const channelStreamDir = path.join(STREAMS_DIR, String(channelId));
     if (!fs.existsSync(channelStreamDir)) {
       fs.mkdirSync(channelStreamDir, { recursive: true });
@@ -303,7 +316,9 @@ export const uploadLogoFile = async (req, res, next) => {
     // Clean up previous logo file from disk if it exists
     unlinkRelativeAsset(channel.branding?.logo?.assetPath, path.resolve(req.file.path));
 
-    // 3. Update channel branding in database
+    // ==========================================================================================================================================
+    //    04.  Update channel branding in database
+    // ==========================================================================================================================================
     const updatedChannel = await Channel.findByIdAndUpdate(
       channelId,
       {
@@ -318,9 +333,10 @@ export const uploadLogoFile = async (req, res, next) => {
 
     const currentLogo = updatedChannel?.branding?.logo || {};
 
-    // 4. LIVE STREAM CONTROL:
-    // Push new logo directly to the live FFmpeg overlay via ZMQ with ZERO stream restarts!
-
+    // ==========================================================================================================================================
+    //    05. LIVE STREAM CONTROL:
+    //        Push new logo directly to the live FFmpeg overlay via ZMQ with ZERO stream restarts!
+    // ==========================================================================================================================================
     const stream = streamManager.getStream(channelId);
     console.log("stream value", stream);
     if (stream?.encoder?.isRunning) {

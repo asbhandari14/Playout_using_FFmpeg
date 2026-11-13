@@ -101,10 +101,42 @@ export const login = async (req, res, next) => {
 // Logout Controller Function (All Users )
 export const logout = async (req, res, next) => {
   try {
-    res.clearCookie('token', { path: '/' });
+    res.clearCookie('token', getCookieOptions());
     return res.status(200).json({ success: true, message: 'Logged out successfully' });
   } catch (error) {
     next(error);
+  }
+};
+
+// Refresh Token Controller Function
+export const refreshToken = async (req, res, next) => {
+  try {
+    const rawToken = req.body?.refreshToken || req.cookies?.token || req.headers.authorization?.split(' ')[1];
+    if (!rawToken) {
+      return res.status(401).json({ success: false, message: 'No token provided' });
+    }
+    const decoded = verifyToken(rawToken);
+    if (!decoded || !decoded.id) {
+      return res.status(401).json({ success: false, message: 'Invalid token' });
+    }
+    const user = await User.findById(decoded.id);
+    if (!user || !user.isActive) {
+      return res.status(401).json({ success: false, message: 'User not found or deactivated' });
+    }
+    const newToken = generateToken(user);
+    res.cookie('token', newToken, {
+      ...getCookieOptions(),
+      maxAge: 7 * 24 * 60 * 60 * 1000
+    });
+    return res.status(200).json({
+      success: true,
+      token: newToken,
+      accessToken: newToken,
+      refreshToken: newToken,
+      user: user.toJSON()
+    });
+  } catch (err) {
+    return res.status(401).json({ success: false, message: 'Token refresh failed' });
   }
 };
 

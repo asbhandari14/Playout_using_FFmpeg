@@ -8,8 +8,9 @@ streams/
 Thumbs.db
 
 # Hide the Readme file
-.md
-.tldr
-.cjs
+*.md
+*.tldr
+*.cjs
+generate_uml_tldr.js
 
 explanation/

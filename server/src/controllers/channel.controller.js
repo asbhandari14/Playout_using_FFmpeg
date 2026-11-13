@@ -5,6 +5,9 @@ import { User } from '../models/user.model.js';
 import { Server } from '../models/server.model.js';
 import { Playlist } from '../models/playlist.model.js';
 import { Asset } from '../models/asset.model.js';
+import { Schedule } from '../models/schedule.model.js';
+import { BandPreset } from '../models/bandPreset.model.js';
+import { streamManager } from '../services/streaming/streamManager.js';
 import { ROLES, CHANNEL_STATUS } from '../config/constants.js';
 import { createFlussonicStream, deleteFlussonicStream, sanitizeStreamKey } from '../services/flussonicService.js';
 import {
@@ -356,11 +359,16 @@ export const deleteChannel = async (req, res, next) => {
       console.warn('[Channel] Flussonic stream deletion notice:', fErr.message);
     }
 
-    // Delete channel assets from database
-    await Asset.deleteMany({ channel: id });
+    // Stop stream and clean up any timers in streamManager if active
+    await streamManager.stopStream(id).catch(() => {});
+    streamManager.clearFireTimer(id, 'lband');
+    streamManager.clearFireTimer(id, 'ashton');
 
-    // Delete playlist
+    // Delete channel assets, schedules, band presets and playlists from database
+    await Asset.deleteMany({ channel: id });
     await Playlist.deleteMany({ channel: id });
+    await Schedule.deleteMany({ channel: id });
+    await BandPreset.deleteMany({ channel: id });
 
     // Delete channel uploads folder on disk: uploads/${channelId}_${channelName}/
     try {

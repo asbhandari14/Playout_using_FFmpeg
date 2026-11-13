@@ -88,14 +88,17 @@ export const ensureBrandingFiles = (
   };
 };
 
+// Non-blocking sync wait fallback that yields to CPU thread
 const sleepSync = (ms) => {
-  const start = Date.now();
-  while (Date.now() - start < ms) {
-    // brief sync backoff for Windows file lock retries
+  try {
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+  } catch {
+    const start = Date.now();
+    while (Date.now() - start < Math.min(ms, 20)) { }
   }
 };
 
-export const safeWriteFileSync = (filePath, buffer, retries = 8, delayMs = 40) => {
+export const safeWriteFileSync = (filePath, buffer, retries = 4, delayMs = 20) => {
   const dir = path.dirname(filePath);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
@@ -121,8 +124,32 @@ export const safeWriteFileSync = (filePath, buffer, retries = 8, delayMs = 40) =
   }
 };
 
+/**
+ * True non-blocking asynchronous atomic write with Promise-based backoff
+ */
 export const safeWriteFile = async (filePath, buffer, retries = 20, delayMs = 25) => {
-  return safeWriteFileSync(filePath, buffer, retries, delayMs);
+  const dir = path.dirname(filePath);
+  if (!fs.existsSync(dir)) {
+    await fs.promises.mkdir(dir, { recursive: true });
+  }
+  const uniqueSuffix = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  const tempPath = path.join(dir, `.tmp_${uniqueSuffix}_${path.basename(filePath)}`);
+  await fs.promises.writeFile(tempPath, buffer);
+
+  for (let attempt = 0; attempt < retries; attempt++) {
+    try {
+      await fs.promises.rename(tempPath, filePath);
+      return;
+    } catch (err) {
+      if (attempt === retries - 1) {
+        try {
+          if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+        } catch { }
+        throw err;
+      }
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+  }
 };
 
 /**
@@ -444,6 +471,7 @@ export const normalizeAndTrimLogo = async (inputPath, outputPath = null) => {
 
   try {
     const metaBefore = await sharp(inputBuffer).metadata();
+    console.log("metaBefore", metaBefore);
     origW = metaBefore.width || 0;
     origH = metaBefore.height || 0;
 
@@ -961,14 +989,17 @@ export const buildBackInTimerFilter = (timerConfig = {}, countdownSeconds = 30) 
     ? `fontfile='${fontFile.replace(/\\/g, '/').replace(/:/g, '\\:')}':`
     : '';
 
-  const totalSec = Math.max(1, Math.ceil(countdownSeconds));
+  const rawCountdown = Number(countdownSeconds);
+  const safeCountdown = Number.isFinite(rawCountdown) && rawCountdown > 0 ? rawCountdown : 1;
+  const baseSecStr = Number.isInteger(safeCountdown) ? String(safeCountdown) : safeCountdown.toFixed(3);
+  const remainingExpr = `ceil(max(0\\,${baseSecStr}-t))`;
 
   let timeExpression = '';
   if (format === 'SS') {
-    timeExpression = `%{eif\\:max(0\\,${totalSec}-t)\\:d}s`;
+    timeExpression = `%{eif\\:${remainingExpr}\\:d}s`;
   } else {
     // MM:SS format: e.g. 00:30
-    timeExpression = `%{eif\\:(max(0\\,${totalSec}-t)/60)\\:d\\:2}\\:%{eif\\:mod(max(0\\,${totalSec}-t)\\,60)\\:d\\:2}`;
+    timeExpression = `%{eif\\:floor(${remainingExpr}/60)\\:d\\:2}\\:%{eif\\:mod(${remainingExpr}\\,60)\\:d\\:2}`;
   }
 
   return `drawtext=${fontParam}text='${label}${timeExpression}':fontsize=${fontSize}:fontcolor=${fontColor}:box=1:boxcolor=${bgColor}:boxborderw=10:x='${xExpr}':y='${yExpr}'`;
