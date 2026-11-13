@@ -4,6 +4,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import {
   uploadAssetChunked,
   deleteAsset,
+  fetchAssets, // <-- your thunk that loads the asset list
   fetchStorageSummary,
   setSelectedAsset,
   setCategoryFilter,
@@ -12,6 +13,8 @@ import {
 import { formatBytes, validateUploadStorage } from './useStorageCalc.js';
 
 const STORAGE_POLL_INTERVAL_MS = 5000; // Poll storage summary every 5 seconds
+const ASSET_POLL_INTERVAL_MS = 2000; // Poll assets every 2 seconds while any asset is processing
+
 const CATEGORIES = ['All categories', 'Promos', 'General', 'Episodes', 'Songs', 'Ads'];
 
 export default function useAssetLibrary(channelId) {
@@ -33,14 +36,15 @@ export default function useAssetLibrary(channelId) {
   const [uploadCategory, setUploadCategory] = useState('Promos');
   const [isUploading, setIsUploading] = useState(false);
 
-  // 1. Storage Polling & Socket.IO Real-Time Listener
+  // 1. Initial Fetch & Storage Polling
   useEffect(() => {
     if (!channelId) return;
 
-    // Initial fetch
+    // Initial fetch of assets and storage
+    dispatch(fetchAssets({ channelId, category: categoryFilter, search: searchQuery }));
     dispatch(fetchStorageSummary(channelId));
 
-    // Polling interval
+    // Polling interval for storage
     const intervalId = setInterval(() => {
       dispatch(fetchStorageSummary(channelId));
     }, STORAGE_POLL_INTERVAL_MS);
@@ -48,7 +52,23 @@ export default function useAssetLibrary(channelId) {
     return () => {
       clearInterval(intervalId);
     };
-  }, [channelId, dispatch]);
+  }, [channelId, categoryFilter, searchQuery, dispatch]);
+
+  // 2. Poll asset list every 2s while any asset is processing or uploading
+  const hasProcessingAssets = useMemo(
+    () => assets.some((a) => a.status === 'processing' || a.status === 'uploading'),
+    [assets]
+  );
+
+  useEffect(() => {
+    if (!channelId || !hasProcessingAssets) return;
+
+    const intervalId = setInterval(() => {
+      dispatch(fetchAssets({ channelId, category: categoryFilter, search: searchQuery }));
+    }, ASSET_POLL_INTERVAL_MS);
+
+    return () => clearInterval(intervalId);
+  }, [channelId, hasProcessingAssets, categoryFilter, searchQuery, dispatch]);
 
   // 2. Storage Counter Display Calculation
   const storageDisplay = useMemo(() => {
@@ -65,9 +85,9 @@ export default function useAssetLibrary(channelId) {
     const totalFormatted = isUnlimited
       ? 'Unlimited'
       : storage?.quotaFormatted ||
-        (allocatedBytes > 0
-          ? formatBytes(allocatedBytes, 1)
-          : `${storage?.quotaGB || '10.0'} GB`);
+      (allocatedBytes > 0
+        ? formatBytes(allocatedBytes, 1)
+        : `${storage?.quotaGB || '10.0'} GB`);
 
     const filesCount = storage?.totalCount !== undefined ? storage.totalCount : assets.length;
 
@@ -109,6 +129,8 @@ export default function useAssetLibrary(channelId) {
     if (uploadFiles.length === 0 || isUploading) return;
     setIsUploading(true);
 
+    let hasFailures = false; // track results locally (state is stale inside the loop)
+
     for (let i = 0; i < uploadFiles.length; i++) {
       const item = uploadFiles[i];
       if (item.status === 'completed') continue;
@@ -116,6 +138,7 @@ export default function useAssetLibrary(channelId) {
       // Validate storage quota before chunked upload
       const validation = validateUploadStorage(item.file?.size, storage);
       if (!validation.allowed) {
+        hasFailures = true;
         setUploadFiles((prev) =>
           prev.map((f, idx) =>
             idx === i ? { ...f, status: 'failed', error: validation.message } : f
@@ -148,6 +171,7 @@ export default function useAssetLibrary(channelId) {
         );
         toast.success(`"${item.file?.name}" uploaded successfully`);
       } catch (err) {
+        hasFailures = true;
         setUploadFiles((prev) =>
           prev.map((f, idx) =>
             idx === i ? { ...f, status: 'failed', error: err || 'Upload failed' } : f
@@ -158,9 +182,20 @@ export default function useAssetLibrary(channelId) {
     }
 
     setIsUploading(false);
-    // Refresh storage immediately after upload completes
+
+    // Auto-close modal if everything succeeded
+    if (!hasFailures) {
+      // brief delay so the user sees the 100% / completed state
+      setTimeout(() => {
+        setIsUploadModalOpen(false);
+        setUploadFiles([]);
+      }, 600);
+    }
+
+    // Refresh storage and asset list immediately after upload completes
     if (channelId) {
       dispatch(fetchStorageSummary(channelId));
+      dispatch(fetchAssets({ channelId, category: uploadCategory, search: searchQuery }));
     }
   }, [uploadFiles, isUploading, channelId, uploadCategory, storage, dispatch]);
 

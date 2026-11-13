@@ -3,10 +3,33 @@ import api from '../../api/axios.js';
 
 export const fetchAssets = createAsyncThunk(
   'assets/fetchAssets',
-  async ({ channelId, category, search }, { rejectWithValue }) => {
+  async (payload, { rejectWithValue, getState }) => {
     try {
+      let channelId;
+      let category;
+      let search;
+
+      if (typeof payload === 'string') {
+        channelId = payload;
+        const state = getState()?.assets;
+        category = state?.categoryFilter;
+        search = state?.searchQuery;
+      } else if (payload && typeof payload === 'object') {
+        channelId = payload.channelId;
+        category = payload.category;
+        search = payload.search;
+      }
+
+      if (!channelId) {
+        return rejectWithValue('channelId is required to fetch assets');
+      }
+
       const res = await api.get('/assets', {
-        params: { channelId, category, search }
+        params: {
+          channelId,
+          category: category && category !== 'All categories' ? category : undefined,
+          search: search ? String(search).trim() : undefined
+        }
       });
       return res.data;
     } catch (err) {
@@ -163,8 +186,13 @@ const assetSlice = createSlice({
         if (action.payload.storage) {
           state.storage = action.payload.storage;
         }
-        // Auto select first ready asset for local preview if none selected
-        if (!state.selectedAsset && action.payload.assets.length > 0) {
+        // Keep selectedAsset in sync if its status or metadata changed (e.g. processing -> ready)
+        if (state.selectedAsset) {
+          const updated = action.payload.assets.find((a) => a._id === state.selectedAsset._id);
+          if (updated) {
+            state.selectedAsset = updated;
+          }
+        } else if (action.payload.assets.length > 0) {
           state.selectedAsset = action.payload.assets[0];
         }
       })

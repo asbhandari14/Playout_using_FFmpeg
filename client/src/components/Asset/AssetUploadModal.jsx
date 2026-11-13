@@ -65,7 +65,7 @@ export default function AssetUploadModal({
                   className="p-3 bg-[#0c1017] border border-[#1e2533] rounded-xl flex flex-col gap-1.5"
                 >
                   <div className="flex items-center justify-between text-xs">
-                    <span className="font-medium text-slate-200 truncate max-w-[260px]">
+                    <span className="font-medium text-slate-200 truncate max-w-65">
                       {item.name}
                     </span>
                     <span className="text-[10px] text-slate-500">{item.size}</span>
