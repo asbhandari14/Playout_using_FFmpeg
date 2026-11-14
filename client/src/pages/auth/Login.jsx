@@ -17,6 +17,7 @@ export default function Login() {
 
   return (
     <div className="min-h-screen bg-[#090b0e] flex flex-col justify-center items-center px-4 relative overflow-hidden">
+      {/* Login Background Theme */}
       <LoginBackground />
 
       <div className="w-full max-w-sm z-10">

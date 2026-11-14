@@ -1252,11 +1252,12 @@ export class EncoderService {
         bTick.alignment || 'center',
         this.tickerMeta
       );
+      await this.sendZmqCommand(`overlay@tick x ${expr.bar.x}`).catch(() => { });
+      await this.sendZmqCommand(`overlay@tick y ${expr.bar.y}`).catch(() => { });
       if (expr.bar.width) {
-        await this.sendZmqCommand(`crop@tick_crop w ${expr.bar.width}`);
+        await this.sendZmqCommand(`crop@tick_crop w ${expr.bar.width}`).catch(() => { });
       }
-      await this.sendZmqCommand(`overlay@tick x ${expr.bar.x}`);
-      return this.sendZmqCommand(`overlay@tick y ${expr.bar.y}`);
+      return this.sendZmqCommand(`overlay@ticktext x ${expr.text.x}`).catch(() => { });
     } else {
       await this.sendZmqCommand('overlay@tick x -5000');
       return this.sendZmqCommand('overlay@tick y -5000');
@@ -1304,19 +1305,19 @@ export class EncoderService {
       this.channel.branding.ticker.alignment ?? 'center',
       this.tickerMeta
     );
+    if (reposition) {
+      await this.sendZmqCommand(`overlay@tick x ${expr.bar.x}`).catch(() => { });
+      await this.sendZmqCommand(`overlay@tick y ${expr.bar.y}`).catch(() => { });
+    }
     if (expr.bar.width) {
-      await this.sendZmqCommand(`crop@tick_crop w ${expr.bar.width}`);
+      await this.sendZmqCommand(`crop@tick_crop w ${expr.bar.width}`).catch(() => { });
     }
     const activeTickH = this.getActiveTickerScaleHeight();
     if (activeTickH !== this.lastTickerScaleHeight) {
       this.lastTickerScaleHeight = activeTickH;
       await this.sendZmqCommand(`scale@tick_scale h ${activeTickH}`).catch(() => { });
     }
-    if (reposition) {
-      await this.sendZmqCommand(`overlay@tick x ${expr.bar.x}`);
-      await this.sendZmqCommand(`overlay@tick y ${expr.bar.y}`);
-    }
-    return this.sendZmqCommand(`overlay@ticktext x ${expr.text.x}`);
+    return this.sendZmqCommand(`overlay@ticktext x ${expr.text.x}`).catch(() => { });
   }
 
   // Live ZMQ update to adapt ticker position & width when L-Band or Ashton Band toggles
@@ -1331,17 +1332,17 @@ export class EncoderService {
       this.tickerMeta
     );
 
+    await this.sendZmqCommand(`overlay@tick x ${expr.bar.x}`).catch(() => { });
+    await this.sendZmqCommand(`overlay@tick y ${expr.bar.y}`).catch(() => { });
     if (expr.bar.width) {
-      await this.sendZmqCommand(`crop@tick_crop w ${expr.bar.width}`);
+      await this.sendZmqCommand(`crop@tick_crop w ${expr.bar.width}`).catch(() => { });
     }
-    await this.sendZmqCommand(`overlay@tick x ${expr.bar.x}`);
-    await this.sendZmqCommand(`overlay@tick y ${expr.bar.y}`);
 
     const activeTickH = this.getActiveTickerScaleHeight();
     this.lastTickerScaleHeight = activeTickH;
     await this.sendZmqCommand(`scale@tick_scale h ${activeTickH}`).catch(() => { });
 
-    return this.sendZmqCommand(`overlay@ticktext x ${expr.text.x}`);
+    return this.sendZmqCommand(`overlay@ticktext x ${expr.text.x}`).catch(() => { });
   }
 
   // Calculate smooth smootherstep expressions for Ticker during L-Band transition

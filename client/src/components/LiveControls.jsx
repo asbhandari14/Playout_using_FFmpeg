@@ -22,7 +22,13 @@ import {
   Clock,
   Timer as TimerIcon,
   Film,
-  Loader2
+  Loader2,
+  ZoomIn,
+  ZoomOut,
+  RotateCcw,
+  Move,
+  Maximize2,
+  Tv
 } from 'lucide-react';
 
 export const TICKER_FONT_OPTIONS = [
@@ -111,7 +117,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
   // Back In Timer state (counts down frame-accurately until schedule ad ends)
   const [timerEnabled, setTimerEnabled] = useState(false);
   const [timerShowDuringSchedule, setTimerShowDuringSchedule] = useState(true);
-  const [timerLabel, setTimerLabel] = useState('BACK IN ');
+  const [timerLabel, setTimerLabel] = useState(channel?.branding?.backInTimer?.label !== undefined ? channel.branding.backInTimer.label : 'BACK IN ');
   const [timerFormat, setTimerFormat] = useState('MM:SS');
   const [timerPosition, setTimerPosition] = useState('top-left');
   const [timerPositionX, setTimerPositionX] = useState(5);
@@ -119,6 +125,20 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
   const [timerFontSize, setTimerFontSize] = useState(24);
   const [timerFontColor, setTimerFontColor] = useState('#ffffff');
   const [timerBgColor, setTimerBgColor] = useState('#000000cc');
+  const [timerAssetPath, setTimerAssetPath] = useState('');
+  const [timerImageWidth, setTimerImageWidth] = useState(220);
+  const [timerImageHeight, setTimerImageHeight] = useState(70);
+  const [timerTextOffsetX, setTimerTextOffsetX] = useState(50);
+  const [timerTextOffsetY, setTimerTextOffsetY] = useState(50);
+  const [isUploadingTimerImage, setIsUploadingTimerImage] = useState(false);
+  const [timerPadFocus, setTimerPadFocus] = useState('text'); // 'text' | 'image'
+  const [activeTimerDrag, setActiveTimerDrag] = useState(null); // 'text' | 'image' | null
+  const [padWidth, setPadWidth] = useState(360);
+  const [tickerPadWidth, setTickerPadWidth] = useState(360);
+  const timerInputRef = useRef(null);
+  const timerScreenPadRef = useRef(null);
+  const tickerScreenPadRef = useRef(null);
+  const activeTimerDragRef = useRef(null);
 
   // Toast alert & confirmation modal
   const [alert, setAlert] = useState(null);
@@ -224,17 +244,53 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
       setTimerEnabled(!!bTimer.enabled);
       setTimerShowDuringSchedule(bTimer.showDuringSchedule !== false);
       setTimerFormat(bTimer.format || 'MM:SS');
-      setTimerPosition(bTimer.position || 'top-left');
+      setTimerPosition(bTimer.position || 'custom');
+      setTimerAssetPath(bTimer.assetPath || '');
       if (!isTimerDirtyRef.current) {
+        const initPosX = bTimer.positionX !== undefined ? Number(bTimer.positionX) : 5;
+        const initPosY = bTimer.positionY !== undefined ? Number(bTimer.positionY) : 5;
         setTimerLabel(bTimer.label !== undefined ? bTimer.label : 'BACK IN ');
-        setTimerPositionX(bTimer.positionX !== undefined ? Number(bTimer.positionX) : 5);
-        setTimerPositionY(bTimer.positionY !== undefined ? Number(bTimer.positionY) : 5);
+        setTimerPositionX(initPosX);
+        setTimerPositionY(initPosY);
         setTimerFontSize(bTimer.fontSize || 24);
         setTimerFontColor(bTimer.fontColor || '#ffffff');
         setTimerBgColor(bTimer.bgColor || '#000000cc');
+        setTimerImageWidth(bTimer.imageWidth !== undefined ? Number(bTimer.imageWidth) : 220);
+        setTimerImageHeight(bTimer.imageHeight !== undefined ? Number(bTimer.imageHeight) : 70);
+        setTimerTextOffsetX(bTimer.textOffsetX !== undefined ? Number(bTimer.textOffsetX) : initPosX);
+        setTimerTextOffsetY(bTimer.textOffsetY !== undefined ? Number(bTimer.textOffsetY) : initPosY);
       }
     }
   }, [channel]);
+
+  // Dynamically observe preview monitor width for 100% broadcast-accurate font scaling
+  useEffect(() => {
+    if (!timerScreenPadRef.current) return;
+    const updateWidth = () => {
+      if (timerScreenPadRef.current) {
+        const w = timerScreenPadRef.current.clientWidth;
+        if (w > 0) setPadWidth(w);
+      }
+    };
+    updateWidth();
+    const ro = new ResizeObserver(updateWidth);
+    ro.observe(timerScreenPadRef.current);
+    return () => ro.disconnect();
+  }, [timerEnabled]);
+
+  useEffect(() => {
+    if (!tickerScreenPadRef.current) return;
+    const updateWidth = () => {
+      if (tickerScreenPadRef.current) {
+        const w = tickerScreenPadRef.current.clientWidth;
+        if (w > 0) setTickerPadWidth(w);
+      }
+    };
+    updateWidth();
+    const ro = new ResizeObserver(updateWidth);
+    ro.observe(tickerScreenPadRef.current);
+    return () => ro.disconnect();
+  }, [activeTab]);
 
   // Backfill browser-playable preview when a channel already has an uploaded .mov bug without previewPath
   useEffect(() => {
@@ -588,6 +644,11 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
     if (updates.fontSize !== undefined) setTimerFontSize(updates.fontSize);
     if (updates.fontColor !== undefined) setTimerFontColor(updates.fontColor);
     if (updates.bgColor !== undefined) setTimerBgColor(updates.bgColor);
+    if (updates.assetPath !== undefined) setTimerAssetPath(updates.assetPath);
+    if (updates.imageWidth !== undefined) setTimerImageWidth(updates.imageWidth);
+    if (updates.imageHeight !== undefined) setTimerImageHeight(updates.imageHeight);
+    if (updates.textOffsetX !== undefined) setTimerTextOffsetX(updates.textOffsetX);
+    if (updates.textOffsetY !== undefined) setTimerTextOffsetY(updates.textOffsetY);
 
     const payload = {};
     if (updates.enabled !== undefined) {
@@ -602,15 +663,26 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
     if (updates.fontSize !== undefined) payload.fontSize = updates.fontSize;
     if (updates.fontColor !== undefined) payload.fontColor = updates.fontColor;
     if (updates.bgColor !== undefined) payload.bgColor = updates.bgColor;
+    if (updates.assetPath !== undefined) payload.assetPath = updates.assetPath;
+    if (updates.imageWidth !== undefined) payload.imageWidth = updates.imageWidth;
+    if (updates.imageHeight !== undefined) payload.imageHeight = updates.imageHeight;
+    if (updates.textOffsetX !== undefined) payload.textOffsetX = updates.textOffsetX;
+    if (updates.textOffsetY !== undefined) payload.textOffsetY = updates.textOffsetY;
 
     try {
       const res = await api.put(`/channels/${channel._id}/timer`, payload);
       const serverTimer = res.data?.timer;
       if (
         updates.label !== undefined ||
+        updates.positionX !== undefined ||
+        updates.positionY !== undefined ||
         updates.fontSize !== undefined ||
         updates.fontColor !== undefined ||
-        updates.bgColor !== undefined
+        updates.bgColor !== undefined ||
+        updates.imageWidth !== undefined ||
+        updates.imageHeight !== undefined ||
+        updates.textOffsetX !== undefined ||
+        updates.textOffsetY !== undefined
       ) {
         isTimerDirtyRef.current = false;
       }
@@ -619,6 +691,7 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
         if (serverTimer.showDuringSchedule !== undefined) setTimerShowDuringSchedule(serverTimer.showDuringSchedule !== false);
         if (serverTimer.format !== undefined) setTimerFormat(serverTimer.format);
         if (serverTimer.position !== undefined) setTimerPosition(serverTimer.position);
+        if (serverTimer.assetPath !== undefined) setTimerAssetPath(serverTimer.assetPath || '');
         if (!isTimerDirtyRef.current || updates.label !== undefined) {
           if (serverTimer.label !== undefined) setTimerLabel(serverTimer.label);
         }
@@ -637,6 +710,18 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
         if (!isTimerDirtyRef.current || updates.bgColor !== undefined) {
           if (serverTimer.bgColor !== undefined) setTimerBgColor(serverTimer.bgColor);
         }
+        if (!isTimerDirtyRef.current || updates.imageWidth !== undefined) {
+          if (serverTimer.imageWidth !== undefined) setTimerImageWidth(serverTimer.imageWidth);
+        }
+        if (!isTimerDirtyRef.current || updates.imageHeight !== undefined) {
+          if (serverTimer.imageHeight !== undefined) setTimerImageHeight(serverTimer.imageHeight);
+        }
+        if (!isTimerDirtyRef.current || updates.textOffsetX !== undefined) {
+          if (serverTimer.textOffsetX !== undefined) setTimerTextOffsetX(serverTimer.textOffsetX);
+        }
+        if (!isTimerDirtyRef.current || updates.textOffsetY !== undefined) {
+          if (serverTimer.textOffsetY !== undefined) setTimerTextOffsetY(serverTimer.textOffsetY);
+        }
       }
       showAlert('success', 'Back In Timer settings updated');
       if (onBrandingUpdated) onBrandingUpdated({ type: 'timer', data: serverTimer || payload });
@@ -647,6 +732,160 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
         setTimerShowDuringSchedule(b.showDuringSchedule !== false);
       }
       showAlert('error', err.response?.data?.message || 'Failed to update Back In Timer');
+    }
+  };
+
+  const handleTimerImageUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !channel?._id) return;
+
+    const formData = new FormData();
+    formData.append('image', file);
+    formData.append('imageWidth', timerImageWidth || 220);
+    formData.append('imageHeight', timerImageHeight || 70);
+    formData.append('textOffsetX', timerTextOffsetX !== undefined ? timerTextOffsetX : 50);
+    formData.append('textOffsetY', timerTextOffsetY !== undefined ? timerTextOffsetY : 50);
+
+    setIsUploadingTimerImage(true);
+    try {
+      const res = await api.post(`/channels/${channel._id}/timer/upload`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      const newPath = res.data?.assetPath || res.data?.timer?.assetPath || '';
+      setTimerAssetPath(newPath);
+      showAlert('success', 'Timer background image uploaded successfully');
+      if (onBrandingUpdated) onBrandingUpdated({ type: 'timer', data: res.data?.timer });
+    } catch (err) {
+      showAlert('error', err.response?.data?.message || 'Failed to upload timer image');
+    } finally {
+      setIsUploadingTimerImage(false);
+      if (timerInputRef.current) timerInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveTimerImage = async () => {
+    try {
+      await handleUpdateTimer({ assetPath: '' });
+      setTimerAssetPath('');
+      showAlert('success', 'Timer image removed');
+    } catch {
+      showAlert('error', 'Failed to remove timer image');
+    }
+  };
+
+  // Coordinate calculation relative to the 16:9 broadcast monitor preview pad
+  const calculateTimerPadCoords = (e) => {
+    if (!timerScreenPadRef.current) return null;
+    const rect = timerScreenPadRef.current.getBoundingClientRect();
+    const clientX = e.clientX ?? e.touches?.[0]?.clientX;
+    const clientY = e.clientY ?? e.touches?.[0]?.clientY;
+    if (clientX === undefined || clientY === undefined) return null;
+    const x = Math.max(1, Math.min(99, Math.round(((clientX - rect.left) / rect.width) * 100)));
+    const y = Math.max(1, Math.min(99, Math.round(((clientY - rect.top) / rect.height) * 100)));
+    return { x, y };
+  };
+
+  // Safe boundary calculation guaranteeing the graphic plate NEVER exceeds the 16:9 preview screen
+  const getSafeImageCoords = (x, y, w = timerImageWidth, h = timerImageHeight) => {
+    const halfW = ((w / 1280) * 100) / 2;
+    const halfH = ((h / 720) * 100) / 2;
+    const minX = Math.min(50, Math.ceil(halfW));
+    const maxX = Math.max(50, Math.floor(100 - halfW));
+    const minY = Math.min(50, Math.ceil(halfH));
+    const maxY = Math.max(50, Math.floor(100 - halfH));
+    return {
+      x: Math.round(Math.max(minX, Math.min(maxX, x))),
+      y: Math.round(Math.max(minY, Math.min(maxY, y)))
+    };
+  };
+
+  const getSafeTextCoords = (x, y) => {
+    return {
+      x: Math.round(Math.max(3, Math.min(97, x))),
+      y: Math.round(Math.max(3, Math.min(97, y)))
+    };
+  };
+
+  const handleTimerPadPointerDown = (e) => {
+    const coords = calculateTimerPadCoords(e);
+    if (!coords) return;
+
+    let target = timerPadFocus;
+    if (e.target.closest('[data-timer-target="text"]')) {
+      target = 'text';
+    } else if (e.target.closest('[data-timer-target="image"]')) {
+      target = 'image';
+    }
+
+    activeTimerDragRef.current = target;
+    setActiveTimerDrag(target);
+    setTimerPadFocus(target);
+
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch (_) { }
+
+    if (target === 'image') {
+      const safe = getSafeImageCoords(coords.x, coords.y);
+      updateTimerDraft(setTimerPositionX, safe.x);
+      updateTimerDraft(setTimerPositionY, safe.y);
+      setTimerPosition('custom');
+    } else {
+      const safe = getSafeTextCoords(coords.x, coords.y);
+      updateTimerDraft(setTimerTextOffsetX, safe.x);
+      updateTimerDraft(setTimerTextOffsetY, safe.y);
+    }
+  };
+
+  const handleTimerPadPointerMove = (e) => {
+    if (!activeTimerDragRef.current) return;
+    const coords = calculateTimerPadCoords(e);
+    if (!coords) return;
+
+    if (activeTimerDragRef.current === 'image') {
+      const safe = getSafeImageCoords(coords.x, coords.y);
+      updateTimerDraft(setTimerPositionX, safe.x);
+      updateTimerDraft(setTimerPositionY, safe.y);
+      setTimerPosition('custom');
+    } else if (activeTimerDragRef.current === 'text') {
+      const safe = getSafeTextCoords(coords.x, coords.y);
+      updateTimerDraft(setTimerTextOffsetX, safe.x);
+      updateTimerDraft(setTimerTextOffsetY, safe.y);
+    }
+  };
+
+  const handleTimerPadPointerUp = (e) => {
+    if (!activeTimerDragRef.current) return;
+    activeTimerDragRef.current = null;
+    setActiveTimerDrag(null);
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch (_) { }
+  };
+
+  // Proportional Image Size Change: scales both width and height automatically preserving aspect ratio
+  // Clamps position dynamically so increasing graphic size never causes it to hang outside the monitor pad
+  const handleImageSizeChange = (newWidth) => {
+    const currentRatio = (timerImageWidth && timerImageHeight) ? (timerImageWidth / timerImageHeight) : (220 / 70);
+    const newHeight = Math.max(20, Math.min(720, Math.round(newWidth / currentRatio)));
+    updateTimerDraft(setTimerImageWidth, newWidth);
+    updateTimerDraft(setTimerImageHeight, newHeight);
+
+    const safe = getSafeImageCoords(timerPositionX, timerPositionY, newWidth, newHeight);
+    if (safe.x !== timerPositionX) updateTimerDraft(setTimerPositionX, safe.x);
+    if (safe.y !== timerPositionY) updateTimerDraft(setTimerPositionY, safe.y);
+  };
+
+  const handleImageNaturalLoad = (e) => {
+    const { naturalWidth, naturalHeight } = e.target;
+    if (naturalWidth && naturalHeight) {
+      const ratio = naturalWidth / naturalHeight;
+      const newHeight = Math.max(20, Math.min(720, Math.round(timerImageWidth / ratio)));
+      updateTimerDraft(setTimerImageHeight, newHeight);
+
+      const safe = getSafeImageCoords(timerPositionX, timerPositionY, timerImageWidth, newHeight);
+      if (safe.x !== timerPositionX) updateTimerDraft(setTimerPositionX, safe.x);
+      if (safe.y !== timerPositionY) updateTimerDraft(setTimerPositionY, safe.y);
     }
   };
 
@@ -1370,6 +1609,91 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
               </div>
             </div>
 
+            {/* 16:9 Broadcast Screen Live Position Monitor for Ticker */}
+            <div className="bg-[#151a24] border border-[#232c3d] rounded-xl 2xl:rounded-2xl p-2.5 2xl:p-3.5 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-slate-300 text-[10px] 2xl:text-[11px] font-bold uppercase tracking-wider">
+                  <Tv size={12} className="text-blue-400" />
+                  <span>16:9 Broadcast Ticker Monitor</span>
+                </div>
+                <span className="text-[8.5px] 2xl:text-[9.5px] font-mono text-slate-400">
+                  Align: <span className="text-blue-400 font-bold">{tickerAlignment}</span> | W: <span className="text-blue-400 font-bold">{tickerWidth}%</span> | Bottom: <span className="text-blue-400 font-bold">{tickerMarginBottom}%</span>
+                </span>
+              </div>
+
+              <div
+                ref={tickerScreenPadRef}
+                className="relative aspect-video @container max-h-32 2xl:max-h-44 w-full mx-auto bg-[#090c12] border border-[#222938] rounded-xl overflow-hidden select-none shadow-2xl flex flex-col justify-end"
+                title="16:9 broadcast monitor preview showing live ticker position on screen"
+              >
+                {/* Broadcast Grid Guide Lines */}
+                <div className="absolute inset-0 pointer-events-none opacity-20">
+                  <div className="absolute left-1/3 top-0 bottom-0 border-r border-dashed border-slate-600" />
+                  <div className="absolute left-2/3 top-0 bottom-0 border-r border-dashed border-slate-600" />
+                  <div className="absolute top-1/3 left-0 right-0 border-b border-dashed border-slate-600" />
+                  <div className="absolute top-2/3 left-0 right-0 border-b border-dashed border-slate-600" />
+                </div>
+
+                {/* Title Safe Area Guide */}
+                <div className="absolute inset-2 border border-dashed border-slate-800/60 pointer-events-none rounded" />
+
+                {/* Simulated Program Center Watermark */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-25">
+                  <span className="text-slate-500 font-mono text-[9px] tracking-widest uppercase">
+                    {channel?.name || 'Live Playout'} • 1280x720 Broadcast
+                  </span>
+                </div>
+
+                {/* Ticker Bar on Screen */}
+                {(() => {
+                  const scale = tickerPadWidth > 0 ? tickerPadWidth / 1280 : 0.28;
+                  const previewFontSize = Math.max(8, Math.round(tickerFontSize * scale));
+                  const previewPadY = Math.max(1, Math.round(tickerPaddingY * scale));
+                  const align = (tickerAlignment || 'center').toLowerCase();
+
+                  let leftStyle = '50%';
+                  let transformStyle = 'translateX(-50%)';
+                  let rightStyle = 'auto';
+
+                  if (align === 'left') {
+                    leftStyle = '0%';
+                    transformStyle = 'none';
+                  } else if (align === 'right') {
+                    leftStyle = 'auto';
+                    rightStyle = '0%';
+                    transformStyle = 'none';
+                  }
+
+                  return (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        bottom: `${tickerMarginBottom}%`,
+                        left: leftStyle,
+                        right: rightStyle,
+                        transform: transformStyle,
+                        width: `${tickerWidth}%`,
+                        backgroundColor: tickerBgColor || '#000000dd',
+                        color: tickerTextColor || '#ffffff',
+                        fontFamily: getCssFontFamily(tickerFontFamily),
+                        fontSize: `${previewFontSize}px`,
+                        paddingTop: `${previewPadY}px`,
+                        paddingBottom: `${previewPadY}px`,
+                        borderRadius: Number(tickerWidth) < 100 ? '4px' : '0px',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.6)',
+                        zIndex: 10
+                      }}
+                      className="overflow-hidden whitespace-nowrap flex items-center px-2 border-t border-white/10"
+                    >
+                      <div className="font-bold truncate select-none leading-none">
+                        {tickerText || 'Welcome to Cloud Playout Live Broadcast'}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+
             {/* Font select */}
             <div>
               <div className="flex items-center justify-between text-slate-400 mb-1">
@@ -1522,182 +1846,500 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
               </div>
             )}
 
-            {/* Live Timer Preview Box */}
-            <div className="bg-[#151a24] border border-[#232c3d] rounded-xl 2xl:rounded-2xl p-2.5 2xl:p-3.5 space-y-2 2xl:space-y-3">
+            {/* 1. CHOOSE GRAPHIC */}
+            <div className="bg-[#151a24] border border-[#232c3d] rounded-xl 2xl:rounded-2xl p-2.5 2xl:p-3.5 space-y-2.5">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] 2xl:text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                  <Clock size={12} className="text-blue-400" />
-                  Live Preview
+                <span className="text-[10px] 2xl:text-[11px] font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                  <ImageIcon size={12} className="text-blue-400" />
+                  Choose Graphic
                 </span>
-                <span
-                  className={`text-[9px] 2xl:text-[10px] font-bold px-2 py-0.5 rounded-full ${timerEnabled
-                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                    : 'bg-slate-800 text-slate-500'
-                    }`}
-                >
-                  {timerEnabled ? 'SHOWING DURING AD' : 'OFF'}
-                </span>
+                {/* On/Off Switch */}
+                <div className="flex items-center gap-2">
+                  <span className="text-[9.5px] 2xl:text-[10px] text-slate-400">
+                    {timerEnabled ? 'Active' : 'Disabled'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = !timerEnabled;
+                      setTimerEnabled(next);
+                      setTimerShowDuringSchedule(next);
+                      handleUpdateTimer({ enabled: next, showDuringSchedule: next });
+                    }}
+                    className={`w-8 h-4.5 2xl:w-9 2xl:h-5 flex items-center rounded-full p-0.5 transition-colors duration-300 shrink-0 ${timerEnabled ? 'bg-blue-600' : 'bg-slate-700'
+                      }`}
+                  >
+                    <div
+                      className={`bg-white w-3.5 h-3.5 rounded-full shadow-md transform transition-transform duration-300 ${timerEnabled ? 'translate-x-3.5 2xl:translate-x-4' : 'translate-x-0'
+                        }`}
+                    />
+                  </button>
+                </div>
               </div>
 
-              <div className="relative aspect-video max-h-28.75 xl:max-h-31.25 2xl:max-h-38.75 w-full mx-auto bg-[#090c12] border border-[#222938] rounded-lg 2xl:rounded-xl flex items-center justify-center p-2 overflow-hidden">
+              <input
+                ref={timerInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                className="hidden"
+                onChange={handleTimerImageUpload}
+              />
+
+              {timerAssetPath ? (
+                <div className="flex items-center gap-2.5 p-2 bg-[#090c12] border border-[#222938] rounded-lg">
+                  <div className="w-12 h-10 rounded bg-[#141822] border border-[#2b354a] p-1 flex items-center justify-center shrink-0 overflow-hidden">
+                    <img
+                      src={`/${timerAssetPath}`}
+                      alt="Timer Graphic"
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-[11px] text-slate-200 font-medium truncate block">
+                      {timerAssetPath.split('/').pop()}
+                    </span>
+                    <span className="text-[9.5px] text-slate-400">
+                      {timerImageWidth} × {timerImageHeight} px
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => timerInputRef.current?.click()}
+                      disabled={isUploadingTimerImage}
+                      className="px-2.5 py-1 rounded bg-[#202736] hover:bg-[#2b354a] text-slate-200 text-[10.5px] font-semibold border border-[#2b364c] transition flex items-center gap-1"
+                    >
+                      {isUploadingTimerImage ? <Loader2 size={11} className="animate-spin" /> : 'Change'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleRemoveTimerImage}
+                      className="p-1 rounded bg-[#202736] hover:bg-red-950/60 text-slate-400 hover:text-red-400 border border-[#2b364c] transition"
+                      title="Remove Graphic"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                </div>
+              ) : (
                 <div
-                  className={`absolute px-2 py-1 2xl:px-3 2xl:py-1.5 rounded-md font-mono font-bold text-[10px] 2xl:text-xs shadow-lg flex items-center gap-1 transition-all ${timerPosition === 'top-left'
-                    ? 'top-2 left-2'
-                    : timerPosition === 'top-right'
-                      ? 'top-2 right-2'
-                      : timerPosition === 'bottom-left'
-                        ? 'bottom-2 left-2'
-                        : timerPosition === 'bottom-right'
-                          ? 'bottom-2 right-2'
-                          : 'top-2 left-2'
-                    }`}
-                  style={{
-                    backgroundColor: timerBgColor || '#000000cc',
-                    color: timerFontColor || '#ffffff',
-                    fontSize: `${Math.max(9, Math.min(18, (timerFontSize / 24) * 11))}px`,
-                    opacity: timerEnabled ? 1 : 0.4
-                  }}
+                  onClick={() => timerInputRef.current?.click()}
+                  className="border-2 border-dashed border-[#2b364c] hover:border-blue-500 rounded-xl p-3 flex flex-col items-center justify-center gap-1 cursor-pointer bg-[#0c1017]/50 hover:bg-[#121722] transition text-center"
                 >
-                  <Clock size={10} className="opacity-80" />
-                  <span>
-                    {timerLabel || 'BACK IN '}
-                    {timerFormat === 'SS' ? '30s' : '00:30'}
+                  {isUploadingTimerImage ? (
+                    <Loader2 size={18} className="animate-spin text-blue-400" />
+                  ) : (
+                    <Upload size={18} className="text-slate-400" />
+                  )}
+                  <span className="text-[11px] text-slate-200 font-semibold">
+                    Upload Graphic Image
+                  </span>
+                  <span className="text-[9.5px] text-slate-400">
+                    Click to select PNG, SVG, or JPG badge
                   </span>
                 </div>
-                <span className="text-[9px] 2xl:text-[10px] text-slate-600 font-bold uppercase tracking-wider">
-                  Ad Broadcast Frame (1280x720)
-                </span>
-              </div>
+              )}
             </div>
 
-            {/* SINGLE TOGGLE: Show Back In Timer During Ad */}
-            <div className="flex items-center justify-between gap-2 p-2.5 2xl:p-3 bg-[#151a24] border border-[#232c3d] rounded-lg 2xl:rounded-xl">
-              <div className="min-w-0">
-                <span className="text-[10.5px] 2xl:text-xs font-bold uppercase tracking-wider text-slate-200 block">
-                  Show Timer During Ad
-                </span>
-                <span className="text-[9px] 2xl:text-[10px] text-slate-400 leading-tight block">
-                  Display real-time countdown backward until the ad ends
-                </span>
+            {/* 2. BROADCAST 16:9 PREVIEW & ACCURATE POSITIONING PAD */}
+            <div className="bg-[#151a24] border border-[#232c3d] rounded-xl 2xl:rounded-2xl p-2.5 2xl:p-3.5 space-y-2.5">
+              {/* Header with target selection and live position readouts */}
+              <div className="flex flex-wrap items-center justify-between gap-1.5 pb-2 border-b border-[#232a39]">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] 2xl:text-[11px] font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                    <Crosshair size={12} className="text-blue-400" />
+                    Screen Position & Preview
+                  </span>
+                  {/* Dynamic placement relation badge */}
+                  {(() => {
+                    const imgHalfW = ((timerImageWidth / 1280) * 100) / 2;
+                    const imgHalfH = ((timerImageHeight / 720) * 100) / 2;
+                    const isOver =
+                      Math.abs(timerTextOffsetX - timerPositionX) <= imgHalfW &&
+                      Math.abs(timerTextOffsetY - timerPositionY) <= imgHalfH;
+                    const isAbove =
+                      !isOver &&
+                      timerTextOffsetY < timerPositionY &&
+                      Math.abs(timerTextOffsetX - timerPositionX) <= imgHalfW + 10;
+
+                    if (isOver) {
+                      return (
+                        <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-emerald-950/80 text-emerald-400 border border-emerald-500/40">
+                          ✓ On Graphic Plate
+                        </span>
+                      );
+                    }
+                    if (isAbove) {
+                      return (
+                        <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-amber-950/80 text-amber-300 border border-amber-500/40">
+                          ↑ Above Graphic Plate
+                        </span>
+                      );
+                    }
+                    return (
+                      <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-blue-950/80 text-blue-300 border border-blue-500/40">
+                        Screen Float
+                      </span>
+                    );
+                  })()}
+                </div>
+
+                {/* Focus element toggle pills */}
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setTimerPadFocus('image')}
+                    className={`px-2 py-0.5 rounded text-[9.5px] font-mono font-semibold border transition flex items-center gap-1 ${timerPadFocus === 'image'
+                      ? 'bg-amber-950/80 border-amber-500 text-amber-300 shadow-sm'
+                      : 'bg-[#10141d] border-[#222a3a] text-slate-400 hover:text-slate-200'
+                      }`}
+                    title="Click to focus Graphic Box placement"
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
+                    <span>Graphic: X:{timerPositionX}% Y:{timerPositionY}%</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTimerPadFocus('text')}
+                    className={`px-2 py-0.5 rounded text-[9.5px] font-mono font-semibold border transition flex items-center gap-1 ${timerPadFocus === 'text'
+                      ? 'bg-blue-950/80 border-blue-500 text-blue-300 shadow-sm'
+                      : 'bg-[#10141d] border-[#222a3a] text-slate-400 hover:text-slate-200'
+                      }`}
+                    title="Click to focus Timer Text placement"
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-400 inline-block" />
+                    <span>Text: X:{timerTextOffsetX}% Y:{timerTextOffsetY}%</span>
+                  </button>
+                </div>
               </div>
 
-              <button
-                type="button"
-                onClick={() => {
-                  const next = !timerEnabled;
-                  setTimerEnabled(next);
-                  setTimerShowDuringSchedule(next);
-                  handleUpdateTimer({ enabled: next, showDuringSchedule: next });
-                }}
-                className={`w-9 h-5 2xl:w-11 2xl:h-6 flex items-center rounded-full p-0.5 2xl:p-1 transition-colors duration-300 shrink-0 ${timerEnabled ? 'bg-blue-600' : 'bg-slate-700'
-                  }`}
-              >
-                <div
-                  className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-300 ${timerEnabled ? 'translate-x-4 2xl:translate-x-5' : 'translate-x-0'
-                    }`}
+              {/* Graphic Size Slider (Proportional Width & Height auto-scaling) */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] 2xl:text-[11px] text-slate-400 font-medium flex items-center gap-1">
+                    <span>Graphic Size</span>
+                    <span className="text-slate-500 text-[9px]">(Auto-adjusts W × H)</span>
+                  </label>
+                  <span className="text-[10px] text-slate-300 font-mono">
+                    {timerImageWidth} × {timerImageHeight} px
+                    <span className="text-slate-500 ml-1">
+                      ({((timerImageWidth / 1280) * 100).toFixed(1)}% × {((timerImageHeight / 720) * 100).toFixed(1)}%)
+                    </span>
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="60"
+                  max="640"
+                  step="4"
+                  value={timerImageWidth}
+                  onChange={(e) => handleImageSizeChange(Number(e.target.value))}
+                  className="w-full accent-amber-500 cursor-pointer h-1.5"
                 />
-              </button>
+                <div className="flex justify-between text-[8.5px] text-slate-500">
+                  <span>Smaller</span>
+                  <span className="text-amber-400/70 font-medium">Aspect Ratio Maintained</span>
+                  <span>Larger</span>
+                </div>
+              </div>
+
+              {/* 16:9 Broadcast Screen Positioning Pad */}
+              <div
+                ref={timerScreenPadRef}
+                onPointerDown={handleTimerPadPointerDown}
+                onPointerMove={handleTimerPadPointerMove}
+                onPointerUp={handleTimerPadPointerUp}
+                className="relative aspect-video @container max-h-36 2xl:max-h-48 w-full mx-auto bg-[#090c12] border border-[#222938] rounded-xl overflow-hidden cursor-crosshair select-none touch-none shadow-2xl"
+                title="Click or drag to place the timer graphic or text"
+              >
+                {/* Broadcast Rule of Thirds Guide Lines */}
+                <div className="absolute inset-0 pointer-events-none opacity-25">
+                  <div className="absolute left-1/3 top-0 bottom-0 border-r border-dashed border-slate-600" />
+                  <div className="absolute left-2/3 top-0 bottom-0 border-r border-dashed border-slate-600" />
+                  <div className="absolute top-1/3 left-0 right-0 border-b border-dashed border-slate-600" />
+                  <div className="absolute top-2/3 left-0 right-0 border-b border-dashed border-slate-600" />
+                </div>
+
+                {/* Broadcast Title-Safe Area Guide (dashed inner perimeter) */}
+                <div className="absolute inset-2 border border-dashed border-slate-800/60 pointer-events-none rounded" />
+
+                {/* 1. Timer Graphic Outer Box (Represents position and frame-accurate dimensions on screen) */}
+                {(() => {
+                  const imgHalfWPct = ((timerImageWidth / 1280) * 100) / 2;
+                  const imgHalfHPct = ((timerImageHeight / 720) * 100) / 2;
+                  const minImgX = Math.min(50, imgHalfWPct);
+                  const maxImgX = Math.max(50, 100 - imgHalfWPct);
+                  const minImgY = Math.min(50, imgHalfHPct);
+                  const maxImgY = Math.max(50, 100 - imgHalfHPct);
+                  const renderImgX = Math.max(minImgX, Math.min(maxImgX, timerPositionX));
+                  const renderImgY = Math.max(minImgY, Math.min(maxImgY, timerPositionY));
+
+                  return (
+                    <div
+                      data-timer-target="image"
+                      style={{
+                        left: `${renderImgX}%`,
+                        top: `${renderImgY}%`,
+                        transform: 'translate(-50%, -50%)',
+                        width: `${Math.max(4, Math.min(100, (timerImageWidth / 1280) * 100))}%`,
+                        height: `${Math.max(4, Math.min(100, (timerImageHeight / 720) * 100))}%`,
+                        zIndex: 10
+                      }}
+                      className={`absolute rounded flex items-center justify-center cursor-grab active:cursor-grabbing select-none touch-none transition-shadow duration-75 overflow-hidden ${
+                        timerPadFocus === 'image' || activeTimerDrag === 'image'
+                          ? 'ring-2 ring-amber-400 bg-amber-950/20 shadow-[0_0_12px_rgba(251,191,36,0.45)]'
+                          : 'ring-1 ring-amber-500/40 hover:ring-amber-400/80 bg-black/20'
+                      }`}
+                      title="Drag to place the graphic plate on screen"
+                    >
+                      {timerAssetPath ? (
+                        <img
+                          src={`/${timerAssetPath}`}
+                          alt="Timer Graphic"
+                          onLoad={handleImageNaturalLoad}
+                          className="w-full h-full object-contain pointer-events-none select-none rounded"
+                        />
+                      ) : (
+                        <div
+                          className="w-full h-full rounded border border-dashed border-amber-500/40 flex items-center justify-center text-amber-300/70 pointer-events-none"
+                          style={{ backgroundColor: timerBgColor || '#141822' }}
+                        >
+                          <span className="text-[8px] 2xl:text-[9px] uppercase font-bold tracking-wider opacity-75">
+                            Graphic
+                          </span>
+                        </div>
+                      )}
+
+                      {activeTimerDrag === 'image' && (
+                        <span className="absolute -bottom-4 left-1/2 -translate-x-1/2 bg-amber-600 text-black font-bold text-[7.5px] font-mono px-1 rounded shadow pointer-events-none whitespace-nowrap">
+                          X:{renderImgX}% Y:{renderImgY}%
+                        </span>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* 2. Timer Text Box (Can be placed anywhere on screen; renders above/on top of image if same position) */}
+                {(() => {
+                  const broadcastScale = padWidth > 0 ? padWidth / 1280 : 0.28;
+                  const previewFontSize = Math.max(7, Math.round(timerFontSize * broadcastScale));
+                  const displayText = `${timerLabel !== undefined ? timerLabel : ''}${timerFormat === 'SS' ? '30s' : '00:30'}`;
+                  const renderTextX = Math.max(3, Math.min(97, timerTextOffsetX));
+                  const renderTextY = Math.max(3, Math.min(97, timerTextOffsetY));
+
+                  return (
+                    <div
+                      data-timer-target="text"
+                      style={{
+                        left: `${renderTextX}%`,
+                        top: `${renderTextY}%`,
+                        transform: 'translate(-50%, -50%)',
+                        color: timerFontColor || '#ffffff',
+                        fontSize: `${previewFontSize}px`,
+                        lineHeight: 1,
+                        textShadow: '0 1px 3px rgba(0,0,0,0.95), 0 0 2px #000',
+                        zIndex: 20
+                      }}
+                      className={`absolute px-1 py-0.5 rounded font-mono font-bold whitespace-nowrap select-none touch-none cursor-grab active:cursor-grabbing transition-shadow duration-75 ${timerPadFocus === 'text' || activeTimerDrag === 'text'
+                        ? 'ring-1.5 ring-blue-400 bg-blue-950/80 shadow-[0_0_12px_rgba(59,130,246,0.6)]'
+                        : 'hover:ring-1 hover:ring-blue-400 bg-black/40 ring-1 ring-blue-500/40'
+                        }`}
+                      title="Drag to place the countdown timer text anywhere on screen"
+                    >
+                      <span className="pointer-events-none select-none">
+                        {displayText}
+                      </span>
+
+                      {activeTimerDrag === 'text' && (
+                        <span className="absolute -top-4.5 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[7.5px] font-mono px-1 rounded shadow pointer-events-none whitespace-nowrap">
+                          X:{renderTextX}% Y:{renderTextY}%
+                        </span>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* Drag hint overlay at bottom-right */}
+                <div className="absolute bottom-1 right-2 text-[8px] 2xl:text-[8.5px] text-slate-500 pointer-events-none font-semibold">
+                  Click or drag graphic / text anywhere
+                </div>
+              </div>
+
+              {/* Graphic Presets & Text Alignment Actions */}
+              <div className="space-y-1.5 pt-0.5">
+                {/* Graphic Screen Presets (Frame-accurate broadcast positions clamped within borders) */}
+                {(() => {
+                  const imgHalfWPct = ((timerImageWidth / 1280) * 100) / 2;
+                  const imgHalfHPct = ((timerImageHeight / 720) * 100) / 2;
+                  const safePresetMarginX = Math.max(2, Math.round(imgHalfWPct + 1.5));
+                  const safePresetMarginY = Math.max(2, Math.round(imgHalfHPct + 1.5));
+                  const presets = [
+                    { label: 'Top-L', x: safePresetMarginX, y: safePresetMarginY },
+                    { label: 'Top-R', x: Math.max(50, 100 - safePresetMarginX), y: safePresetMarginY },
+                    { label: 'Center', x: 50, y: 50 },
+                    { label: 'Bot-L', x: safePresetMarginX, y: Math.max(50, 100 - safePresetMarginY) },
+                    { label: 'Bot-R', x: Math.max(50, 100 - safePresetMarginX), y: Math.max(50, 100 - safePresetMarginY) }
+                  ];
+
+                  return (
+                    <div className="grid grid-cols-5 gap-1">
+                      {presets.map((preset) => {
+                        const isActive =
+                          Math.abs(timerPositionX - preset.x) <= 3 && Math.abs(timerPositionY - preset.y) <= 3;
+                        return (
+                          <button
+                            key={preset.label}
+                            type="button"
+                            onClick={() => {
+                              updateTimerDraft(setTimerPositionX, preset.x);
+                              updateTimerDraft(setTimerPositionY, preset.y);
+                              setTimerPosition('custom');
+                            }}
+                            className={`py-0.5 2xl:py-1 rounded text-[9px] 2xl:text-[9.5px] font-semibold border transition ${isActive
+                              ? 'text-amber-400 border-amber-500 bg-amber-950/40 shadow-sm'
+                              : 'bg-[#121620] text-slate-400 hover:text-white border-[#222938]'
+                              }`}
+                            title={`Place Graphic at ${preset.label}`}
+                          >
+                            {preset.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+
+                {/* Alignment Actions for Text relative to Graphic */}
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const imgHalfWPct = ((timerImageWidth / 1280) * 100) / 2;
+                      const imgHalfHPct = ((timerImageHeight / 720) * 100) / 2;
+                      const renderImgX = Math.max(imgHalfWPct, Math.min(100 - imgHalfWPct, timerPositionX));
+                      const renderImgY = Math.max(imgHalfHPct, Math.min(100 - imgHalfHPct, timerPositionY));
+                      updateTimerDraft(setTimerTextOffsetX, renderImgX);
+                      updateTimerDraft(setTimerTextOffsetY, renderImgY);
+                    }}
+                    className="py-1 px-2 rounded-lg bg-[#141b28] hover:bg-[#1c2638] text-emerald-300 border border-emerald-500/30 hover:border-emerald-500/60 text-[9.5px] 2xl:text-[10px] font-semibold transition flex items-center justify-center gap-1 shadow-sm"
+                    title="Center the timer text directly onto the graphic plate"
+                  >
+                    <span>🎯 Snap Text on Graphic</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const imgHalfWPct = ((timerImageWidth / 1280) * 100) / 2;
+                      const imgHalfHPct = ((timerImageHeight / 720) * 100) / 2;
+                      const renderImgX = Math.max(imgHalfWPct, Math.min(100 - imgHalfWPct, timerPositionX));
+                      const renderImgY = Math.max(imgHalfHPct, Math.min(100 - imgHalfHPct, timerPositionY));
+                      const textHeightPct = (timerFontSize / 720) * 100;
+                      const gapPct = 1.5;
+                      updateTimerDraft(setTimerTextOffsetX, renderImgX);
+                      updateTimerDraft(
+                        setTimerTextOffsetY,
+                        Math.max(3, Math.round(renderImgY - imgHalfHPct - (textHeightPct / 2) - gapPct))
+                      );
+                    }}
+                    className="py-1 px-2 rounded-lg bg-[#141b28] hover:bg-[#1c2638] text-amber-300 border border-amber-500/30 hover:border-amber-500/60 text-[9.5px] 2xl:text-[10px] font-semibold transition flex items-center justify-center gap-1 shadow-sm"
+                    title="Place the timer text immediately above the graphic plate"
+                  >
+                    <span>⬆ Place Text Above Graphic</span>
+                  </button>
+                </div>
+              </div>
             </div>
 
-            {/* Configuration Box: Label, Format, Position */}
-            <div className="bg-[#151a24] border border-[#232c3d] rounded-xl 2xl:rounded-2xl p-2.5 2xl:p-3.5 space-y-2.5 2xl:space-y-3.5">
+            {/* 3. BELOW THE PREVIEW BOX: FONT SIZE, TEXT, COLOR & SAVE */}
+            <div className="bg-[#151a24] border border-[#232c3d] rounded-xl 2xl:rounded-2xl p-2.5 2xl:p-3.5 space-y-2.5">
               <span className="text-[10px] 2xl:text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
-                Timer Customization
+                Timer Text & Appearance
               </span>
 
-              {/* Text Label */}
-              <div>
-                <label className="text-[10px] 2xl:text-[11px] text-slate-400 font-medium block mb-1">
-                  Text Prefix Label
-                </label>
-                <input
-                  type="text"
-                  value={timerLabel}
-                  onChange={(e) => updateTimerDraft(setTimerLabel, e.target.value)}
-                  placeholder="BACK IN "
-                  className="w-full bg-[#090c12] border border-[#232a39] text-[11px] 2xl:text-xs text-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-blue-500 font-mono"
-                />
-              </div>
-
-              {/* Format Selection */}
-              <div>
-                <label className="text-[10px] 2xl:text-[11px] text-slate-400 font-medium block mb-1">
-                  Countdown Format
-                </label>
-                <div className="grid grid-cols-2 gap-1.5 2xl:gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTimerFormat('MM:SS');
-                      handleUpdateTimer({ format: 'MM:SS' });
-                    }}
-                    className={`py-1.5 2xl:py-2 rounded-lg border text-[10.5px] 2xl:text-xs font-bold transition flex items-center justify-center ${timerFormat === 'MM:SS'
-                      ? 'bg-blue-600 border-blue-400 text-white shadow-md'
-                      : 'bg-[#090c12] border-[#222938] text-slate-400 hover:text-white'
-                      }`}
-                  >
-                    <span>MM:SS (00:30)</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTimerFormat('SS');
-                      handleUpdateTimer({ format: 'SS' });
-                    }}
-                    className={`py-1.5 2xl:py-2 rounded-lg border text-[10.5px] 2xl:text-xs font-bold transition flex items-center justify-center ${timerFormat === 'SS'
-                      ? 'bg-blue-600 border-blue-400 text-white shadow-md'
-                      : 'bg-[#090c12] border-[#222938] text-slate-400 hover:text-white'
-                      }`}
-                  >
-                    <span>Seconds (30s)</span>
-                  </button>
+              {/* Timer Text & Format */}
+              <div className="grid grid-cols-3 gap-2">
+                <div className="col-span-2">
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[10px] 2xl:text-[11px] text-slate-400 font-medium">
+                      Timer Text Prefix
+                    </label>
+                    {timerLabel ? (
+                      <button
+                        type="button"
+                        onClick={() => updateTimerDraft(setTimerLabel, '')}
+                        className="text-[9px] text-blue-400 hover:text-blue-300 underline"
+                      >
+                        Remove Prefix
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => updateTimerDraft(setTimerLabel, 'BACK IN ')}
+                        className="text-[9px] text-slate-500 hover:text-slate-300"
+                      >
+                        + Use "BACK IN "
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    type="text"
+                    value={timerLabel !== undefined ? timerLabel : ''}
+                    onChange={(e) => updateTimerDraft(setTimerLabel, e.target.value)}
+                    placeholder="e.g. BACK IN (leave empty for numbers only)"
+                    className="w-full bg-[#090c12] border border-[#232a39] text-[11px] 2xl:text-xs text-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-blue-500 font-mono"
+                  />
                 </div>
-              </div>
-
-              {/* Position Presets */}
-              <div>
-                <label className="text-[10px] 2xl:text-[11px] text-slate-400 font-medium block mb-1">
-                  Screen Position
-                </label>
-                <div className="grid grid-cols-2 gap-1.5 2xl:gap-2">
-                  {[
-                    { id: 'top-left', label: 'Top Left' },
-                    { id: 'top-right', label: 'Top Right' },
-                    { id: 'bottom-left', label: 'Bottom Left' },
-                    { id: 'bottom-right', label: 'Bottom Right' }
-                  ].map((p) => (
-                    <button
-                      key={p.id}
-                      type="button"
-                      onClick={() => {
-                        setTimerPosition(p.id);
-                        handleUpdateTimer({ position: p.id });
-                      }}
-                      className={`py-1.5 2xl:py-2 px-2 rounded-lg border text-[10.5px] 2xl:text-xs font-bold transition flex items-center justify-center ${timerPosition === p.id
-                        ? 'bg-blue-600 border-blue-400 text-white shadow-md'
-                        : 'bg-[#090c12] border-[#222938] text-slate-400 hover:text-white'
-                        }`}
-                    >
-                      {p.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Font Size & Colors */}
-              <div className="grid grid-cols-2 gap-2.5 pt-0.5">
                 <div>
                   <label className="text-[10px] 2xl:text-[11px] text-slate-400 font-medium block mb-1">
-                    Font Size ({timerFontSize}px)
+                    Time Format
                   </label>
+                  <div className="grid grid-cols-2 gap-1">
+                    <button
+                      type="button"
+                      onClick={() => updateTimerDraft(setTimerFormat, 'MM:SS')}
+                      className={`py-1.5 rounded text-[10px] font-mono font-semibold border transition ${timerFormat === 'MM:SS'
+                        ? 'bg-blue-600 border-blue-500 text-white'
+                        : 'bg-[#090c12] border-[#232a39] text-slate-400 hover:text-white'
+                        }`}
+                    >
+                      00:30
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => updateTimerDraft(setTimerFormat, 'SS')}
+                      className={`py-1.5 rounded text-[10px] font-mono font-semibold border transition ${timerFormat === 'SS'
+                        ? 'bg-blue-600 border-blue-500 text-white'
+                        : 'bg-[#090c12] border-[#232a39] text-slate-400 hover:text-white'
+                        }`}
+                    >
+                      30s
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Font Size & Color */}
+              <div className="grid grid-cols-2 gap-2.5 pt-0.5">
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="text-[10px] 2xl:text-[11px] text-slate-400 font-medium">
+                      Font Size
+                    </label>
+                    <span className="text-[10px] text-slate-300 font-mono">{timerFontSize}px</span>
+                  </div>
                   <input
                     type="range"
-                    min="14"
-                    max="48"
+                    min="12"
+                    max="64"
                     value={timerFontSize}
                     onChange={(e) => updateTimerDraft(setTimerFontSize, Number(e.target.value))}
                     className="w-full accent-blue-600 cursor-pointer h-1.5"
                   />
+                  <div className="flex justify-between text-[8px] text-slate-500">
+                    <span>12px</span>
+                    <span>Broadcast Size</span>
+                    <span>64px</span>
+                  </div>
                 </div>
 
                 <div>
@@ -1709,9 +2351,14 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                       type="color"
                       value={timerFontColor}
                       onChange={(e) => updateTimerDraft(setTimerFontColor, e.target.value)}
-                      className="w-7 h-7 rounded border border-slate-700 cursor-pointer bg-transparent"
+                      className="w-7 h-7 rounded border border-slate-700 cursor-pointer bg-transparent shrink-0"
                     />
-                    <span className="text-[11px] text-slate-300 font-mono">{timerFontColor}</span>
+                    <input
+                      type="text"
+                      value={timerFontColor}
+                      onChange={(e) => updateTimerDraft(setTimerFontColor, e.target.value)}
+                      className="w-full bg-[#090c12] border border-[#232a39] text-[10.5px] text-slate-200 rounded px-1.5 py-1 font-mono uppercase"
+                    />
                   </div>
                 </div>
               </div>
@@ -1724,9 +2371,17 @@ export default function LiveControls({ channel, onBrandingUpdated, currentOnAirS
                     handleUpdateTimer({
                       label: timerLabel,
                       format: timerFormat,
-                      position: timerPosition,
+                      position: 'custom',
+                      positionX: timerPositionX,
+                      positionY: timerPositionY,
                       fontSize: timerFontSize,
-                      fontColor: timerFontColor
+                      fontColor: timerFontColor,
+                      bgColor: timerBgColor,
+                      assetPath: timerAssetPath,
+                      imageWidth: timerImageWidth,
+                      imageHeight: timerImageHeight,
+                      textOffsetX: timerTextOffsetX,
+                      textOffsetY: timerTextOffsetY
                     })
                   }
                   className="w-full py-2 rounded-lg 2xl:rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] 2xl:text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition shadow-lg shadow-blue-600/30"

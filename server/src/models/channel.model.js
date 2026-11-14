@@ -132,9 +132,14 @@ const channelSchema = new mongoose.Schema(
         position: { type: String, default: 'top-left' },
         positionX: { type: Number, default: 5, min: 0, max: 100 },
         positionY: { type: Number, default: 5, min: 0, max: 100 },
-        fontSize: { type: Number, default: 24, min: 12, max: 60 },
+        fontSize: { type: Number, default: 24, min: 10, max: 120 },
         fontColor: { type: String, default: '#ffffff' },
-        bgColor: { type: String, default: '#000000cc' }
+        bgColor: { type: String, default: '#000000cc' },
+        assetPath: { type: String, default: '' },
+        imageWidth: { type: Number, default: 220, min: 20, max: 1920 },
+        imageHeight: { type: Number, default: 70, min: 20, max: 1080 },
+        textOffsetX: { type: Number, default: 50, min: -100, max: 200 },
+        textOffsetY: { type: Number, default: 50, min: -100, max: 200 }
       },
       preScheduleBranding: {
         type: mongoose.Schema.Types.Mixed,

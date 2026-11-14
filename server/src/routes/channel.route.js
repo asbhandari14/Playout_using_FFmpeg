@@ -36,7 +36,8 @@ import {
   removeAshton,
   uploadAshtonFile,
   updateTimerBranding,
-  removeTimer
+  removeTimer,
+  uploadTimerImage
 } from '../controllers/branding.controller.js';
 import {
   getSchedules,
@@ -66,7 +67,7 @@ import {
 } from '../controllers/epg.controller.js';
 import { auth } from '../middleware/auth.middleware.js';
 import { role } from '../middleware/role.middleware.js';
-import { uploadLogo, uploadBug, uploadLBand, uploadAshton, uploadOverlay } from '../middleware/logoUpload.js';
+import { uploadLogo, uploadBug, uploadLBand, uploadAshton, uploadOverlay, uploadTimer } from '../middleware/logoUpload.js';
 import { ROLES } from '../config/constants.js';
 
 const router = Router();
@@ -145,6 +146,7 @@ router.post('/:channelId/ashton/upload', uploadAshton.single('ashton'), uploadAs
 // Back In Timer controls (countdown overlay during commercial / ad schedules)
 router.put('/:channelId/timer', updateTimerBranding);
 router.delete('/:channelId/timer', removeTimer);
+router.post('/:channelId/timer/upload', uploadTimer.single('image'), uploadTimerImage);
 
 // Reusable L-Band & Ashton Band Library Presets
 router.get('/:channelId/bands', getBands);

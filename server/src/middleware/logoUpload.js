@@ -93,6 +93,28 @@ export const uploadAshton = multer({
   limits: { fileSize: 25 * 1024 * 1024 }
 });
 
+// Back In Timer -> timer_img
+const timerStorage = multer.diskStorage({
+  destination: async (req, file, cb) => {
+    try {
+      const dir = await getChannelSubdir(req, 'timerDir');
+      cb(null, dir);
+    } catch (err) {
+      cb(err);
+    }
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase() || '.png';
+    cb(null, `timer_${Date.now()}${ext}`);
+  }
+});
+
+export const uploadTimer = multer({
+  storage: timerStorage,
+  fileFilter: imageFilter,
+  limits: { fileSize: 25 * 1024 * 1024 }
+});
+
 // Dynamic Overlay Schedule (L-Band or Ashton Band) -> routes to respective channel subfolder
 const overlayStorage = multer.diskStorage({
   destination: async (req, file, cb) => {

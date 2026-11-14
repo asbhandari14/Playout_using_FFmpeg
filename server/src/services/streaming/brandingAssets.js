@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import sharp from 'sharp';
+import { SERVER_ROOT } from '../../config/paths.js';
 
 // 1x1 transparent PNG base64
 const TRANSPARENT_PNG_BASE64 =
@@ -945,8 +946,9 @@ export const getSystemFontFile = (customFont = null) => {
 };
 
 /**
- * Builds a high-precision, frame-accurate FFmpeg drawtext filter string for the Back In timer
- * Dynamically computes real-time countdown down to 00:00 (or 0s)
+ * Builds a high-precision, frame-accurate FFmpeg drawtext / composite filter string for the Back In timer
+ * Supports optional background image badge with countdown text positioned on top/above the image,
+ * customizable text font size, font color, and X/Y offsets.
  */
 export const buildBackInTimerFilter = (timerConfig = {}, countdownSeconds = 30) => {
   const rawLabel = timerConfig.label !== undefined ? String(timerConfig.label) : 'BACK IN ';
@@ -961,34 +963,6 @@ export const buildBackInTimerFilter = (timerConfig = {}, countdownSeconds = 30) 
     bgColor = `${bgColor}@0.8`;
   }
 
-  const position = timerConfig.position || 'top-left';
-  let xExpr = '40';
-  let yExpr = '40';
-
-  if (position === 'top-left') {
-    xExpr = '40';
-    yExpr = '40';
-  } else if (position === 'top-right') {
-    xExpr = 'w-tw-40';
-    yExpr = '40';
-  } else if (position === 'bottom-left') {
-    xExpr = '40';
-    yExpr = 'h-th-40';
-  } else if (position === 'bottom-right') {
-    xExpr = 'w-tw-40';
-    yExpr = 'h-th-40';
-  } else if (position === 'custom') {
-    const clampedX = Math.min(95, Math.max(5, Number(timerConfig.positionX) || 50));
-    const clampedY = Math.min(95, Math.max(5, Number(timerConfig.positionY) || 50));
-    xExpr = `(w-tw)*(${clampedX}/100)`;
-    yExpr = `(h-th)*(${clampedY}/100)`;
-  }
-
-  const fontFile = getSystemFontFile();
-  const fontParam = fontFile
-    ? `fontfile='${fontFile.replace(/\\/g, '/').replace(/:/g, '\\:')}':`
-    : '';
-
   const rawCountdown = Number(countdownSeconds);
   const safeCountdown = Number.isFinite(rawCountdown) && rawCountdown > 0 ? rawCountdown : 1;
   const baseSecStr = Number.isInteger(safeCountdown) ? String(safeCountdown) : safeCountdown.toFixed(3);
@@ -1002,6 +976,70 @@ export const buildBackInTimerFilter = (timerConfig = {}, countdownSeconds = 30) 
     timeExpression = `%{eif\\:floor(${remainingExpr}/60)\\:d\\:2}\\:%{eif\\:mod(${remainingExpr}\\,60)\\:d\\:2}`;
   }
 
-  return `drawtext=${fontParam}text='${label}${timeExpression}':fontsize=${fontSize}:fontcolor=${fontColor}:box=1:boxcolor=${bgColor}:boxborderw=10:x='${xExpr}':y='${yExpr}'`;
+  const fontFile = getSystemFontFile();
+  const fontParam = fontFile
+    ? `fontfile='${fontFile.replace(/\\/g, '/').replace(/:/g, '\\:')}':`
+    : '';
+
+  // Check if an image is provided and exists on disk
+  let imageAbsPath = '';
+  if (timerConfig.assetPath) {
+    const candidatePath = path.isAbsolute(timerConfig.assetPath)
+      ? timerConfig.assetPath
+      : path.resolve(SERVER_ROOT, timerConfig.assetPath);
+    if (fs.existsSync(candidatePath)) {
+      imageAbsPath = candidatePath;
+    }
+  }
+
+  const position = timerConfig.position || 'custom';
+  const imageWidth = Math.max(20, Math.min(1280, Number(timerConfig.imageWidth) || 220));
+  const imageHeight = Math.max(20, Math.min(720, Number(timerConfig.imageHeight) || 70));
+
+  let posX = Number(timerConfig.positionX !== undefined ? timerConfig.positionX : 5);
+  let posY = Number(timerConfig.positionY !== undefined ? timerConfig.positionY : 5);
+
+  if (position === 'top-left' && timerConfig.positionX === undefined) {
+    posX = 4;
+    posY = 6;
+  } else if (position === 'top-right' && timerConfig.positionX === undefined) {
+    posX = 96;
+    posY = 6;
+  } else if (position === 'bottom-left' && timerConfig.positionX === undefined) {
+    posX = 4;
+    posY = 94;
+  } else if (position === 'bottom-right' && timerConfig.positionX === undefined) {
+    posX = 96;
+    posY = 94;
+  }
+
+  const textX = Number(timerConfig.textOffsetX !== undefined ? timerConfig.textOffsetX : posX);
+  const textY = Number(timerConfig.textOffsetY !== undefined ? timerConfig.textOffsetY : posY);
+
+  const imgHalfW = (imageWidth / 1280) * 50;
+  const imgHalfH = (imageHeight / 720) * 50;
+  const clampedImgX = Math.min(100 - imgHalfW, Math.max(imgHalfW, posX));
+  const clampedImgY = Math.min(100 - imgHalfH, Math.max(imgHalfH, posY));
+
+  // Center-anchored coordinates matching UI preview (translate(-50%, -50%))
+  const imgX = Math.max(0, Math.min(1280 - imageWidth, Math.round((1280 * (clampedImgX / 100)) - (imageWidth / 2))));
+  const imgY = Math.max(0, Math.min(720 - imageHeight, Math.round((720 * (clampedImgY / 100)) - (imageHeight / 2))));
+
+  const clampedTextX = Math.min(98, Math.max(2, textX));
+  const clampedTextY = Math.min(98, Math.max(2, textY));
+  const targetTextCenterX = Math.round(1280 * (clampedTextX / 100));
+  const targetTextCenterY = Math.round(720 * (clampedTextY / 100));
+  const textXExpr = `${targetTextCenterX}-tw/2`;
+  const textYExpr = `${targetTextCenterY}-th/2`;
+
+  if (imageAbsPath) {
+    const escapedImagePath = imageAbsPath.replace(/\\/g, '/').replace(/:/g, '\\:');
+
+    // movie loads the background image, scales it, overlays it at (imgX, imgY), then drawtext renders text over it
+    return `movie='${escapedImagePath}',scale=${imageWidth}:${imageHeight}[tbg]; [vbase][tbg]overlay=x=${imgX}:y=${imgY}[vwithbg]; [vwithbg]drawtext=${fontParam}text='${label}${timeExpression}':fontsize=${fontSize}:fontcolor=${fontColor}:box=0:x='${textXExpr}':y='${textYExpr}'`;
+  }
+
+  // Fallback: standard drawtext with box background
+  return `drawtext=${fontParam}text='${label}${timeExpression}':fontsize=${fontSize}:fontcolor=${fontColor}:box=1:boxcolor=${bgColor}:boxborderw=10:x='${textXExpr}':y='${textYExpr}'`;
 };
 

@@ -16,7 +16,7 @@ export default function ServerTable({
     <div className="bg-[#10141e] border border-[#1e2638] rounded-xl 2xl:rounded-2xl overflow-hidden shadow-xl">
       {/* Horizontal Scaling & Scrolling Container */}
       <TableScrollContainer>
-        <div className="w-full min-w-[796px]">
+        <div className="w-full min-w-199">
           {/* Grid Header */}
           <div
             className={`px-4 py-2.5 2xl:px-5 2xl:py-3 bg-[#131926] border-b border-[#1e2638] text-[10px] 2xl:text-[10.5px] uppercase font-bold text-slate-400 tracking-wider ${SERVER_GRID_COLS}`}

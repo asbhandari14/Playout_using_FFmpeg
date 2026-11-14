@@ -23,7 +23,8 @@ export const CHANNEL_SUBFOLDERS = {
   VIDEO: 'video',
   LOGO: 'logo_img',
   LBAND: 'lband_img',
-  ASHTON: 'ashtonBand_img'
+  ASHTON: 'ashtonBand_img',
+  TIMER: 'timer_img'
 };
 
 /**
@@ -92,7 +93,8 @@ export const ensureChannelUploadDirs = (channelId, channelName) => {
     videoDir: path.join(channelBaseDir, CHANNEL_SUBFOLDERS.VIDEO),
     logoDir: path.join(channelBaseDir, CHANNEL_SUBFOLDERS.LOGO),
     lbandDir: path.join(channelBaseDir, CHANNEL_SUBFOLDERS.LBAND),
-    ashtonDir: path.join(channelBaseDir, CHANNEL_SUBFOLDERS.ASHTON)
+    ashtonDir: path.join(channelBaseDir, CHANNEL_SUBFOLDERS.ASHTON),
+    timerDir: path.join(channelBaseDir, CHANNEL_SUBFOLDERS.TIMER)
   };
 
   Object.values(dirs).forEach((dir) => {

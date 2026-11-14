@@ -294,7 +294,7 @@ export default function VideoSection({ channel, selectedAsset, isLive = false })
           <div className="px-2.5 py-1 2xl:px-3 2xl:py-1.5 bg-[#161b26] border-b border-[#232b3c] flex items-center justify-between text-[10px] 2xl:text-[11px] font-bold uppercase tracking-wider text-slate-300">
             <span>Local Preview</span>
             {selectedAsset && (
-              <span className="text-[9.5px] 2xl:text-[10px] font-normal text-slate-400 truncate max-w-[160px] 2xl:max-w-[220px]">
+              <span className="text-[9.5px] 2xl:text-[10px] font-normal text-slate-400 truncate max-w-40 2xl:max-w-55">
                 {selectedAsset.originalName}
               </span>
             )}

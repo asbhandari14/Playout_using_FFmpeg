@@ -915,7 +915,14 @@ export class FeederService {
       this.currentOffsetAtStart = startOffset;
 
       const baseVf = `fps=${fps},scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2`;
-      const vfArg = timerFilter ? `${baseVf},${timerFilter}` : baseVf;
+      let vfArg = baseVf;
+      if (timerFilter) {
+        if (timerFilter.includes('movie=')) {
+          vfArg = `${baseVf}[vbase]; ${timerFilter}`;
+        } else {
+          vfArg = `${baseVf},${timerFilter}`;
+        }
+      }
 
       // Decoder process arguments
       // Normalizes to 1280x720, <fps>, AAC stereo 44.1kHz, outputs mpegts on stdout

@@ -1565,7 +1565,12 @@ export const updateTimerBranding = async (req, res, next) => {
       positionY,
       fontSize,
       fontColor,
-      bgColor
+      bgColor,
+      assetPath,
+      imageWidth,
+      imageHeight,
+      textOffsetX,
+      textOffsetY
     } = req.body || {};
 
     const channel = await Channel.findById(channelId);
@@ -1589,6 +1594,16 @@ export const updateTimerBranding = async (req, res, next) => {
     if (fontSize !== undefined) updateFields['branding.backInTimer.fontSize'] = Number(fontSize);
     if (fontColor !== undefined) updateFields['branding.backInTimer.fontColor'] = fontColor;
     if (bgColor !== undefined) updateFields['branding.backInTimer.bgColor'] = bgColor;
+    if (assetPath !== undefined) {
+      if (assetPath === '' && channel.branding?.backInTimer?.assetPath) {
+        unlinkRelativeAsset(channel.branding.backInTimer.assetPath);
+      }
+      updateFields['branding.backInTimer.assetPath'] = String(assetPath);
+    }
+    if (imageWidth !== undefined) updateFields['branding.backInTimer.imageWidth'] = Math.max(20, Math.min(1920, Number(imageWidth) || 220));
+    if (imageHeight !== undefined) updateFields['branding.backInTimer.imageHeight'] = Math.max(20, Math.min(1080, Number(imageHeight) || 70));
+    if (textOffsetX !== undefined) updateFields['branding.backInTimer.textOffsetX'] = Number(textOffsetX);
+    if (textOffsetY !== undefined) updateFields['branding.backInTimer.textOffsetY'] = Number(textOffsetY);
 
     const updatedChannel = await Channel.findByIdAndUpdate(
       channelId,
@@ -1644,6 +1659,79 @@ export const removeTimer = async (req, res, next) => {
     });
   } catch (error) {
     console.error('[Branding Controller] removeTimer error:', error);
+    next(error);
+  }
+};
+
+// POST /api/channels/:channelId/timer/upload
+export const uploadTimerImage = async (req, res, next) => {
+  try {
+    const { channelId } = req.params;
+    if (!channelId) {
+      return res.status(400).json({ message: 'Channel ID is required' });
+    }
+    if (!req.file) {
+      return res.status(400).json({ message: 'No timer image file provided' });
+    }
+
+    const channel = await Channel.findById(channelId);
+    if (!channel) {
+      if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+      return res.status(404).json({ message: 'Channel not found' });
+    }
+
+    const storageValidation = await validateStorageAvailability(channelId, req.file.size);
+    if (!storageValidation.allowed) {
+      if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+      return res.status(400).json({ message: storageValidation.message });
+    }
+
+    // Clean up previous timer asset if it exists
+    if (channel.branding?.backInTimer?.assetPath) {
+      unlinkRelativeAsset(channel.branding.backInTimer.assetPath, path.resolve(req.file.path));
+    }
+
+    const relativePath = path.relative(SERVER_ROOT, req.file.path).replace(/\\/g, '/');
+
+    const updateFields = {
+      'branding.backInTimer.assetPath': relativePath
+    };
+    if (req.body?.imageWidth !== undefined) {
+      updateFields['branding.backInTimer.imageWidth'] = Math.max(20, Math.min(1920, Number(req.body.imageWidth) || 220));
+    }
+    if (req.body?.imageHeight !== undefined) {
+      updateFields['branding.backInTimer.imageHeight'] = Math.max(20, Math.min(1080, Number(req.body.imageHeight) || 70));
+    }
+    if (req.body?.textOffsetX !== undefined) {
+      updateFields['branding.backInTimer.textOffsetX'] = Number(req.body.textOffsetX);
+    }
+    if (req.body?.textOffsetY !== undefined) {
+      updateFields['branding.backInTimer.textOffsetY'] = Number(req.body.textOffsetY);
+    }
+
+    const updatedChannel = await Channel.findByIdAndUpdate(
+      channelId,
+      { $set: updateFields },
+      { new: true }
+    );
+
+    const timer = updatedChannel?.branding?.backInTimer;
+    if (io) {
+      io.to(`channel:${channelId}`).emit('branding_updated', {
+        type: 'timer',
+        timer
+      });
+    }
+
+    await calculateChannelStorage(channelId);
+
+    return res.status(200).json({
+      message: 'Back In Timer image uploaded successfully',
+      timer,
+      assetPath: relativePath
+    });
+  } catch (error) {
+    console.error('[Branding Controller] uploadTimerImage error:', error);
     next(error);
   }
 };
