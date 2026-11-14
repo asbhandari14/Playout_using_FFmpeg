@@ -11,7 +11,8 @@ export default function Channel({
   onDelete,
   onOpenStudio,
   copiedUrl,
-  onCopyUrl
+  onCopyUrl,
+  onOpenEpg
 }) {
   return (
     <div className="space-y-3.5 2xl:space-y-4">
@@ -56,6 +57,7 @@ export default function Channel({
         copiedUrl={copiedUrl}
         onEdit={onEdit}
         onDelete={onDelete}
+        onOpenEpg={onOpenEpg}
       />
     </div>
   );

@@ -6,6 +6,7 @@ import { Asset } from '../models/asset.model.js';
 import { Channel } from '../models/channel.model.js';
 import { SERVER_ROOT } from '../config/paths.js';
 import { analyzeAndNormalizeLBand, analyzeAndNormalizeAshton } from '../services/streaming/brandingAssets.js';
+import { autoSyncChannelEpg } from '../services/epgService.js';
 
 // Helper to access Socket.IO without circular dependency on server.js
 const getIO = (req) => req?.app?.get('io') || null;
@@ -295,6 +296,9 @@ export const createSchedule = async (req, res, next) => {
     // Immediately evaluate scheduler so active ad/schedule begins airing directly without waiting
     triggerSchedulerDirect();
 
+    // Automatically recalculate & persist 24h Micro-Event EPG timeline (Approach B)
+    autoSyncChannelEpg(channelId, [schedule.startDate, schedule.endDate]).catch(() => { });
+
     const populated = await Schedule.findById(schedule._id)
       .populate('bandPresets')
       .populate('bandPreset')
@@ -481,6 +485,9 @@ export const updateSchedule = async (req, res, next) => {
     // Immediately evaluate scheduler so active ad/schedule begins airing directly without waiting
     triggerSchedulerDirect();
 
+    // Automatically recalculate & persist 24h Micro-Event EPG timeline (Approach B)
+    autoSyncChannelEpg(channelId, [schedule.startDate, schedule.endDate]).catch(() => { });
+
     const populated = await Schedule.findById(schedule._id)
       .populate('bandPresets')
       .populate('bandPreset')
@@ -521,6 +528,9 @@ export const toggleSchedule = async (req, res, next) => {
     // Immediately evaluate scheduler so active ad/schedule begins airing directly without waiting
     triggerSchedulerDirect();
 
+    // Automatically recalculate & persist 24h Micro-Event EPG timeline (Approach B)
+    autoSyncChannelEpg(channelId, [schedule.startDate, schedule.endDate]).catch(() => { });
+
     const populated = await Schedule.findById(schedule._id)
       .populate('bandPresets')
       .populate('bandPreset')
@@ -554,6 +564,9 @@ export const deleteSchedule = async (req, res, next) => {
     }
 
     await stopSequenceIfOwned(channelId, scheduleId, deleted.type);
+
+    // Automatically recalculate & persist 24h Micro-Event EPG timeline (Approach B)
+    autoSyncChannelEpg(channelId, [deleted.startDate, deleted.endDate]).catch(() => { });
 
     const io = getIO(req);
     if (io) {

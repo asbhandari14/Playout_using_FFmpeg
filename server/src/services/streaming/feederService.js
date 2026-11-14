@@ -469,12 +469,14 @@ export class FeederService {
           `\nPreempting currently playing video decoder to switch immediately.`
         );
 
-        // Mid-video state capture: If the playlist being preempted was playing a video,
+        // Mid-video state capture: If the playlist being preempted was active,
         // capture its exact playback offset so it can seamlessly resume at this exact second
-        if (this.currentPlayingPlaylist?._id && this.currentDecoder) {
-          const pos = this.getCurrentPlaybackPosition();
+        if (this.currentPlayingPlaylist?._id) {
           const prevId = String(this.currentPlayingPlaylist._id);
           const currentItem = this.currentPlayingPlaylist.items?.[this.currentIndex];
+          const pos = this.currentDecoder
+            ? this.getCurrentPlaybackPosition()
+            : { index: this.currentIndex, offsetSeconds: Math.max(0, this.startOffsetSeconds || 0) };
           this.interruptedPlaylistStates.set(prevId, {
             index: this.currentIndex,
             offsetSeconds: pos.offsetSeconds,
@@ -595,34 +597,53 @@ export class FeederService {
         const isSwitchingPlaylist = !currentPlaylistId || String(currentPlaylistId) !== targetPlaylistId;
 
         if (isSwitchingPlaylist) {
+          this.wasPreemptedByPriority = false;
           const savedState = this.interruptedPlaylistStates.get(targetPlaylistId);
           if (savedState) {
             this.interruptedPlaylistStates.delete(targetPlaylistId);
             const isValidIndex = Number.isInteger(savedState.index) && savedState.index >= 0 && savedState.index < (playlist.items?.length || 0);
             if (isValidIndex) {
-              const candidateItem = playlist.items[savedState.index];
+              let resumeIdx = savedState.index;
+              let resumeOffset = Math.max(0, savedState.offsetSeconds || 0);
+
+              const candidateItem = playlist.items[resumeIdx];
               const candidateAssetId = candidateItem?.asset?._id ? String(candidateItem.asset._id) : null;
-              if (!savedState.assetId || savedState.assetId === candidateAssetId) {
-                this.currentIndex = savedState.index;
-                this.startOffsetSeconds = Math.max(0, savedState.offsetSeconds || 0);
-                console.log(
-                  `[Feeder:${this.channelId}] Resuming playlist "${playlist.name}" (${playlist.type}) from saved position: ` +
-                  `item #${this.currentIndex + 1}/${playlist.items.length} ("${candidateItem?.asset?.originalName || 'video'}") ` +
-                  `at offset ${this.startOffsetSeconds.toFixed(1)}s`
-                );
-              } else {
+
+              if (savedState.assetId && savedState.assetId !== candidateAssetId) {
                 const shiftedIdx = playlist.items.findIndex((it) => String(it?.asset?._id || '') === savedState.assetId);
                 if (shiftedIdx !== -1) {
-                  this.currentIndex = shiftedIdx;
-                  this.startOffsetSeconds = Math.max(0, savedState.offsetSeconds || 0);
-                  console.log(
-                    `[Feeder:${this.channelId}] Resuming playlist "${playlist.name}" from shifted item #${this.currentIndex + 1} at offset ${this.startOffsetSeconds.toFixed(1)}s`
-                  );
+                  resumeIdx = shiftedIdx;
                 } else {
                   console.warn(`[Feeder:${this.channelId}] Saved asset no longer in playlist "${playlist.name}". Starting from beginning.`);
-                  this.currentIndex = 0;
-                  this.startOffsetSeconds = 0;
+                  resumeIdx = 0;
+                  resumeOffset = 0;
                 }
+              }
+
+              const targetItem = playlist.items[resumeIdx];
+              const targetDuration = Number(targetItem?.asset?.duration) || 0;
+
+              // Near-end boundary check: if video was interrupted within 2 seconds of completion, advance to next item
+              if (targetDuration > 2 && resumeOffset >= targetDuration - 2) {
+                console.log(
+                  `[Feeder:${this.channelId}] Saved position in "${targetItem?.asset?.originalName || 'video'}" was within 2s of end (${resumeOffset.toFixed(1)}s / ${targetDuration}s). Advancing to next item.`
+                );
+                resumeIdx++;
+                resumeOffset = 0;
+                if (resumeIdx >= playlist.items.length) {
+                  resumeIdx = playlist.loop ? 0 : playlist.items.length;
+                }
+              }
+
+              this.currentIndex = resumeIdx;
+              this.startOffsetSeconds = resumeOffset;
+              if (this.currentIndex < (playlist.items?.length || 0)) {
+                const activeItem = playlist.items[this.currentIndex];
+                console.log(
+                  `[Feeder:${this.channelId}] Resuming playlist "${playlist.name}" (${playlist.type}) from saved position: ` +
+                  `item #${this.currentIndex + 1}/${playlist.items.length} ("${activeItem?.asset?.originalName || 'video'}") ` +
+                  `at offset ${this.startOffsetSeconds.toFixed(1)}s`
+                );
               }
             } else {
               this.currentIndex = 0;
@@ -644,6 +665,7 @@ export class FeederService {
         if (playlist.type === PLAYLIST_TYPE.LIVE_SCHEDULE && playlist.liveSourceUrl && (!playlist.items || playlist.items.length === 0)) {
           console.log(`[Feeder:${this.channelId}] Relaying live schedule stream: ${playlist.liveSourceUrl}`);
           await this.streamAsset(playlist.liveSourceUrl, 0);
+          this.wasPreemptedByPriority = false;
           continue;
         }
 
@@ -1081,6 +1103,18 @@ export class FeederService {
       asset: this.currentAsset
     };
 
+    if (this.currentPlayingPlaylist?._id) {
+      const prevId = String(this.currentPlayingPlaylist._id);
+      this.interruptedPlaylistStates.set(prevId, {
+        index: this.interruptedState.index,
+        offsetSeconds: this.interruptedState.offsetSeconds,
+        assetId: this.interruptedState.asset?._id ? String(this.interruptedState.asset._id) : null,
+        videoPath: this.interruptedState.videoPath,
+        duration: this.interruptedState.duration,
+        savedAt: Date.now()
+      });
+    }
+
     console.log(
       `[Feeder:${this.channelId}] >>> ${hadRegularVideoPlaying ? 'PAUSING PLAYLIST ITEM #' + (this.interruptedState.index + 1) + ' AT ' + this.interruptedState.offsetSeconds.toFixed(1) + 's' : 'DIRECT STARTUP PLAYOUT'} FOR SCHEDULE: "${schedule.title}" (${scheduledAssets.length} video(s)) <<<`
     );
@@ -1376,8 +1410,18 @@ export class FeederService {
     }
 
     // 6. Set resume offset so playLoop resumes at this exact point
-    this.startOffsetSeconds = this.interruptedState.offsetSeconds;
-    this.currentIndex = this.interruptedState.index;
+    let resumeIdx = this.interruptedState.index;
+    let resumeOffset = this.interruptedState.offsetSeconds;
+    const itemDur = Number(this.interruptedState.duration) || 0;
+    if (itemDur > 2 && resumeOffset >= itemDur - 2) {
+      console.log(
+        `[Feeder:${this.channelId}] Interrupted video was within 2s of end (${resumeOffset.toFixed(1)}s / ${itemDur}s). Advancing to next item on schedule complete.`
+      );
+      resumeIdx++;
+      resumeOffset = 0;
+    }
+    this.startOffsetSeconds = resumeOffset;
+    this.currentIndex = resumeIdx;
     this.isScheduleActive = false;
     this.currentSchedule = null;
     this.currentScheduleAsset = null;

@@ -1,10 +1,10 @@
 import React from 'react';
-import { Radio, Copy, Check, Pencil, ExternalLink, Trash2 } from 'lucide-react';
+import { Radio, Copy, Check, Pencil, ExternalLink, Trash2, Calendar } from 'lucide-react';
 import { RTMP_BASE_URL } from '../../constants/dashboard.js';
 import TableScrollContainer from './TableScrollContainer.jsx';
 
 const CHANNEL_GRID_COLS =
-  'grid grid-cols-[150px_minmax(160px,1.5fr)_100px_100px_120px_70px_92px] items-center gap-2.5';
+  'grid grid-cols-[150px_minmax(160px,1.5fr)_100px_100px_120px_70px_120px] items-center gap-2.5';
 
 export default function ChannelTable({
   channels = [],
@@ -12,7 +12,8 @@ export default function ChannelTable({
   onCopyUrl,
   copiedUrl = '',
   onEdit,
-  onDelete
+  onDelete,
+  onOpenEpg
 }) {
   return (
     <div className="bg-[#10141e] border border-[#1e2638] rounded-xl 2xl:rounded-2xl overflow-hidden shadow-xl">
@@ -106,6 +107,13 @@ export default function ChannelTable({
                     {/* Actions */}
                     <div className="text-right">
                       <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          onClick={() => onOpenEpg?.(ch)}
+                          className="p-1 rounded-md text-cyan-400 hover:text-cyan-300 hover:bg-cyan-950/30 transition cursor-pointer"
+                          title="View Channel EPG Guide"
+                        >
+                          <Calendar size={14} />
+                        </button>
                         <button
                           onClick={() => onEdit?.(ch)}
                           className="p-1 rounded-md text-emerald-400 hover:text-emerald-300 hover:bg-emerald-950/30 transition cursor-pointer"

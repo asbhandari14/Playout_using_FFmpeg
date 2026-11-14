@@ -27,6 +27,7 @@ import LiveControls from '../../components/LiveControls.jsx';
 import Modal from '../../components/modals/Modal.jsx';
 import MoreSettingsModal from '../../components/modals/MoreSettingsModal.jsx';
 import ScheduleModal from '../../components/modals/ScheduleModal.jsx';
+import EpgModal from '../../components/modals/EpgModal.jsx';
 
 export default function ControlRoomPage() {
   const { channelId } = useParams();
@@ -40,6 +41,7 @@ export default function ControlRoomPage() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isMoreSettingsOpen, setIsMoreSettingsOpen] = useState(false);
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+  const [isEpgModalOpen, setIsEpgModalOpen] = useState(false);
   const [currentOnAirSchedule, setCurrentOnAirSchedule] = useState(null);
 
   // Initial data loading
@@ -195,6 +197,7 @@ export default function ControlRoomPage() {
         onOpenSettings={() => setIsSettingsOpen(true)}
         onOpenMoreSettings={() => setIsMoreSettingsOpen(true)}
         onOpenSchedules={() => setIsScheduleModalOpen(true)}
+        onOpenEpg={() => setIsEpgModalOpen(true)}
         currentOnAirSchedule={currentOnAirSchedule}
       />
 
@@ -335,6 +338,13 @@ export default function ControlRoomPage() {
         channelName={currentChannel?.name}
         currentOnAirSchedule={currentOnAirSchedule}
       /> */}
+
+      {/* EPG Broadcast Guide Modal */}
+      <EpgModal
+        isOpen={isEpgModalOpen}
+        onClose={() => setIsEpgModalOpen(false)}
+        channel={currentChannel}
+      />
     </div>
   );
 }

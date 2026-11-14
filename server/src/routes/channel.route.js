@@ -59,6 +59,11 @@ import {
   getStreamStatusHandler,
   getCurrentlyPlayingHandler
 } from '../controllers/stream.controller.js';
+import {
+  getChannelEpgHandler,
+  getChannelEpgXmlHandler,
+  syncChannelEpgHandler
+} from '../controllers/epg.controller.js';
 import { auth } from '../middleware/auth.middleware.js';
 import { role } from '../middleware/role.middleware.js';
 import { uploadLogo, uploadBug, uploadLBand, uploadAshton, uploadOverlay } from '../middleware/logoUpload.js';
@@ -66,7 +71,14 @@ import { ROLES } from '../config/constants.js';
 
 const router = Router();
 
+// Public XMLTV EPG endpoint (accessible by external players like VLC, TiviMate, and IPTV boxes)
+router.get('/:channelId/epg.xml', getChannelEpgXmlHandler);
+
 router.use(auth);
+
+// Electronic Programme Guide (EPG)
+router.get('/:channelId/epg', getChannelEpgHandler);
+router.post('/:channelId/epg/sync', syncChannelEpgHandler);
 
 // Global Playout / Now-Playing Status
 router.get('/now-playing', getCurrentlyPlayingHandler);

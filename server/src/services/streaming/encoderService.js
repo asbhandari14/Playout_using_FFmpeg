@@ -1,7 +1,16 @@
 import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs';
-import * as zmq from 'zeromq';
+import { createRequire } from 'module';
+
+const require = createRequire(import.meta.url);
+let zmq = null;
+try {
+  zmq = require('zeromq');
+} catch (zErr) {
+  console.warn('[Encoder] Notice: ZeroMQ native addon could not be loaded. Live overlay commands will run in bypass mode.');
+}
+
 import sharp from 'sharp';
 import { ensureBrandingFiles, renderTickerImage, generateDefaultAshtonSvg, safeWriteFileSync, TICKER_CANVAS_HEIGHT } from './brandingAssets.js';
 import { STREAMS_DIR, SERVER_ROOT } from '../../config/paths.js';
@@ -904,9 +913,11 @@ export class EncoderService {
         }
 
         try {
-          this.zmqSocket = new zmq.Request();
-          this.zmqSocket.connect(`tcp://127.0.0.1:${this.zmqPort}`);
-          console.log(`[Encoder] ZMQ socket connected for live overlay commands on port ${this.zmqPort}`);
+          if (zmq?.Request) {
+            this.zmqSocket = new zmq.Request();
+            this.zmqSocket.connect(`tcp://127.0.0.1:${this.zmqPort}`);
+            console.log(`[Encoder] ZMQ socket connected for live overlay commands on port ${this.zmqPort}`);
+          }
         } catch (err) {
           console.error('[Encoder] ZMQ connect error:', err);
         }
@@ -1017,7 +1028,7 @@ export class EncoderService {
           }
         } catch { }
         try {
-          if (this.isRunning) {
+          if (this.isRunning && zmq?.Request) {
             this.zmqSocket = new zmq.Request();
             this.zmqSocket.connect(`tcp://127.0.0.1:${this.zmqPort}`);
             await new Promise((r) => setTimeout(r, 40));

@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { CheckCircle2, AlertCircle } from 'lucide-react';
 
 import useDashboard from '../../hooks/useDashboard.js';
 import ConfirmDeleteModal from '../../components/modals/ConfirmDeleteModal.jsx';
+import EpgModal from '../../components/modals/EpgModal.jsx';
 import DashboardHeader from '../../components/header/DashboardHeader.jsx';
 import DashboardSidebar from '../../components/sidebar/DashboardSidebar.jsx';
 
@@ -25,6 +26,7 @@ import UpdatePlaylistForm from '../../components/form/UpdatePlaylistForm.jsx';
 
 import ChannelInfoForm from '../../components/form/ChannelInfoForm.jsx';
 import BandSection from '../../components/band/BandSection.jsx';
+import EpgSection from '../../components/epg/EpgSection.jsx';
 import ModulePlaceholder from '../../components/placeholder/ModulePlaceholder.jsx';
 
 export default function Dashboard({ initialSection = 'channels', initialSubView = 'list' }) {
@@ -54,6 +56,8 @@ export default function Dashboard({ initialSection = 'channels', initialSubView 
     deleteModal,
     actions
   } = useDashboard(initialSection, initialSubView);
+
+  const [epgModal, setEpgModal] = useState({ isOpen: false, channel: null });
 
   const { activeSection, subView } = nav;
   const isFormView = subView === 'create' || subView === 'edit';
@@ -131,6 +135,7 @@ export default function Dashboard({ initialSection = 'channels', initialSubView 
                 onEdit={channelForm.openEdit}
                 onDelete={deleteModal.prompt}
                 onOpenStudio={actions.openChannelStudio}
+                onOpenEpg={(ch) => setEpgModal({ isOpen: true, channel: ch })}
                 copiedUrl={copiedUrl}
                 onCopyUrl={copyUrl}
               />
@@ -364,6 +369,11 @@ export default function Dashboard({ initialSection = 'channels', initialSubView 
             />
           )}
 
+          {/* EPG Section */}
+          {activeSection === 'epg' && (
+            <EpgSection channels={channels} />
+          )}
+
           {/* Fallback for other sections */}
           {activeSection !== 'users' &&
             activeSection !== 'channels' &&
@@ -372,6 +382,7 @@ export default function Dashboard({ initialSection = 'channels', initialSubView 
             activeSection !== 'info' &&
             activeSection !== 'lband' &&
             activeSection !== 'ashton' &&
+            activeSection !== 'epg' &&
             activeSection !== 'default_playlist' &&
             activeSection !== 'scheduling_playlist' &&
             activeSection !== 'live_schedule' &&
@@ -412,6 +423,14 @@ export default function Dashboard({ initialSection = 'channels', initialSubView 
             : `Are you sure you want to delete playlist '${deleteItem?.name}'? Its schedule and associated items will be permanently removed.`
         }
         confirmText="Confirm Delete"
+      />
+
+      {/* EPG Modal */}
+      <EpgModal
+        isOpen={epgModal.isOpen}
+        onClose={() => setEpgModal({ isOpen: false, channel: null })}
+        channel={epgModal.channel}
+        channels={channels}
       />
     </div>
   );

@@ -12,6 +12,7 @@ import { Channel } from '../models/channel.model.js';
 import { formatDuration } from '../utils/media.js';
 import { io } from '../server.js';
 import { ROLES, PLAYLIST_ITEM_STATUS } from '../config/constants.js';
+import { autoSyncChannelEpg } from '../services/epgService.js';
 
 export { isPlaylistCurrentlyActive };
 
@@ -219,6 +220,9 @@ export const createPlaylist = async (req, res, next) => {
     // Trigger instant priority playout check if channel is currently live
     streamManager.checkChannelPriorityPlayout(channelId).catch(() => { });
 
+    // Automatically recalculate & persist 24h Micro-Event EPG timeline (Approach B)
+    autoSyncChannelEpg(channelId, [startDate, endDate]).catch(() => { });
+
     return res.status(201).json({
       message: 'Playlist created successfully',
       playlist: populated
@@ -300,6 +304,9 @@ export const updatePlaylist = async (req, res, next) => {
     // Trigger instant priority playout check if channel is currently live
     streamManager.checkChannelPriorityPlayout(channelId).catch(() => { });
 
+    // Automatically recalculate & persist 24h Micro-Event EPG timeline (Approach B)
+    autoSyncChannelEpg(channelId, [playlist.startDate, playlist.endDate]).catch(() => { });
+
     return res.status(200).json({
       message: 'Playlist updated successfully',
       playlist: populated
@@ -361,6 +368,9 @@ export const savePlaylist = async (req, res, next) => {
     // Trigger instant priority playout check if channel is currently live
     streamManager.checkChannelPriorityPlayout(channelId).catch(() => { });
 
+    // Automatically recalculate & persist 24h Micro-Event EPG timeline (Approach B)
+    autoSyncChannelEpg(channelId, [playlist.startDate, playlist.endDate]).catch(() => { });
+
     return res.status(200).json({
       message: 'Playlist saved successfully',
       playlist: populated
@@ -401,6 +411,9 @@ export const deletePlaylist = async (req, res, next) => {
     // Trigger instant priority playout check if channel is currently live
     streamManager.checkChannelPriorityPlayout(channelId).catch(() => { });
 
+    // Automatically recalculate & persist 24h Micro-Event EPG timeline (Approach B)
+    autoSyncChannelEpg(channelId, [playlist.startDate, playlist.endDate]).catch(() => { });
+
     return res.status(200).json({
       message: 'Playlist deleted successfully',
       playlistId
@@ -439,6 +452,9 @@ export const clearPlaylist = async (req, res, next) => {
 
     // Trigger instant priority playout check if channel is currently live
     streamManager.checkChannelPriorityPlayout(channelId).catch(() => { });
+
+    // Automatically recalculate & persist 24h Micro-Event EPG timeline (Approach B)
+    autoSyncChannelEpg(channelId, [playlist.startDate, playlist.endDate]).catch(() => { });
 
     return res.status(200).json({
       message: 'Broadcast playlist cleared',

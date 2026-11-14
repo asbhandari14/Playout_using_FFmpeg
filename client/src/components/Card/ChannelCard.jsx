@@ -1,7 +1,7 @@
 import React from 'react';
-import { Radio, PlayCircle } from 'lucide-react';
+import { Radio, PlayCircle, Calendar } from 'lucide-react';
 
-export default function ChannelCard({ channel, onEnter }) {
+export default function ChannelCard({ channel, onEnter, onOpenEpg }) {
   if (!channel) return null;
 
   return (
@@ -112,6 +112,15 @@ export default function ChannelCard({ channel, onEnter }) {
         >
           <PlayCircle size={15} />
           Enter Control Room
+        </button>
+        <button
+          type="button"
+          onClick={() => onOpenEpg?.(channel)}
+          className="py-2 px-3 rounded-lg bg-[#141b2b] hover:bg-[#1a2338] border border-[#232f48] text-cyan-400 font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+          title="Open Channel EPG Guide"
+        >
+          <Calendar size={14} />
+          <span className="hidden sm:inline">EPG</span>
         </button>
       </div>
     </div>

@@ -50,6 +50,7 @@ export default function DashboardSidebar({
   const isLiveActive = activeSection === 'live_schedule';
   const isAdActive = activeSection === 'advertisement_playlist';
   const isEmergencyActive = activeSection === 'emergency_playlist';
+  const isEpgActive = activeSection === 'epg';
   const isLBandActive = activeSection === 'lband';
   const isAshtonActive = activeSection === 'ashton';
 
@@ -170,6 +171,17 @@ export default function DashboardSidebar({
             <div className="flex items-center gap-2.5">
               <ClipboardClock size={15} />
               <span>Scheduling Playlist</span>
+            </div>
+          </button>
+
+          {/* 5. EPG Electronic Programme Guide */}
+          <button
+            onClick={() => handleNav('epg', '/epg')}
+            className={`${BASE_CLASS} ${isEpgActive ? ACTIVE_CLASS : INACTIVE_CLASS}`}
+          >
+            <div className="flex items-center gap-2.5">
+              <Calendar size={15} className={isEpgActive ? 'text-[#00bcd4]' : ''} />
+              <span>EPG Guide</span>
             </div>
           </button>
 

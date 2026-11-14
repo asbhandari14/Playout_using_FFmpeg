@@ -123,6 +123,14 @@ export default function App() {
           }
         />
         <Route
+          path="/epg"
+          element={
+            <ProtectedRoute>
+              <Dashboard initialSection="epg" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/channels"
           element={
             <ProtectedRoute>

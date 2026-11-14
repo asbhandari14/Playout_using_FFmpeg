@@ -23,6 +23,7 @@ export default function BroadcastHeader({
   onOpenSettings,
   onOpenMoreSettings,
   onOpenSchedules,
+  onOpenEpg,
   currentOnAirSchedule = null
 }) {
   const navigate = useNavigate();
@@ -133,6 +134,16 @@ export default function BroadcastHeader({
             {currentOnAirSchedule ? 'SCHEDULE LIVE' : 'Schedules'}
           </span>
         </button> */}
+
+        {/* EPG Guide Button */}
+        <button
+          onClick={onOpenEpg}
+          className="px-2 sm:px-2.5 py-1 2xl:px-3 2xl:py-1.5 rounded-md 2xl:rounded-lg bg-linear-to-r from-cyan-950/50 via-sky-950/50 to-blue-950/50 hover:from-cyan-900/60 hover:to-blue-900/60 border border-cyan-500/40 hover:border-cyan-400/80 text-cyan-200 hover:text-white transition flex items-center gap-1.5 text-[10px] font-bold tracking-wider shadow-sm group shrink-0 cursor-pointer"
+          title="Open Electronic Programme Guide (EPG)"
+        >
+          <Calendar size={12} className="text-cyan-400 group-hover:scale-110 transition duration-200" />
+          <span className="hidden sm:inline uppercase text-[9.5px] 2xl:text-[10px] tracking-wider font-extrabold">EPG Guide</span>
+        </button>
 
         {/* Dashboard button */}
         <button

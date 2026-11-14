@@ -1,10 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Tv, Search } from 'lucide-react';
 import useChannel from '../../hooks/useChannel.js';
 import DashboardHeader from '../../components/header/DashboardHeader.jsx';
 import ChannelCard from '../../components/card/ChannelCard.jsx';
+import EpgModal from '../../components/modals/EpgModal.jsx';
 
 export default function AllChannels() {
+  const [epgModal, setEpgModal] = useState({ isOpen: false, channel: null });
+
   const {
     currentUser,
     filteredChannels,
@@ -75,11 +78,20 @@ export default function AllChannels() {
                 key={channel._id}
                 channel={channel}
                 onEnter={openChannelStudio}
+                onOpenEpg={(ch) => setEpgModal({ isOpen: true, channel: ch })}
               />
             ))
           )}
         </div>
       </main>
+
+      {/* EPG Modal */}
+      <EpgModal
+        isOpen={epgModal.isOpen}
+        onClose={() => setEpgModal({ isOpen: false, channel: null })}
+        channel={epgModal.channel}
+        channels={filteredChannels}
+      />
     </div>
   );
 }
