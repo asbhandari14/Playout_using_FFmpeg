@@ -133,17 +133,19 @@ export default function VideoSection({ channel, selectedAsset, isLive = false })
 
         const hls = new Hls({
           enableWorker: true,
-          lowLatencyMode: false,
-          liveSyncDurationCount: 3,
-          liveMaxLatencyDurationCount: 6,
-          maxBufferLength: 12,
-          maxMaxBufferLength: 24,
-          maxBufferHole: 1.5,
-          nudgeOffset: 0.2,
-          nudgeMaxRetry: 10,
-          fragLoadingMaxRetry: 6,
-          manifestLoadingMaxRetry: 6,
-          levelLoadingMaxRetry: 6
+          lowLatencyMode: true,             // Enable Low-Latency HLS parsing
+          liveSyncDurationCount: 2,         // Stay only 2 segments behind the live edge (approx 4s)
+          liveMaxLatencyDurationCount: 3,   // Max allowable drift is 3 segments (approx 6-8s)
+          maxBufferLength: 4,               // Buffer only 4s ahead of playhead
+          maxMaxBufferLength: 8,            // Upper limit of 8s
+          liveBackBufferLength: 0,          // Do not hoard past segments in memory
+          highBufferWatchdogPeriod: 1,      // Fast recovery if player drifts
+          maxBufferHole: 0.5,
+          nudgeOffset: 0.1,
+          nudgeMaxRetry: 5,
+          fragLoadingMaxRetry: 4,
+          manifestLoadingMaxRetry: 4,
+          levelLoadingMaxRetry: 4
         });
 
         hls.loadSource(hlsUrl);

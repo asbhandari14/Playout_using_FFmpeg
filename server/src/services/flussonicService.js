@@ -91,6 +91,8 @@ export const createFlussonicStream = async (server, channelOrKey, options = {}) 
         url: 'publish://'
       }
     ],
+    segment_duration: 2000,
+    segment_count: 5,
     ...options.flussonicConfig
   };
 

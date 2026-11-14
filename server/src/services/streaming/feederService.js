@@ -451,8 +451,16 @@ export class FeederService {
    * terminates current video decoder immediately so playLoop can transition seamlessly.
    */
   async checkPriorityTransition() {
-    if (!this.isRunning || this.isScheduleActive || this.isCheckingPriority) {
+    if (!this.isRunning || this.isCheckingPriority) {
       return false;
+    }
+
+    // If a calendar schedule is playing, allow Emergency playlist (Priority 5) to preempt immediately
+    if (this.isScheduleActive) {
+      const activeEmergency = await this.resolveActivePlaylist();
+      if (activeEmergency?.type !== PLAYLIST_TYPE.EMERGENCY) {
+        return false;
+      }
     }
     this.isCheckingPriority = true;
 
@@ -461,13 +469,21 @@ export class FeederService {
       const currentId = this.currentPlayingPlaylist?._id ? String(this.currentPlayingPlaylist._id) : null;
       const targetId = targetPlaylist?._id ? String(targetPlaylist._id) : null;
 
-      if (currentId !== targetId) {
+      if (currentId !== targetId || (this.isScheduleActive && targetPlaylist?.type === PLAYLIST_TYPE.EMERGENCY)) {
         console.log(
           `[Feeder:${this.channelId}] >>> REAL-TIME PRIORITY TRANSITION <<<` +
-          `\nFrom: "${this.currentPlayingPlaylist?.name || 'Standby Slate'}" (${this.currentPlayingPlaylist?.type || 'standby'}, P${this.currentPlayingPlaylist?.priority || 0})` +
+          `\nFrom: "${this.currentPlayingPlaylist?.name || (this.isScheduleActive ? 'Calendar Schedule' : 'Standby Slate')}" (${this.currentPlayingPlaylist?.type || (this.isScheduleActive ? 'schedule' : 'standby')}, P${this.currentPlayingPlaylist?.priority || 0})` +
           `\nTo:   "${targetPlaylist?.name || 'Standby Slate'}" (${targetPlaylist?.type || 'standby'}, P${targetPlaylist?.priority || 0})` +
           `\nPreempting currently playing video decoder to switch immediately.`
         );
+
+        if (this.isScheduleActive && targetPlaylist?.type === PLAYLIST_TYPE.EMERGENCY) {
+          console.log(`[Feeder:${this.channelId}] Emergency playlist preempted active calendar schedule.`);
+          this.isScheduleActive = false;
+          this.currentSchedule = null;
+          this.currentScheduleAsset = null;
+          this.currentScheduleTargetEndTime = null;
+        }
 
         // Mid-video state capture: If the playlist being preempted was active,
         // capture its exact playback offset so it can seamlessly resume at this exact second

@@ -719,9 +719,9 @@ export class EncoderService {
       rtmpTarget = `${rtmpBase}/${streamKey}`;
     }
 
-    // Dual output via tee: local HLS (2s GOP-aligned segments, 6-segment window) + remote RTMP for broadcast playout
+    // Dual output via tee: local HLS (1s GOP-aligned segments, 5-segment window) + remote RTMP for broadcast playout
     // Note: Remote RTMP must not ignore failure so network drops trigger immediate failover / recovery
-    const teeOutput = `[f=hls:hls_time=2:hls_list_size=6:hls_flags=delete_segments+split_by_time+independent_segments]${hlsManifest}|[f=flv:flvflags=no_duration_filesize]${rtmpTarget}`;
+    const teeOutput = `[f=hls:hls_time=1:hls_list_size=5:hls_flags=delete_segments+split_by_time+independent_segments+omit_endlist]${hlsManifest}|[f=flv:flvflags=no_duration_filesize]${rtmpTarget}`;
 
     const ffmpegArgs = [
       '-y',
@@ -749,17 +749,19 @@ export class EncoderService {
       '-filter_complex', filtergraph,
       '-map', '[vout]',
       '-map', '[aout]',
-      // Video encoding (libx264, CPU only, low CPU veryfast preset, GOP = 2 * fps = 2s keyframes)
+      // Video encoding (libx264, CPU only, low CPU veryfast preset, zerolatency, GOP = 1 * fps = 1s keyframes)
       '-c:v', 'libx264',
       '-preset', 'veryfast',
-      '-g', String(fps * 2),
+      '-tune', 'zerolatency',           // Eliminates x264 40-frame lookahead and B-frame reordering delay
+      '-g', String(fps),                // 1-second GOP (25 frames at 25fps) allows keyframes every 1 second
       '-keyint_min', String(fps),
       '-sc_threshold', '0',
       '-b:v', this.channel.outputSettings?.videoBitrate || '2500k',
       '-maxrate', this.channel.outputSettings?.videoBitrate || '2500k',
-      '-bufsize', '5000k',
+      '-bufsize', '2500k',              // Tightened buffer (1 second worth) prevents frame buildup
       '-pix_fmt', 'yuv420p',
       '-flags', '+global_header', // Required for FLV/RTMP to include SPS/PPS headers for Flussonic!
+
       // Audio encoding
       '-c:a', 'aac',
       '-b:a', this.channel.outputSettings?.audioBitrate || '128k',
@@ -868,7 +870,7 @@ export class EncoderService {
       if (this.watchdogTimer) {
         clearInterval(this.watchdogTimer);
         this.watchdogTimer = null;
-    this.isTransitioning = false;
+        this.isTransitioning = false;
       }
       if (this.zmqSocket) {
         try {
@@ -1953,7 +1955,7 @@ export class EncoderService {
     if (this.watchdogTimer) {
       clearInterval(this.watchdogTimer);
       this.watchdogTimer = null;
-    this.isTransitioning = false;
+      this.isTransitioning = false;
     }
     if (this.zmqSocket) {
       try {
