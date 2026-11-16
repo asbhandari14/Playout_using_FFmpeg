@@ -135,6 +135,15 @@ export default function useDashboard(initialSection = 'channels', initialSubView
     };
   }, [dispatch, canManage, fetchDashboardPlaylists]);
 
+  // Re-fetch users or servers when switching into those sections
+  useEffect(() => {
+    if (canManage && activeSection === 'users') {
+      dispatch(fetchUsers());
+    } else if (canManage && activeSection === 'servers') {
+      dispatch(fetchServers());
+    }
+  }, [activeSection, canManage, dispatch]);
+
   // ---------- Auto-clear alerts after 4s ----------
   useEffect(() => {
     if (playlistAlert.success || playlistAlert.error) {
@@ -189,9 +198,10 @@ export default function useDashboard(initialSection = 'channels', initialSubView
 
   // ---------- Filtered lists ----------
   const filteredUsers = useMemo(() => {
-    if (!searchQuery) return users;
+    const list = Array.isArray(users) ? users : [];
+    if (!searchQuery) return list;
     const q = searchQuery.toLowerCase();
-    return users.filter(
+    return list.filter(
       (u) =>
         (u.name && u.name.toLowerCase().includes(q)) ||
         (u.email && u.email.toLowerCase().includes(q))
