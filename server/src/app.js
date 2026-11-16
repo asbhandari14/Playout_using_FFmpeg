@@ -15,14 +15,15 @@ import playlistRoutes from './routes/playlist.route.js';
 
 // Import Middleware
 import { errorHandler } from './middleware/errorHandler.js';
-// import helmet from 'helmet';
 import morgan from 'morgan';
 
 // Import path
 import { UPLOADS_DIR, STREAMS_DIR } from './config/paths.js';
 
+// Set the frontend build dist file path in "clientDistPath"
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const clientDistPath = path.join(__dirname, '../../client/dist');
 
 const app = express();
 
@@ -49,6 +50,9 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(UPLOADS_DIR));
 app.use('/streams', express.static(STREAMS_DIR));
 
+// Serve React frontend static files
+app.use(express.static(clientDistPath));
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.status(200).json({
@@ -65,6 +69,12 @@ app.use('/api/v1/servers', serverRoutes);
 app.use('/api/v1/channels', channelRoutes);
 app.use('/api/v1/assets', assetRoutes);
 app.use('/api/v1/playlists', playlistRoutes);
+
+app.get('/{*splat}', (req, res, next) => {
+  res.sendFile(path.join(clientDistPath, 'index.html'), (err) => {
+    if (err) next(err);
+  });
+});
 
 // 404 handler
 app.use((req, res) => {
