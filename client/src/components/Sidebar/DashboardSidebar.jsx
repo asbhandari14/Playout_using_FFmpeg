@@ -41,6 +41,10 @@ export default function DashboardSidebar({
     }
   };
 
+  const isSuperAdmin = currentUser?.role === 'super_admin';
+  const isAdmin = currentUser?.role === 'admin';
+  const canManage = isSuperAdmin || isAdmin;
+
   const isChannelsActive = activeSection === 'channels' || activeSection === 'dashboard';
   const isInfoActive = activeSection === 'info';
   const isServersActive = activeSection === 'servers';
@@ -85,35 +89,39 @@ export default function DashboardSidebar({
             Management
           </div>
 
-          <button
-            onClick={() => handleNav('channels', '/dashboard')}
-            className={`${BASE_CLASS} ${isChannelsActive ? ACTIVE_CLASS : INACTIVE_CLASS}`}
-          >
-            <div className="flex items-center gap-2.5">
-              <LayoutDashboard size={15} className={isChannelsActive ? 'text-[#00bcd4]' : ''} />
-              <span>Channel</span>
-            </div>
-          </button>
+          {canManage && (
+            <>
+              <button
+                onClick={() => handleNav('channels', '/dashboard')}
+                className={`${BASE_CLASS} ${isChannelsActive ? ACTIVE_CLASS : INACTIVE_CLASS}`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <LayoutDashboard size={15} className={isChannelsActive ? 'text-[#00bcd4]' : ''} />
+                  <span>Channel</span>
+                </div>
+              </button>
 
-          <button
-            onClick={() => handleNav('servers', '/servers')}
-            className={`${BASE_CLASS} ${isServersActive ? ACTIVE_CLASS : INACTIVE_CLASS}`}
-          >
-            <div className="flex items-center gap-2.5">
-              <ServerIcon size={15} className={isServersActive ? 'text-[#00bcd4]' : ''} />
-              <span>Server</span>
-            </div>
-          </button>
+              <button
+                onClick={() => handleNav('servers', '/servers')}
+                className={`${BASE_CLASS} ${isServersActive ? ACTIVE_CLASS : INACTIVE_CLASS}`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <ServerIcon size={15} className={isServersActive ? 'text-[#00bcd4]' : ''} />
+                  <span>Server</span>
+                </div>
+              </button>
 
-          <button
-            onClick={() => handleNav('users', '/users')}
-            className={`${BASE_CLASS} ${isUsersActive ? ACTIVE_CLASS : INACTIVE_CLASS}`}
-          >
-            <div className="flex items-center gap-2.5">
-              <UserIcon size={15} className={isUsersActive ? 'text-[#00bcd4]' : ''} />
-              <span>User</span>
-            </div>
-          </button>
+              <button
+                onClick={() => handleNav('users', '/users')}
+                className={`${BASE_CLASS} ${isUsersActive ? ACTIVE_CLASS : INACTIVE_CLASS}`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <UserIcon size={15} className={isUsersActive ? 'text-[#00bcd4]' : ''} />
+                  <span>User</span>
+                </div>
+              </button>
+            </>
+          )}
 
           <button
             onClick={() => handleNav('info', '/info')}

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CheckCircle2, AlertCircle } from 'lucide-react';
+import { CheckCircle2, AlertCircle, ShieldAlert } from 'lucide-react';
 
 import useDashboard from '../../hooks/useDashboard.js';
 import ConfirmDeleteModal from '../../components/modals/ConfirmDeleteModal.jsx';
@@ -59,6 +59,10 @@ export default function Dashboard({ initialSection = 'channels', initialSubView 
 
   const [epgModal, setEpgModal] = useState({ isOpen: false, channel: null });
 
+  const isSuperAdmin = currentUser?.role === 'super_admin';
+  const isAdmin = currentUser?.role === 'admin';
+  const canManage = isSuperAdmin || isAdmin;
+
   const { activeSection, subView } = nav;
   const isFormView = subView === 'create' || subView === 'edit';
   const { type: deleteType, item: deleteItem } = deleteModal.state;
@@ -71,7 +75,7 @@ export default function Dashboard({ initialSection = 'channels', initialSubView 
         isProfileMenuOpen={nav.isProfileMenuOpen}
         onToggleProfileMenu={nav.toggleProfileMenu}
         onToggleSidebar={nav.toggleSidebar}
-        onLogoClick={() => nav.goToSection('channels')}
+        onLogoClick={() => nav.goToSection(canManage ? 'channels' : 'info')}
         onOpenControlRoom={actions.openControlRoom}
         onLogout={actions.logout}
       />
@@ -102,8 +106,8 @@ export default function Dashboard({ initialSection = 'channels', initialSubView 
               </div>
             )}
 
-          {/* 1. Channels */}
-          {(activeSection === 'channels' || activeSection === 'dashboard') &&
+          {/* 1. Channels (Admin / Super Admin only) */}
+          {canManage && (activeSection === 'channels' || activeSection === 'dashboard') &&
             (isFormView ? (
               subView === 'create' ? (
                 <CreateChannelForm
@@ -141,8 +145,8 @@ export default function Dashboard({ initialSection = 'channels', initialSubView 
               />
             ))}
 
-          {/* 2. Servers */}
-          {activeSection === 'servers' &&
+          {/* 2. Servers (Admin / Super Admin only) */}
+          {canManage && activeSection === 'servers' &&
             (isFormView ? (
               subView === 'create' ? (
                 <CreateServerForm
@@ -172,8 +176,8 @@ export default function Dashboard({ initialSection = 'channels', initialSubView 
               />
             ))}
 
-          {/* 3. Users */}
-          {activeSection === 'users' &&
+          {/* 3. Users (Admin / Super Admin only) */}
+          {canManage && activeSection === 'users' &&
             (isFormView ? (
               subView === 'create' ? (
                 <CreateUserForm
@@ -203,12 +207,32 @@ export default function Dashboard({ initialSection = 'channels', initialSubView 
               />
             ))}
 
+          {/* Access restricted fallback for regular users */}
+          {!canManage && (activeSection === 'channels' || activeSection === 'dashboard' || activeSection === 'servers' || activeSection === 'users') && (
+            <div className="py-20 text-center text-slate-400 font-mono">
+              <div className="w-12 h-12 rounded-xl bg-amber-950/40 border border-amber-800/60 text-amber-400 flex items-center justify-center mx-auto mb-3">
+                <ShieldAlert size={24} />
+              </div>
+              <h2 className="text-base font-bold text-white mb-1">Access Restricted</h2>
+              <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                Your role does not have permission to access the {activeSection === 'users' ? 'User' : activeSection === 'servers' ? 'Server' : 'Channel'} management section.
+              </p>
+              <button
+                type="button"
+                onClick={() => nav.goToSection('info')}
+                className="mt-4 px-3.5 py-1.5 rounded-lg bg-[#141b28] hover:bg-[#1d273a] border border-[#253248] text-[#00bcd4] text-xs font-semibold transition"
+              >
+                Go to Info Section
+              </button>
+            </div>
+          )}
+
           {/* Info - Channel Broadcast Information */}
           {activeSection === 'info' && (
             <ChannelInfoForm
               channels={channels}
               selectedChannelId={channels[0]?._id}
-              onCancel={() => nav.goToSection('channels')}
+              onCancel={() => nav.goToSection(canManage ? 'channels' : 'info')}
               onOpenStudio={actions.openChannelStudio}
             />
           )}

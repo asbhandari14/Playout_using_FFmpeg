@@ -83,6 +83,15 @@ export const getPlaylist = async (req, res, next) => {
     const { channelId } = req.params;
     const { playlistId, type } = req.query;
 
+    if (req.user.role === ROLES.USER) {
+      const ch = await Channel.findById(channelId);
+      const isAssigned = String(ch?.assignedUser?._id || ch?.assignedUser) === String(req.user._id);
+      const isCreator = String(ch?.createdBy?._id || ch?.createdBy) === String(req.user._id);
+      if (!isAssigned && !isCreator) {
+        return res.status(403).json({ message: 'Forbidden: You do not have access to this channel' });
+      }
+    }
+
     let query = { channel: channelId };
     if (playlistId) {
       query._id = playlistId;
@@ -177,6 +186,14 @@ export const createPlaylist = async (req, res, next) => {
       return res.status(404).json({ message: 'Channel not found' });
     }
 
+    if (req.user.role === ROLES.USER) {
+      const isAssigned = String(channel.assignedUser?._id || channel.assignedUser) === String(req.user._id);
+      const isCreator = String(channel.createdBy?._id || channel.createdBy) === String(req.user._id);
+      if (!isAssigned && !isCreator) {
+        return res.status(403).json({ message: 'Forbidden: You do not have access to this channel' });
+      }
+    }
+
     // Determine priority based on playlist type:
     // emergency (5) > advertisement (4) > live_schedule (3) > scheduling (2) > default (1)
     const priority = PLAYLIST_PRIORITY[type] || 1;
@@ -256,6 +273,15 @@ export const updatePlaylist = async (req, res, next) => {
       items
     } = req.body;
 
+    if (req.user.role === ROLES.USER) {
+      const ch = await Channel.findById(channelId);
+      const isAssigned = String(ch?.assignedUser?._id || ch?.assignedUser) === String(req.user._id);
+      const isCreator = String(ch?.createdBy?._id || ch?.createdBy) === String(req.user._id);
+      if (!isAssigned && !isCreator) {
+        return res.status(403).json({ message: 'Forbidden: You do not have access to this channel' });
+      }
+    }
+
     let playlist = await Playlist.findOne({ _id: playlistId, channel: channelId });
     if (!playlist) {
       return res.status(404).json({ message: 'Playlist not found' });
@@ -323,6 +349,15 @@ export const savePlaylist = async (req, res, next) => {
     const { channelId } = req.params;
     const { items = [], loop, playlistId, type } = req.body || {};
 
+    if (req.user.role === ROLES.USER) {
+      const ch = await Channel.findById(channelId);
+      const isAssigned = String(ch?.assignedUser?._id || ch?.assignedUser) === String(req.user._id);
+      const isCreator = String(ch?.createdBy?._id || ch?.createdBy) === String(req.user._id);
+      if (!isAssigned && !isCreator) {
+        return res.status(403).json({ message: 'Forbidden: You do not have access to this channel' });
+      }
+    }
+
     let query = { channel: channelId };
     if (playlistId) {
       query._id = playlistId;
@@ -388,7 +423,9 @@ export const deletePlaylist = async (req, res, next) => {
 
     if (req.user.role === ROLES.USER) {
       const ch = await Channel.findById(channelId);
-      if (String(ch?.assignedUser) !== String(req.user._id)) {
+      const isAssigned = String(ch?.assignedUser?._id || ch?.assignedUser) === String(req.user._id);
+      const isCreator = String(ch?.createdBy?._id || ch?.createdBy) === String(req.user._id);
+      if (!isAssigned && !isCreator) {
         return res.status(403).json({ message: 'Forbidden: You do not have access to this channel' });
       }
     }
@@ -429,6 +466,15 @@ export const clearPlaylist = async (req, res, next) => {
   try {
     const { channelId } = req.params;
     const { playlistId, type } = req.query;
+
+    if (req.user.role === ROLES.USER) {
+      const ch = await Channel.findById(channelId);
+      const isAssigned = String(ch?.assignedUser?._id || ch?.assignedUser) === String(req.user._id);
+      const isCreator = String(ch?.createdBy?._id || ch?.createdBy) === String(req.user._id);
+      if (!isAssigned && !isCreator) {
+        return res.status(403).json({ message: 'Forbidden: You do not have access to this channel' });
+      }
+    }
 
     let query = { channel: channelId };
     if (playlistId) {

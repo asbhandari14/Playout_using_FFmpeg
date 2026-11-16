@@ -142,9 +142,9 @@ export default function App() {
         <Route
           path="/channels/manage"
           element={
-            <ProtectedRoute>
+            <AdminRoute>
               <Dashboard initialSection="channels" />
-            </ProtectedRoute>
+            </AdminRoute>
           }
         />
 
@@ -152,17 +152,17 @@ export default function App() {
         <Route
           path="/channels/create"
           element={
-            <ProtectedRoute>
+            <AdminRoute>
               <Dashboard initialSection="channels" initialSubView="create" />
-            </ProtectedRoute>
+            </AdminRoute>
           }
         />
         <Route
           path="/channels/edit/:id"
           element={
-            <ProtectedRoute>
+            <AdminRoute>
               <Dashboard initialSection="channels" initialSubView="edit" />
-            </ProtectedRoute>
+            </AdminRoute>
           }
         />
 

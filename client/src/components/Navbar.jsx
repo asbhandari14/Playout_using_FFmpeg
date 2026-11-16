@@ -68,9 +68,9 @@ export default function Navbar({ channelTitle = null, onBack = null }) {
       {!channelTitle && (
         <nav className="hidden md:flex items-center space-x-1 bg-[#131720] p-1 rounded-lg border border-[#222938]">
           <Link
-            to="/dashboard"
+            to={canManage ? "/dashboard" : "/info"}
             className={`px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-2 transition ${
-              location.pathname === '/dashboard'
+              location.pathname === '/dashboard' || location.pathname === '/info'
                 ? 'bg-[#2563eb] text-white shadow-sm'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-[#1a202c]'
             }`}

@@ -113,7 +113,7 @@ export default function ChannelCard({ channel, onEnter, onOpenEpg }) {
           <PlayCircle size={15} />
           Enter Control Room
         </button>
-        <button
+        {/* <button
           type="button"
           onClick={() => onOpenEpg?.(channel)}
           className="py-2 px-3 rounded-lg bg-[#141b2b] hover:bg-[#1a2338] border border-[#232f48] text-cyan-400 font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
@@ -121,7 +121,7 @@ export default function ChannelCard({ channel, onEnter, onOpenEpg }) {
         >
           <Calendar size={14} />
           <span className="hidden sm:inline">EPG</span>
-        </button>
+        </button> */}
       </div>
     </div>
   );

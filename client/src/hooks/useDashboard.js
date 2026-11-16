@@ -50,19 +50,37 @@ export default function useDashboard(initialSection = 'channels', initialSubView
   const { list: channels, error: channelError, successMessage: channelSuccess } = useSelector((state) => state.channels);
   const { list: servers, error: serverError, successMessage: serverSuccess } = useSelector((state) => state.servers);
 
+  const isSuperAdmin = currentUser?.role === 'super_admin';
+  const isAdmin = currentUser?.role === 'admin';
+  const canManage = isSuperAdmin || isAdmin;
+
+  const isRestrictedForUser = useCallback(
+    (sec) => !canManage && (sec === 'channels' || sec === 'dashboard' || sec === 'servers' || sec === 'users'),
+    [canManage]
+  );
+
   // ---------- Playlists state ----------
   const [playlists, setPlaylists] = useState([]);
   const [playlistAlert, setPlaylistAlert] = useState({ success: '', error: '' });
 
   // ---------- Navigation state ----------
   // activeSection: 'channels' | 'servers' | 'users' | 'default_playlist' | 'scheduling_playlist' | 'live_schedule' | 'advertisement_playlist' | 'emergency_playlist'
-  const [activeSection, setActiveSection] = useState(initialSection);
+  const resolvedInitialSection = isRestrictedForUser(initialSection) ? 'info' : initialSection;
+  const [activeSection, setActiveSection] = useState(resolvedInitialSection);
   // subView: 'list' | 'create' | 'edit'
   const [subView, setSubView] = useState(initialSubView);
   const [isSidebarOpen, setIsSidebarOpen] = useState(() =>
     typeof window !== 'undefined' ? window.innerWidth >= 1024 : true
   );
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+
+  // Protect against role changes or direct navigation to restricted sections for regular users
+  useEffect(() => {
+    if (currentUser && !canManage && isRestrictedForUser(activeSection)) {
+      setActiveSection('info');
+      setSubView('list');
+    }
+  }, [currentUser, canManage, activeSection, isRestrictedForUser]);
 
   // ---------- Misc UI state ----------
   const [searchQuery, setSearchQuery] = useState('');
@@ -94,16 +112,20 @@ export default function useDashboard(initialSection = 'channels', initialSubView
   }, []);
 
   useEffect(() => {
-    dispatch(fetchUsers());
     dispatch(fetchChannels());
-    dispatch(fetchServers());
+    if (canManage) {
+      dispatch(fetchUsers());
+      dispatch(fetchServers());
+    }
     fetchDashboardPlaylists();
 
     const handleOnline = () => {
-      console.log('[Dashboard] Internet connectivity restored. Re-fetching channels, users, and servers...');
+      console.log('[Dashboard] Internet connectivity restored. Re-fetching data...');
       dispatch(fetchChannels());
-      dispatch(fetchUsers());
-      dispatch(fetchServers());
+      if (canManage) {
+        dispatch(fetchUsers());
+        dispatch(fetchServers());
+      }
       fetchDashboardPlaylists();
     };
     window.addEventListener('online', handleOnline);
@@ -111,7 +133,7 @@ export default function useDashboard(initialSection = 'channels', initialSubView
     return () => {
       window.removeEventListener('online', handleOnline);
     };
-  }, [dispatch, fetchDashboardPlaylists]);
+  }, [dispatch, canManage, fetchDashboardPlaylists]);
 
   // ---------- Auto-clear alerts after 4s ----------
   useEffect(() => {
@@ -143,6 +165,28 @@ export default function useDashboard(initialSection = 'channels', initialSubView
     }
   }, [serverSuccess, serverError, dispatch]);
 
+  // ---------- User Assigned Scope ----------
+  const userAssignedChannels = useMemo(() => {
+    if (!currentUser) return [];
+    if (canManage) return Array.isArray(channels) ? channels : [];
+    return (Array.isArray(channels) ? channels : []).filter((c) => {
+      const assignedId = String(c.assignedUser?._id || c.assignedUser || '');
+      const createdById = String(c.createdBy?._id || c.createdBy || '');
+      const myId = String(currentUser._id || '');
+      return assignedId === myId || createdById === myId;
+    });
+  }, [channels, currentUser, canManage]);
+
+  const userPlaylists = useMemo(() => {
+    const list = Array.isArray(playlists) ? playlists : [];
+    if (canManage) return list;
+    const allowedChannelIds = new Set(userAssignedChannels.map((c) => String(c._id)));
+    return list.filter((p) => {
+      const pChannelId = String(p.channel?._id || p.channel || '');
+      return allowedChannelIds.has(pChannelId);
+    });
+  }, [playlists, userAssignedChannels, canManage]);
+
   // ---------- Filtered lists ----------
   const filteredUsers = useMemo(() => {
     if (!searchQuery) return users;
@@ -155,7 +199,7 @@ export default function useDashboard(initialSection = 'channels', initialSubView
   }, [users, searchQuery]);
 
   const filteredChannels = useMemo(() => {
-    const list = Array.isArray(channels) ? channels : [];
+    const list = userAssignedChannels;
     const q = searchQuery.toLowerCase();
     const matched = !q
       ? list
@@ -172,7 +216,7 @@ export default function useDashboard(initialSection = 'channels', initialSubView
         storageDisplay
       };
     });
-  }, [channels, searchQuery]);
+  }, [userAssignedChannels, searchQuery]);
 
   const filteredServers = useMemo(() => {
     if (!searchQuery) return servers;
@@ -186,15 +230,15 @@ export default function useDashboard(initialSection = 'channels', initialSubView
   }, [servers, searchQuery]);
 
   const filteredPlaylists = useMemo(() => {
-    if (!searchQuery) return playlists;
+    if (!searchQuery) return userPlaylists;
     const q = searchQuery.toLowerCase();
-    return playlists.filter(
+    return userPlaylists.filter(
       (p) =>
         (p.name && p.name.toLowerCase().includes(q)) ||
         (p.type && p.type.toLowerCase().includes(q)) ||
         (p.channel?.name && p.channel.name.toLowerCase().includes(q))
     );
-  }, [playlists, searchQuery]);
+  }, [userPlaylists, searchQuery]);
 
   const defaultPlaylists = useMemo(() => {
     return filteredPlaylists.filter((p) => p.type === 'default');
@@ -218,7 +262,8 @@ export default function useDashboard(initialSection = 'channels', initialSubView
 
   // ---------- Navigation / header actions ----------
   const goToSection = (section) => {
-    setActiveSection(section);
+    const targetSection = isRestrictedForUser(section) ? 'info' : section;
+    setActiveSection(targetSection);
     setSubView('list');
     setSearchQuery('');
     if (typeof window !== 'undefined' && window.innerWidth < 1024) {
@@ -233,8 +278,8 @@ export default function useDashboard(initialSection = 'channels', initialSubView
 
   const openControlRoom = () => {
     setIsProfileMenuOpen(false);
-    if (channels[0]?._id) {
-      navigate(`/channels/${channels[0]._id}`);
+    if (userAssignedChannels[0]?._id) {
+      navigate(`/channels/${userAssignedChannels[0]._id}`);
     }
   };
 
@@ -492,7 +537,7 @@ export default function useDashboard(initialSection = 'channels', initialSubView
     setEditingPlaylistId(null);
     setPlaylistFormData({
       ...getEmptyPlaylistForm(forcedType),
-      channel: channels[0]?._id || '',
+      channel: userAssignedChannels[0]?._id || '',
       items: []
     });
     const sectionMap = {
@@ -645,9 +690,9 @@ export default function useDashboard(initialSection = 'channels', initialSubView
     // data
     currentUser,
     users,
-    channels,
+    channels: userAssignedChannels,
     servers,
-    playlists,
+    playlists: userPlaylists,
     filteredUsers,
     filteredChannels,
     filteredServers,
