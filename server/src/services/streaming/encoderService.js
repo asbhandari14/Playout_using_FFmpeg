@@ -35,6 +35,23 @@ export class EncoderService {
     this.watchdogTimer = null;
     this.isTransitioning = false;
 
+
+    // FFmpeg performance monitoring
+    this.encoderStats = {
+      frame: 0,
+      fps: 0,
+      speed: 0,
+      bitrate: '0kbits/s',
+      outputTime: 0,
+      lastUpdate: Date.now(),
+      startedAt: Date.now()
+    };
+
+    this.encoderMonitorTimer = null;
+    this.lastStatsLogAt = 0;
+    this.statsLogInterval = 2000; // Log every 2 seconds
+
+
     // Stream working directory
     this.channelDir = path.join(STREAMS_DIR, String(channel._id));
     this.hlsDir = path.join(this.channelDir, 'hls');
@@ -724,6 +741,8 @@ export class EncoderService {
     const teeOutput = `[f=hls:hls_time=1:hls_list_size=5:hls_flags=delete_segments+split_by_time+independent_segments+omit_endlist]${hlsManifest}|[f=flv:flvflags=no_duration_filesize]${rtmpTarget}`;
 
     const ffmpegArgs = [
+      '-stats',
+      '-stats_period', '1',
       '-y',
       '-fflags', '+genpts+discardcorrupt',
       // Input 0: MPEG-TS stdin from Feeder (bounded probe so standardized feeder pipe starts immediately)
@@ -803,45 +822,148 @@ export class EncoderService {
       console.error('[Encoder process error]', err.message);
     });
 
-    this.process.stderr.on('data', (d) => {
-      const msg = d.toString();
-      const timeMatch = msg.match(/time=(\d+):(\d+):(\d+(?:\.\d+)?)/);
-      if (timeMatch) {
-        this.lastReportedPts = Number(timeMatch[1]) * 3600 + Number(timeMatch[2]) * 60 + Number(timeMatch[3]);
-        this.lastReportedAt = Date.now();
-        if (!this.hasFirstPts) {
-          this.hasFirstPts = true;
-          this.resolveFirstFrameWaiters(true);
-        }
-      }
+    // this.process.stderr.on('data', (d) => {
+    //   const msg = d.toString();
+    //   const timeMatch = msg.match(/time=(\d+):(\d+):(\d+(?:\.\d+)?)/);
+    //   if (timeMatch) {
+    //     this.lastReportedPts = Number(timeMatch[1]) * 3600 + Number(timeMatch[2]) * 60 + Number(timeMatch[3]);
+    //     this.lastReportedAt = Date.now();
+    //     if (!this.hasFirstPts) {
+    //       this.hasFirstPts = true;
+    //       this.resolveFirstFrameWaiters(true);
+    //     }
+    //   }
 
-      // Detect RTMP socket failure, broken connection, or slave drop during network outage
-      if (
-        !this.isStopping &&
-        (msg.includes('Slave muxer #1 failed') ||
-          msg.includes('Connection reset by peer') ||
-          (msg.includes('Connection to') && msg.includes('failed')) ||
-          msg.includes('Cannot open connection') ||
-          msg.includes('Failed to update header with correct duration') ||
-          (msg.includes('rtmp://') && (msg.includes('Broken pipe') || msg.includes('Error') || msg.includes('failed'))))
-      ) {
-        console.warn(`[Encoder:${streamKey}] RTMP slave output disconnected: ${msg.trim()}`);
-        this.triggerFailure('RTMP output disconnected');
-      }
+    //   // Detect RTMP socket failure, broken connection, or slave drop during network outage
+    //   if (
+    //     !this.isStopping &&
+    //     (msg.includes('Slave muxer #1 failed') ||
+    //       msg.includes('Connection reset by peer') ||
+    //       (msg.includes('Connection to') && msg.includes('failed')) ||
+    //       msg.includes('Cannot open connection') ||
+    //       msg.includes('Failed to update header with correct duration') ||
+    //       (msg.includes('rtmp://') && (msg.includes('Broken pipe') || msg.includes('Error') || msg.includes('failed'))))
+    //   ) {
+    //     console.warn(`[Encoder:${streamKey}] RTMP slave output disconnected: ${msg.trim()}`);
+    //     this.triggerFailure('RTMP output disconnected');
+    //   }
 
-      // Log notable encoder events, RTMP connection messages, timestamp warnings, and errors
-      if (
-        msg.includes('Error') ||
-        msg.includes('failed') ||
-        msg.includes('rtmp') ||
-        msg.includes('Connection') ||
-        msg.includes('Slave') ||
-        msg.includes('Non-monotonous DTS') ||
-        msg.includes('backward in time')
-      ) {
-        console.log(`[Encoder:${streamKey}] ${msg.trim()}`);
-      }
-    });
+    //   // Log notable encoder events, RTMP connection messages, timestamp warnings, and errors
+    //   if (
+    //     msg.includes('Error') ||
+    //     msg.includes('failed') ||
+    //     msg.includes('rtmp') ||
+    //     msg.includes('Connection') ||
+    //     msg.includes('Slave') ||
+    //     msg.includes('Non-monotonous DTS') ||
+    //     msg.includes('backward in time')
+    //   ) {
+    //     console.log(`[Encoder:${streamKey}] ${msg.trim()}`);
+    //   }
+    // });
+
+
+this.process.stderr.on('data', (d) => {
+  const msg = d.toString();
+
+  // Extract FFmpeg performance metrics
+  const frameMatch = msg.match(/frame=\s*(\d+)/);
+  const fpsMatch = msg.match(/fps=\s*([\d.]+)/);
+  const speedMatch = msg.match(/speed=\s*([\d.]+)x/);
+  const bitrateMatch = msg.match(/bitrate=\s*([\d.]+\s*kbits\/s)/);
+  const timeMatch = msg.match(/time=(\d+):(\d+):(\d+(?:\.\d+)?)/);
+
+  if (frameMatch) {
+    this.encoderStats.frame = Number(frameMatch[1]);
+  }
+
+  if (fpsMatch) {
+    this.encoderStats.fps = Number(fpsMatch[1]);
+  }
+
+  if (speedMatch) {
+    this.encoderStats.speed = Number(speedMatch[1]);
+  }
+
+  if (bitrateMatch) {
+    this.encoderStats.bitrate = bitrateMatch[1];
+  }
+
+  if (timeMatch) {
+    this.lastReportedPts =
+      Number(timeMatch[1]) * 3600 +
+      Number(timeMatch[2]) * 60 +
+      Number(timeMatch[3]);
+
+    this.lastReportedAt = Date.now();
+
+    this.encoderStats.outputTime = this.lastReportedPts;
+
+    if (!this.hasFirstPts) {
+      this.hasFirstPts = true;
+      this.resolveFirstFrameWaiters(true);
+    }
+  }
+
+  // Continuous performance logging (every 2 seconds)
+  const now = Date.now();
+
+  if (now - this.lastStatsLogAt >= this.statsLogInterval) {
+    this.lastStatsLogAt = now;
+
+    const elapsed = (now - this.encoderStats.startedAt) / 1000;
+
+    console.log(
+      `[Encoder Performance:${this.channel.name}] ` +
+      `Frame=${this.encoderStats.frame} | ` +
+      `FPS=${this.encoderStats.fps} | ` +
+      `Speed=${this.encoderStats.speed}x | ` +
+      `Bitrate=${this.encoderStats.bitrate} | ` +
+      `OutputTime=${this.encoderStats.outputTime.toFixed(2)}s | ` +
+      `Uptime=${elapsed.toFixed(1)}s`
+    );
+  }
+
+  // Existing RTMP failure detection
+  if (
+    !this.isStopping &&
+    (
+      msg.includes('Slave muxer #1 failed') ||
+      msg.includes('Connection reset by peer') ||
+      (msg.includes('Connection to') && msg.includes('failed')) ||
+      msg.includes('Cannot open connection') ||
+      msg.includes('Failed to update header with correct duration') ||
+      (
+        msg.includes('rtmp://') &&
+        (
+          msg.includes('Broken pipe') ||
+          msg.includes('Error') ||
+          msg.includes('failed')
+        )
+      )
+    )
+  ) {
+    console.warn(
+      `[Encoder:${this.channel.name}] RTMP slave output disconnected: ${msg.trim()}`
+    );
+
+    this.triggerFailure('RTMP output disconnected');
+  }
+
+  // Existing important FFmpeg logs
+  if (
+    msg.includes('Error') ||
+    msg.includes('failed') ||
+    msg.includes('rtmp') ||
+    msg.includes('Connection') ||
+    msg.includes('Slave') ||
+    msg.includes('Non-monotonous DTS') ||
+    msg.includes('backward in time')
+  ) {
+    console.log(`[Encoder:${this.channel.name}] ${msg.trim()}`);
+  }
+});
+
 
     // Frozen-PTS watchdog: recover automatically if FFmpeg hangs without exiting
     if (this.watchdogTimer) {
