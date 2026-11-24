@@ -1472,6 +1472,7 @@ this.process.stderr.on('data', (d) => {
     const bTick = this.channel?.branding?.ticker;
     if (!bTick || !bTick.enabled) return null;
 
+    const meta = this.tickerMeta || {};
     const bLband = this.channel?.branding?.lband || {};
     const canvasW = this.canvasWidth || 1280;
     const canvasH = this.canvasHeight || 720;
@@ -1522,6 +1523,13 @@ this.process.stderr.on('data', (d) => {
       x1 = targetX + Math.max(0, targetW - w1);
     }
 
+    const widthExpr = `trunc(((1-${E})*${w0}+${E}*${w1})/2)*2`;
+    const speed = Math.max(1, Math.min(10, Number(bTick.speed) || 3));
+    const scrollSpeed = Math.round(10 + speed * 25);
+    const textXExpr = meta.isSmallText
+      ? `${widthExpr}-mod(t*${scrollSpeed},${widthExpr}+${meta.contentWidth || 'w'})`
+      : `0-mod(t*${scrollSpeed},${meta.unitWidth || 350})`;
+
     return {
       x0,
       y0,
@@ -1531,10 +1539,44 @@ this.process.stderr.on('data', (d) => {
       y1,
       w1,
       h1: squeezedTickH,
+      widthExpr,
+      textXExpr,
       xExpr: `trunc(((1-${E})*${x0}+${E}*${x1})/2)*2`,
       yExpr: `trunc(((1-${E})*${y0}+${E}*${y1})/2)*2`,
       hExpr: `trunc(((1-${E})*${tickBaseHeight}+${E}*${squeezedTickH})/2)*2`
     };
+  }
+
+  async animateTickerCropWidth(tickerMove, enabled, transitionStart, duration, animId) {
+    const fps = Number(this.channel?.outputSettings?.fps) || 25;
+    const frameIntervalMs = 1000 / fps;
+    let nextUpdateAt = Date.now();
+
+    while (this.isRunning && this.lbandAnimId === animId) {
+      const progress = Math.max(0, Math.min(
+        1,
+        (this.getCurrentStreamTime() - transitionStart) / duration
+      ));
+      const eased = progress * progress * progress * (progress * (progress * 6 - 15) + 10);
+      const bandProgress = enabled ? eased : 1 - eased;
+      const width = Math.max(2, Math.trunc(
+        ((1 - bandProgress) * tickerMove.w0 + bandProgress * tickerMove.w1) / 2
+      ) * 2);
+
+      await this.sendZmqCommand(`crop@tick_crop w ${width}`);
+      if (progress >= 1) return;
+
+      nextUpdateAt += frameIntervalMs;
+      await new Promise((resolve) => setTimeout(resolve, Math.max(0, nextUpdateAt - Date.now())));
+    }
+  }
+
+  scheduleTickerCropWidthAnimation(tickerMove, enabled, transitionStart, duration, animId) {
+    const delay = Math.max(0, (transitionStart - this.getCurrentStreamTime()) * 1000);
+    setTimeout(() => {
+      this.animateTickerCropWidth(tickerMove, enabled, transitionStart, duration, animId)
+        .catch((err) => console.warn('[Encoder ZMQ] Ticker width animation failed:', err.message));
+    }, delay);
   }
 
   // Calculate smooth smootherstep expressions for Ticker during Ashton Band transition
@@ -1682,7 +1724,9 @@ this.process.stderr.on('data', (d) => {
         if (tk) {
           await this.sendZmqCommand(`overlay@tick x ${tk.xExpr}`);
           await this.sendZmqCommand(`overlay@tick y ${tk.yExpr}`);
+          await this.sendZmqCommand(`overlay@ticktext x ${tk.textXExpr}`);
           await this.sendZmqCommand(`scale@tick_scale h ${tk.hExpr}`);
+          this.scheduleTickerCropWidthAnimation(tk, true, T, D, animId);
         }
 
         // 4. Switch the master composite on (video is currently full-screen above the L-band, zero pop)
@@ -1738,7 +1782,9 @@ this.process.stderr.on('data', (d) => {
         if (tk) {
           await this.sendZmqCommand(`overlay@tick x ${tk.xExpr}`);
           await this.sendZmqCommand(`overlay@tick y ${tk.yExpr}`);
+          await this.sendZmqCommand(`overlay@ticktext x ${tk.textXExpr}`);
           await this.sendZmqCommand(`scale@tick_scale h ${tk.hExpr}`);
+          this.scheduleTickerCropWidthAnimation(tk, false, T, D, animId);
         }
 
         // 4. After transition duration (1.8s + lead + buffer), video is completely full-screen covering graphic.
